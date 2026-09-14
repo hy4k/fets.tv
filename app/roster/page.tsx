@@ -1,0 +1,3 @@
+import { AppShell } from '@/app/layout';
+import { RosterImport } from '@/components/roster-import';
+export default function RosterPage() { return <AppShell active="roster"><div className="page"><div className="page-head"><div /><div className="head-right"><span className="pill green">● LIVE</span><button className="head-btn primary">Broadcast</button></div></div><RosterImport /><div className="section"><div className="section-bar">Slot preview <span>Calculated from center settings</span></div><div className="small" style={{ padding: '12px 0' }}>Upload a roster to generate a validated preview. The import API ignores blank rows, detects the header row, preserves source row numbers, and retains NO SHOW flags.</div></div></div></AppShell>; }
