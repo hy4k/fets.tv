@@ -2,25 +2,26 @@ name: Deploy FETS.TV to Hostinger
 
 on:
   workflow_dispatch:
-    push:
-        branches: [main]
+  push:
+    branches:
+      - main
 
-        jobs:
-          deploy:
-              runs-on: ubuntu-latest
-                  steps:
-                        - name: Checkout
-                                uses: actions/checkout@v4
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-                                      - name: Deploy Docker Compose project to Hostinger VPS
-                                              uses: hostinger/deploy-on-vps@v2
-                                                      with:
-                                                                api-key: ${{ secrets.HOSTINGER_API_KEY }}
-                                                                          virtual-machine: ${{ vars.HOSTINGER_VM_ID }}
-                                                                                    project-name: fets-tv
-                                                                                              docker-compose-path: docker-compose.yml
-                                                                                                        environment-variables: |
-                                                                                                                    NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-                                                                                                                                NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-                                                                                                                                            NEXT_PUBLIC_DEFAULT_CENTER_ID=${{ vars.NEXT_PUBLIC_DEFAULT_CENTER_ID }}
-                                                                                                                                                        NEXT_PUBLIC_DEFAULT_EXAM_SESSION_ID=${{ vars.NEXT_PUBLIC_DEFAULT_EXAM_SESSION_ID }}
+      - name: Deploy Docker Compose project to Hostinger VPS
+        uses: hostinger/deploy-on-vps@v2
+        with:
+          api-key: ${{ secrets.HOSTINGER_API_KEY }}
+          virtual-machine: '1120621'
+          project-name: fets-tv
+          docker-compose-path: docker-compose.yml
+          environment-variables: |
+            NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+            NEXT_PUBLIC_DEFAULT_CENTER_ID=01610931-51f3-4391-a5c7-31bcd5ae4bfd
+            NEXT_PUBLIC_DEFAULT_EXAM_SESSION_ID=fcacc115-cc5b-4a3f-9270-65245e7a9093
