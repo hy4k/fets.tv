@@ -17,14 +17,17 @@ services:
     expose:
       - "3000"
     networks:
-      - traefik
+      - proxy
     labels:
       traefik.enable: "true"
-      traefik.docker.network: "${TRAEFIK_NETWORK:-traefik-q73c_default}"
+      traefik.docker.network: "proxy"
+      traefik.http.routers.fets-tv.entrypoints: "websecure"
       traefik.http.routers.fets-tv.rule: "Host(`fets.online`) && PathPrefix(`/tv`)"
+      traefik.http.routers.fets-tv.priority: "100"
+      traefik.http.routers.fets-tv.tls: "true"
+      traefik.http.routers.fets-tv.tls.certresolver: "letsencrypt"
       traefik.http.services.fets-tv.loadbalancer.server.port: "3000"
 
 networks:
-  traefik:
+  proxy:
     external: true
-    name: ${TRAEFIK_NETWORK:-traefik-q73c_default}
