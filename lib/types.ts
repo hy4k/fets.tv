@@ -1,4 +1,4 @@
-export type StaffRole = "admin" | "front_office" | "lab_staff" | "viewer";
+export type StaffRole = "admin" | "tca" | "front_office" | "lab_staff" | "viewer";
 
 export type CandidateStatus =
   | "scheduled"
@@ -72,6 +72,33 @@ export type Candidate = {
   testing_started_at: string | null;
   completed_at: string | null;
   signed_out_at: string | null;
+  programme_id: string | null;
+  exam_started_at: string | null;
+  exam_duration_minutes: number | null;
+  exam_expected_end: string | null;
+  exam_finished_at: string | null;
+  created_at: string;
+};
+
+export type ExamProgramme = {
+  id: string;
+  center_id: string;
+  code: string;
+  name: string;
+  default_duration_minutes: number;
+  active: boolean;
+  created_at: string;
+};
+
+export type CandidateBreak = {
+  id: string;
+  candidate_id: string;
+  center_id: string;
+  kind: "scheduled" | "unscheduled";
+  started_at: string;
+  ended_at: string | null;
+  authorised_by: string | null;
+  reason: string | null;
   created_at: string;
 };
 
@@ -199,6 +226,8 @@ export type Database = {
       candidate_events: Table<CandidateEvent>;
       public_displays: Table<PublicDisplay>;
       public_display_calls: Table<PublicDisplayCall>;
+      exam_programmes: Table<ExamProgramme>;
+      candidate_breaks: Table<CandidateBreak>;
     };
     Views: Record<never, never>;
     Functions: {
@@ -238,6 +267,20 @@ export type Database = {
         };
       };
       fets_display_state: { Args: { p_display_key: string }; Returns: DisplayState | null };
+      fets_start_exam: {
+        Args: { p_candidate: string; p_programme: string | null; p_started_at: string; p_duration: number };
+        Returns: Candidate;
+      };
+      fets_adjust_exam: {
+        Args: { p_candidate: string; p_started_at: string; p_duration: number; p_reason: string };
+        Returns: Candidate;
+      };
+      fets_break_out: {
+        Args: { p_candidate: string; p_kind?: "scheduled" | "unscheduled"; p_reason?: string | null };
+        Returns: CandidateBreak;
+      };
+      fets_break_in: { Args: { p_candidate: string }; Returns: CandidateBreak };
+      fets_confirm_finish: { Args: { p_candidate: string; p_note?: string | null }; Returns: Candidate };
     };
     Enums: {
       staff_role: StaffRole;

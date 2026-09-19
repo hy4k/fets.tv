@@ -9,3 +9,8 @@ npm-debug.log*
 .yarn-error.log*
 .DS_Store
 coverage/
+*.tsbuildinfo
+
+# next dev regenerates these on every run
+AGENTS.md
+CLAUDE.md

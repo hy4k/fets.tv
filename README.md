@@ -9,6 +9,7 @@ The console enforces one flow, in this order:
 **Front Office** check-in (ID cross-verified → locker key → checked in) → **Admin Room**
 presses Call → **public TV** shows the token → front office sends the candidate in →
 **Exam Lab** moves them through frisking, biometrics, a workstation, testing and sign-out.
+Once a candidate is seated, **Live Floor** runs the exam clock.
 
 Every transition runs through a Postgres function that records the status change and its
 audit event in the same commit, checks the operator's center and role, and enforces the
@@ -21,16 +22,31 @@ with a reason.
 - Supabase: Postgres, Auth, Realtime, RLS
 - `exceljs` + `papaparse` for roster import
 
+## Roles
+
+| Role | Can do |
+| --- | --- |
+| `admin` | Everything, including Setup, roster import, seat sync and the backwards-stage override |
+| `tca` | The whole operational floor: front desk, Call / Re-call / Clear, seating, exam clock, breaks, Confirm finish. No Setup, no roster import, no override |
+| `front_office` | Front desk only |
+| `lab_staff` | Lab and floor only |
+| `viewer` | Read only |
+
+Jobs at the centers rotate daily, so most staff are `tca` rather than a fixed
+desk. `fets_guard` treats a TCA as satisfying anything front office or lab staff
+would satisfy; the three call actions name the TCA explicitly.
+
 ## Routes
 
 | Route | Who | What |
 | --- | --- | --- |
 | `/login` | anyone | Staff sign-in |
-| `/front-office` | front office | Search the roster, verify ID, issue a locker key, check in, send called candidates in |
-| `/admin` | admin | Waiting queue with Call / Re-call / Clear, live counters, 11-stage flow, audit trail, override |
+| `/front-office` | front office, TCA | Search the roster, verify ID, issue a locker key, check in, send called candidates in |
+| `/admin` | admin, TCA | Waiting queue with Call / Re-call / Clear, live counters, 11-stage flow, audit trail, override |
 | `/tv` | any operator | Staff-side preview of what the halls are showing |
+| `/floor` | admin, TCA, lab staff | Live Floor: one card per occupied seat, exam countdown, breaks, Confirm finish |
 | `/admin/roster` | admin | CSV/XLSX import with validation preview, slot sequencing |
-| `/lab` | lab staff | Seat map, faults, handoffs through the pipeline |
+| `/lab` | lab staff, TCA | Seat map, faults, handoffs through the pipeline |
 | `/settings/center` | admin | Scheduling, workflow toggles, paired displays |
 | `/display/<key>` | nobody signed in | The hall TV |
 
@@ -87,13 +103,35 @@ exception rather than a stage. Counts and per-row issues are shown before commit
 Committing closes the previous session and issues `FETS-001…` tokens in roster order,
 scheduling candidates into slots that respect interval, duration, break and lab capacity.
 
+## Live Floor
+
+Staff enter the actual start time and the duration; the countdown is derived from
+`exam_started_at + exam_duration_minutes`, so it survives a refresh and reads the same on
+every screen. Durations come from `exam_programmes`, edited once under Setup and
+prefilled when an exam is started.
+
+- Colour bands: green over an hour left, blue inside 60 minutes, red inside 15, blinking
+  in the last minute, and `+mm min` once the expected end has passed.
+- Reaching the expected end **never** finishes anyone. The card asks staff to confirm and
+  `fets_confirm_finish` is the only thing that ends an exam.
+- Breaks are timed separately and the exam clock keeps running through them. Scheduled
+  breaks are one press; unscheduled ones ask for a reason and record who authorised them.
+  Any TCA may authorise one. A candidate cannot be finished while still out.
+- Corrections go through `fets_adjust_exam`, which requires a reason and keeps the
+  previous start and duration in the audit event.
+
+A time typed on the floor is read as the center's wall clock, not the browser's, so a
+laptop with the wrong timezone cannot skew the record.
+
 ## Database
 
 `supabase/migrations/0001…0006` are the original schema. `20260919*` add the console
 bridge: `center_id` on candidates and events, `called_at`, `show_name_on_tv`, workflow
 flags, the hashed-key `public_displays` table, name/room columns on the call log, and the
 `fets_*` transition functions. The generic `transition_candidate` is kept for
-compatibility and now checks the operator's center.
+compatibility and now checks the operator's center. The last two add the Live Floor:
+`exam_programmes`, `candidate_breaks`, the exam-timing columns on `candidates`, and the
+five floor functions.
 
 Applied to production already. To rebuild elsewhere:
 
@@ -101,19 +139,20 @@ Applied to production already. To rebuild elsewhere:
 supabase db push
 ```
 
-### Still to do
+### Cutover
 
-`candidates` still carries `insert, update` grants for `authenticated`, and
-`public_display_calls` is still readable by `anon`. Both are leftovers from the previous
-UI, and both should be revoked once this console is the only client — see the PR
-description for the exact statements.
+`20260919161337` revoked the leftover grants from the previous UI: `candidates` can no
+longer be written directly (so no status change can skip its audit event) and
+`public_display_calls` is no longer readable with the anon key. Staff still read the call
+log through `staff_read_display_calls`, scoped to their own center; the hall TV is served
+by the Next.js route with the service role, so the display client never touches Postgres.
 
 ## Checks
 
 ```bash
 npm run build
 npm run lint
-npm test          # roster parser
+npm test          # roster parser + exam clock
 ```
 
 The SQL has been exercised end to end against Postgres 16 and against the live project in

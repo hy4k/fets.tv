@@ -1,0 +1,39 @@
+name: CI
+
+# Nothing validated a branch before it reached fets.online: the deploy workflow
+# runs on push to main, so a broken merge became a broken production console.
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Build, lint and test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npx eslint .
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build

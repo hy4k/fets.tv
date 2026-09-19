@@ -10,12 +10,21 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 import type { ScheduleRules } from "@/lib/types";
 
 export function SettingsScreen() {
-  const { center, rules, workstations, displays, notify, refresh, rpc, isAdmin } = useConsole();
-  const { open, toggle } = useDrawers("settings", { sched: true, work: false, disp: false });
+  const { center, rules, workstations, displays, programmes, notify, refresh, rpc, isAdmin } = useConsole();
+  const { open, toggle } = useDrawers("settings", { sched: true, work: false, disp: false, programmes: false });
   const now = useNow();
 
   async function saveRules(patch: Partial<ScheduleRules>) {
     const { error } = await supabaseBrowser().from("schedule_rules").update(patch).eq("center_id", center.id);
+    if (error) notify(error.message, "error");
+    else await refresh();
+  }
+
+  async function saveProgramme(id: string, minutes: number) {
+    const { error } = await supabaseBrowser()
+      .from("exam_programmes")
+      .update({ default_duration_minutes: minutes })
+      .eq("id", id);
     if (error) notify(error.message, "error");
     else await refresh();
   }
@@ -159,6 +168,37 @@ export function SettingsScreen() {
         </p>
       </Drawer>
 
+      <Drawer
+        label="Exam programmes"
+        meta={programmes.length}
+        open={open.programmes}
+        onToggle={toggle("programmes")}
+      >
+        <div className="grid shrink-0 grid-cols-[repeat(auto-fit,minmax(230px,1fr))] gap-[10px]">
+          {programmes.map((prog) => (
+            <div
+              key={prog.id}
+              className="flex items-center gap-[10px] rounded-[15px] border border-edge bg-panel-soft px-[11px] py-[10px]"
+            >
+              <span className="block min-w-0 flex-1">
+                <span className="block text-[12px] font-semibold">{prog.code}</span>
+                <span className="mt-[2px] block font-mono text-[10px] text-fg-faint">default duration</span>
+              </span>
+              <DurationField
+                value={prog.default_duration_minutes}
+                disabled={!isAdmin}
+                onCommit={(minutes) => saveProgramme(prog.id, minutes)}
+              />
+              <span className="font-mono text-[10px] text-fg-faint">min</span>
+            </div>
+          ))}
+        </div>
+        <p className="shrink-0 font-mono text-[10.5px] text-fg-faint">
+          These are the durations the Live Floor pre-fills when an exam is started; staff can still override per
+          candidate. Confirm each one against the programme&rsquo;s own instructions before relying on it.
+        </p>
+      </Drawer>
+
       <Drawer label="Displays" meta={displays.length} open={open.disp} onToggle={toggle("disp")}>
         <div className="grid shrink-0 grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-[10px]">
           {displays.map((d) => {
@@ -184,6 +224,39 @@ export function SettingsScreen() {
         </div>
       </Drawer>
     </div>
+  );
+}
+
+function DurationField({
+  value,
+  disabled,
+  onCommit,
+}: {
+  value: number;
+  disabled: boolean;
+  onCommit: (minutes: number) => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+
+  function commit() {
+    const next = draft;
+    setDraft(null);
+    const minutes = Number(next);
+    if (next && Number.isFinite(minutes) && minutes >= 1 && minutes <= 1440 && minutes !== value) {
+      onCommit(minutes);
+    }
+  }
+
+  return (
+    <input
+      inputMode="numeric"
+      disabled={disabled}
+      value={draft ?? String(value)}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+      className="w-[58px] rounded-[10px] border border-edge-strong bg-panel px-[8px] py-[6px] text-center font-mono text-[13px] font-semibold outline-none disabled:opacity-60"
+    />
   );
 }
 

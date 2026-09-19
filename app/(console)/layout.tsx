@@ -40,7 +40,8 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
     );
   }
 
-  const [candidates, workstations, events, call, displays, operators] = await Promise.all([
+  const [candidates, workstations, events, call, displays, operators, programmes, openBreaks] =
+    await Promise.all([
     session
       ? supabase
           .from("candidates")
@@ -66,6 +67,8 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
       .maybeSingle(),
     supabase.from("public_displays").select("*").eq("center_id", center.id).order("label"),
     supabase.from("profiles").select("id, display_name").eq("center_id", center.id),
+    supabase.from("exam_programmes").select("*").eq("center_id", center.id).eq("active", true).order("code"),
+    supabase.from("candidate_breaks").select("*").eq("center_id", center.id).is("ended_at", null),
   ]);
 
   const snapshot: ConsoleSnapshot = {
@@ -78,6 +81,8 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
     events: events.data ?? [],
     call: call.data ?? null,
     displays: displays.data ?? [],
+    programmes: programmes.data ?? [],
+    openBreaks: openBreaks.data ?? [],
     operators: Object.fromEntries((operators.data ?? []).map((o) => [o.id, o.display_name])),
   };
 
