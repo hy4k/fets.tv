@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useConsole } from "@/lib/console-data";
 
 const AUX = [
+  { href: "/floor", short: "Floor" },
   { href: "/admin/roster", short: "Roster" },
   { href: "/lab", short: "Lab" },
   { href: "/settings/center", short: "Setup" },

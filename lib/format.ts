@@ -86,3 +86,52 @@ export function statusChip(c: Candidate): Chip {
 export function isInHall(c: Candidate) {
   return !["scheduled", "arrived", "completed", "signed_out", "no_show"].includes(c.status);
 }
+
+/**
+ * The staff laptop's own timezone is not trustworthy, and the exam clock is a
+ * legal record, so an HH:MM typed on the floor is read in the center's
+ * timezone rather than the browser's. Two passes settle any DST boundary.
+ */
+function zoneOffsetMs(instant: number, timezone: string) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  })
+    .formatToParts(new Date(instant))
+    .reduce<Record<string, number>>((acc, p) => {
+      if (p.type !== "literal") acc[p.type] = Number(p.value);
+      return acc;
+    }, {});
+
+  const asUtc = Date.UTC(
+    parts.year,
+    parts.month - 1,
+    parts.day,
+    parts.hour === 24 ? 0 : parts.hour,
+    parts.minute,
+    parts.second,
+  );
+  return asUtc - instant;
+}
+
+/** The current wall-clock time at the center, as "HH:MM". */
+export function nowInZone(timezone: string) {
+  return clockAt(new Date().toISOString(), timezone);
+}
+
+/** Reads "HH:MM" as today's wall-clock time at the center and returns the instant. */
+export function instantFromZonedTime(hhmm: string, timezone: string, reference: Date = new Date()) {
+  const [h, m] = hhmm.split(":").map(Number);
+  const offset = zoneOffsetMs(reference.getTime(), timezone);
+  const localDay = new Date(reference.getTime() + offset);
+
+  const guess = Date.UTC(localDay.getUTCFullYear(), localDay.getUTCMonth(), localDay.getUTCDate(), h, m);
+  const settled = guess - zoneOffsetMs(guess - offset, timezone);
+  return new Date(settled);
+}

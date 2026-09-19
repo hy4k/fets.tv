@@ -4,9 +4,11 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { supabaseBrowser } from "@/lib/supabase/client";
 import type {
   Candidate,
+  CandidateBreak,
   CandidateEvent,
   Center,
   PublicDisplayCall,
+  ExamProgramme,
   ExamSession,
   Profile,
   PublicDisplay,
@@ -24,6 +26,8 @@ export type ConsoleSnapshot = {
   events: CandidateEvent[];
   call: PublicDisplayCall | null;
   displays: PublicDisplay[];
+  programmes: ExamProgramme[];
+  openBreaks: CandidateBreak[];
   operators: Record<string, string>;
 };
 
@@ -86,7 +90,8 @@ export function ConsoleProvider({
           .order("public_token", { ascending: true })
       : null;
 
-    const [candidates, workstations, events, call, rules, center, displays] = await Promise.all([
+    const [candidates, workstations, events, call, rules, center, displays, programmes, openBreaks] =
+      await Promise.all([
       candidatesQuery,
       supabase.from("workstations").select("*").eq("center_id", centerId).order("seat_code"),
       supabase
@@ -106,6 +111,8 @@ export function ConsoleProvider({
       supabase.from("schedule_rules").select("*").eq("center_id", centerId).single(),
       supabase.from("centers").select("*").eq("id", centerId).single(),
       supabase.from("public_displays").select("*").eq("center_id", centerId).order("label"),
+      supabase.from("exam_programmes").select("*").eq("center_id", centerId).eq("active", true).order("code"),
+      supabase.from("candidate_breaks").select("*").eq("center_id", centerId).is("ended_at", null),
     ]);
 
     setSnapshot((prev) => ({
@@ -118,6 +125,8 @@ export function ConsoleProvider({
       rules: rules.data ?? prev.rules,
       center: center.data ?? prev.center,
       displays: displays.data ?? prev.displays,
+      programmes: programmes.data ?? prev.programmes,
+      openBreaks: openBreaks.data ?? prev.openBreaks,
     }));
   }, [centerId, supabase]);
 
@@ -138,6 +147,8 @@ export function ConsoleProvider({
       ["public_display_calls", `center_id=eq.${centerId}`],
       ["schedule_rules", `center_id=eq.${centerId}`],
       ["centers", `id=eq.${centerId}`],
+      ["candidate_breaks", `center_id=eq.${centerId}`],
+      ["exam_programmes", `center_id=eq.${centerId}`],
     ];
 
     for (const [table, filter] of watched) {
