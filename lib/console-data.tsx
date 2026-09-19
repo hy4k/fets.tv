@@ -1,0 +1,185 @@
+"use client";
+
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { supabaseBrowser } from "@/lib/supabase/client";
+import type {
+  Candidate,
+  CandidateEvent,
+  Center,
+  PublicDisplayCall,
+  ExamSession,
+  Profile,
+  PublicDisplay,
+  ScheduleRules,
+  Workstation,
+} from "@/lib/types";
+
+export type ConsoleSnapshot = {
+  center: Center;
+  profile: Profile;
+  rules: ScheduleRules;
+  session: ExamSession | null;
+  candidates: Candidate[];
+  workstations: Workstation[];
+  events: CandidateEvent[];
+  call: PublicDisplayCall | null;
+  displays: PublicDisplay[];
+  operators: Record<string, string>;
+};
+
+type Toast = { id: number; message: string; tone: "ok" | "error" };
+
+type ConsoleValue = ConsoleSnapshot & {
+  toasts: Toast[];
+  notify: (message: string, tone?: Toast["tone"]) => void;
+  refresh: () => Promise<void>;
+  rpc: (fn: string, args: Record<string, unknown>, okMessage?: string) => Promise<boolean>;
+  isAdmin: boolean;
+  canFrontOffice: boolean;
+  canLab: boolean;
+};
+
+const ConsoleContext = createContext<ConsoleValue | null>(null);
+
+export function useConsole() {
+  const value = useContext(ConsoleContext);
+  if (!value) throw new Error("useConsole must be used inside ConsoleProvider");
+  return value;
+}
+
+let toastSeq = 0;
+
+export function ConsoleProvider({
+  initial,
+  children,
+}: {
+  initial: ConsoleSnapshot;
+  children: React.ReactNode;
+}) {
+  const supabase = supabaseBrowser();
+  const [snapshot, setSnapshot] = useState(initial);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const centerId = initial.center.id;
+
+  const notify = useCallback((message: string, tone: Toast["tone"] = "ok") => {
+    const id = ++toastSeq;
+    setToasts((list) => [...list, { id, message, tone }]);
+    setTimeout(() => setToasts((list) => list.filter((t) => t.id !== id)), 4500);
+  }, []);
+
+  const refresh = useCallback(async () => {
+    const { data: session } = await supabase
+      .from("exam_sessions")
+      .select("*")
+      .eq("center_id", centerId)
+      .in("status", ["ready", "live"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const candidatesQuery = session
+      ? supabase
+          .from("candidates")
+          .select("*")
+          .eq("exam_session_id", session.id)
+          .order("scheduled_at", { ascending: true, nullsFirst: false })
+          .order("public_token", { ascending: true })
+      : null;
+
+    const [candidates, workstations, events, call, rules, center, displays] = await Promise.all([
+      candidatesQuery,
+      supabase.from("workstations").select("*").eq("center_id", centerId).order("seat_code"),
+      supabase
+        .from("candidate_events")
+        .select("*")
+        .eq("center_id", centerId)
+        .order("occurred_at", { ascending: false })
+        .limit(40),
+      supabase
+        .from("public_display_calls")
+        .select("*")
+        .eq("center_id", centerId)
+        .eq("active", true)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase.from("schedule_rules").select("*").eq("center_id", centerId).single(),
+      supabase.from("centers").select("*").eq("id", centerId).single(),
+      supabase.from("public_displays").select("*").eq("center_id", centerId).order("label"),
+    ]);
+
+    setSnapshot((prev) => ({
+      ...prev,
+      session: session ?? null,
+      candidates: candidates?.data ?? (session ? prev.candidates : []),
+      workstations: workstations.data ?? prev.workstations,
+      events: events.data ?? prev.events,
+      call: call.data ?? null,
+      rules: rules.data ?? prev.rules,
+      center: center.data ?? prev.center,
+      displays: displays.data ?? prev.displays,
+    }));
+  }, [centerId, supabase]);
+
+  const pending = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const scheduleRefresh = () => {
+      if (pending.current) clearTimeout(pending.current);
+      pending.current = setTimeout(() => void refresh(), 120);
+    };
+
+    const channel = supabase.channel(`fets:center:${centerId}`);
+
+    const watched: [table: string, filter: string][] = [
+      ["candidates", `center_id=eq.${centerId}`],
+      ["candidate_events", `center_id=eq.${centerId}`],
+      ["workstations", `center_id=eq.${centerId}`],
+      ["public_display_calls", `center_id=eq.${centerId}`],
+      ["schedule_rules", `center_id=eq.${centerId}`],
+      ["centers", `id=eq.${centerId}`],
+    ];
+
+    for (const [table, filter] of watched) {
+      channel.on("postgres_changes", { event: "*", schema: "public", table, filter }, scheduleRefresh);
+    }
+
+    channel.subscribe();
+
+    return () => {
+      if (pending.current) clearTimeout(pending.current);
+      void supabase.removeChannel(channel);
+    };
+  }, [centerId, refresh, supabase]);
+
+  const rpc = useCallback(
+    async (fn: string, args: Record<string, unknown>, okMessage?: string) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase.rpc as any)(fn, args);
+      if (error) {
+        notify(error.message, "error");
+        return false;
+      }
+      if (okMessage) notify(okMessage);
+      await refresh();
+      return true;
+    },
+    [notify, refresh, supabase],
+  );
+
+  const value = useMemo<ConsoleValue>(
+    () => ({
+      ...snapshot,
+      toasts,
+      notify,
+      refresh,
+      rpc,
+      isAdmin: snapshot.profile.role === "admin",
+      canFrontOffice: snapshot.profile.role === "admin" || snapshot.profile.role === "front_office",
+      canLab: snapshot.profile.role === "admin" || snapshot.profile.role === "lab_staff",
+    }),
+    [snapshot, toasts, notify, refresh, rpc],
+  );
+
+  return <ConsoleContext.Provider value={value}>{children}</ConsoleContext.Provider>;
+}

@@ -1,73 +1,122 @@
-# FETS.TV
+# FETS.TV — Operations Console
 
-Next.js + TypeScript + Supabase starter for the CBT center operations console.
+Exam delivery console for Forun Testing & Educational Services, Site 4960 (Calicut).
+Served at `https://fets.online/tv` (Traefik + Docker on Hostinger), backed by the
+Supabase project `ueufcqmdqtwvhjjyudeu` in `ap-south-1`.
 
-## Implemented
+The console enforces one flow, in this order:
 
-- Screenshot-aligned dark console UI with compact left rail.
-- Supabase email/password staff login.
-- Front Office roster search, ID verification, locker key, and check-in controls.
-- Database-backed candidate workflow transitions through `transition_candidate(...)`.
-- Immutable `candidate_events` audit trail.
-- CSV/XLSX roster import API with header detection, whitespace normalization, source-row preservation, NO SHOW detection, and privacy-safe public tokens.
-- Admin Room queue with `Call` action.
-- Public Display route at `/display/[displayKey]` with token-only content and Supabase Realtime subscription.
-- Exam Lab workstation view.
-- Center Setup controls persisted to `schedule_rules`.
+**Front Office** check-in (ID cross-verified → locker key → checked in) → **Admin Room**
+presses Call → **public TV** shows the token → front office sends the candidate in →
+**Exam Lab** moves them through frisking, biometrics, a workstation, testing and sign-out.
 
-## Setup
+Every transition runs through a Postgres function that records the status change and its
+audit event in the same commit, checks the operator's center and role, and enforces the
+stage rule for that step. Moving a candidate backwards requires `fets_admin_override`
+with a reason.
 
-The connected Supabase project is `ueufcqmdqtwvhjjyudeu` in `ap-south-1`.
+## Stack
 
-Already applied and seeded:
-
-- Site `4960 · Calicut`
-- CMA US September 2026 exam session for `2026-09-15`
-- Scheduling rules: 15-minute intervals, 90-minute duration, 3 labs, 20 seats per lab, 13:00 break
-- 60 workstations across LAB A, LAB B, and LAB C
-- RLS, realtime publication, candidate transition function, roster-write policies, and anonymous-access hardening
-
-Completed live setup:
-
-- `mithun@orchestrio.in` assigned the `admin` role for Site 4960.
-- `public.centers` RLS enabled with authenticated center-scoped reads.
-- Attached CMA roster imported: 55 candidates, 1 NO SHOW, 1 missing PART warning, 11 missing PLACE warnings.
-- Candidates received privacy-safe tokens `FETS-001` through `FETS-055`.
-
-Remaining local setup:
-
-1. Copy `.env.example` to `.env.local` if moving this project outside the current workspace. A working `.env.local` has already been prepared for the connected project in this workspace.
-2. Install dependencies and run the development server:
-
-```bash
-npm install
-npm run dev
-```
+- Next.js 16 (App Router) + React 19 + Tailwind v4, `basePath: /tv`
+- Supabase: Postgres, Auth, Realtime, RLS
+- `exceljs` + `papaparse` for roster import
 
 ## Routes
 
-- `/login` — staff authentication
-- `/front` — Front Office
-- `/admin` — Admin Room
-- `/display/hall-1-main` — privacy-safe public display
-- `/roster` — roster import and validation entry point
-- `/lab` — workstation and handoff view
-- `/setup` — scheduling and workflow settings
+| Route | Who | What |
+| --- | --- | --- |
+| `/login` | anyone | Staff sign-in |
+| `/front-office` | front office | Search the roster, verify ID, issue a locker key, check in, send called candidates in |
+| `/admin` | admin | Waiting queue with Call / Re-call / Clear, live counters, 11-stage flow, audit trail, override |
+| `/tv` | any operator | Staff-side preview of what the halls are showing |
+| `/admin/roster` | admin | CSV/XLSX import with validation preview, slot sequencing |
+| `/lab` | lab staff | Seat map, faults, handoffs through the pipeline |
+| `/settings/center` | admin | Scheduling, workflow toggles, paired displays |
+| `/display/<key>` | nobody signed in | The hall TV |
 
-## Realtime flow
+All paths are under the `/tv` base path in production (`fets.online/tv/front-office`).
 
-1. Front Office calls the `transition_candidate` database function.
-2. The candidate row and `candidate_events` record update in PostgreSQL.
-3. Admin Room receives candidate changes via Supabase Realtime.
-4. Admin Room inserts a safe `public_display_calls` record when `Call` is pressed.
-5. Public Display subscribes only to `public_display_calls` and receives token, instruction, hall, and timestamp.
-6. Candidate name, phone, place, and roster fields are never sent to the public display route.
+## Local setup
 
-## Important production hardening
+```bash
+cp .env.example .env.local   # project URL, anon key, service role key
+npm install
+npm run dev                  # http://localhost:3000/tv/front-office
+```
 
-- Replace the default public display key with a random per-display key and allowlist it server-side.
-- Add an authenticated server route for display-call creation instead of trusting a client-supplied center ID.
-- Add strict transition ordering checks to prevent invalid backward jumps.
-- Add role-aware UI guards and server-side audit review.
-- Add a session selector rather than relying on a single environment variable.
-- Add import preview/commit as two separate database operations before using this in production.
+Operators need a row in `profiles` pointing at their center:
+
+```sql
+insert into profiles (id, center_id, display_name, role)
+values ('<auth user id>', '01610931-51f3-4391-a5c7-31bcd5ae4bfd', 'Name', 'admin');
+```
+
+Roles: `admin`, `front_office`, `lab_staff`, `viewer`. Only `admin` can call candidates to
+the TV, import a roster, change center settings or run an override.
+
+## Public displays
+
+A TV opens `/tv/display/<display key>`. The key is a shared secret that lives only in that
+TV's URL; `public_displays` stores its SHA-256 hash. Register one with:
+
+```sql
+insert into public_displays (center_id, display_key_hash, label, hall_label)
+values (
+  '01610931-51f3-4391-a5c7-31bcd5ae4bfd',
+  encode(sha256(convert_to('a-long-random-string', 'utf8')), 'hex'),
+  'Hall 1 · main TV',
+  'HALL 1'
+);
+```
+
+The display client never talks to Postgres. The Next.js server validates the key,
+subscribes to Realtime with the service role, and streams a safe projection over SSE —
+token, room, instruction, and the name only when the center's `show_name_on_tv` is on.
+Phone, place and roster number never leave the server. This is why the deployment needs
+`SUPABASE_SERVICE_ROLE_KEY` as a runtime secret.
+
+`show_name_on_tv` defaults to **on** so candidates can recognise their own name and walk in
+unaided. Turn it off in Setup → Workflow for a token-only hall.
+
+## Roster import
+
+Accepts `.csv` and `.xlsx`, finds the header row rather than assuming row 1, skips blank
+rows and one-cell separator bands, normalises whitespace and phone formats, keeps the
+original row number, rejects duplicate roster numbers, and preserves `NO SHOW` as an
+exception rather than a stage. Counts and per-row issues are shown before committing.
+Committing closes the previous session and issues `FETS-001…` tokens in roster order,
+scheduling candidates into slots that respect interval, duration, break and lab capacity.
+
+## Database
+
+`supabase/migrations/0001…0006` are the original schema. `20260919*` add the console
+bridge: `center_id` on candidates and events, `called_at`, `show_name_on_tv`, workflow
+flags, the hashed-key `public_displays` table, name/room columns on the call log, and the
+`fets_*` transition functions. The generic `transition_candidate` is kept for
+compatibility and now checks the operator's center.
+
+Applied to production already. To rebuild elsewhere:
+
+```bash
+supabase db push
+```
+
+### Still to do
+
+`candidates` still carries `insert, update` grants for `authenticated`, and
+`public_display_calls` is still readable by `anon`. Both are leftovers from the previous
+UI, and both should be revoked once this console is the only client — see the PR
+description for the exact statements.
+
+## Checks
+
+```bash
+npm run build
+npm run lint
+npm test          # roster parser
+```
+
+The SQL has been exercised end to end against Postgres 16 and against the live project in
+a transaction that was rolled back: import → check-in → call → entered → lab pipeline,
+plus the guard paths (wrong role, missing ID, duplicate locker key, cross-center access,
+anon access).

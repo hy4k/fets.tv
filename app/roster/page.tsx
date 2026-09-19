@@ -1,4 +1,0 @@
-import { AppShell } from '@/app/layout';
-import Link from 'next/link';
-import { RosterImport } from '@/components/roster-import';
-export default function RosterPage() { return <AppShell active="roster"><div className="page"><div className="page-head"><div /><div className="head-right"><span className="pill green">● LIVE</span><Link className="head-btn primary" href="/admin">Open Admin Room</Link></div></div><RosterImport /><div className="section"><div className="section-bar">Slot preview <span>Calculated from center settings</span></div><div className="small" style={{ padding: '14px 0' }}>Upload a roster to generate a validated preview. Blank rows are ignored, the header row is detected automatically, source row numbers are preserved, and NO SHOW flags are retained.</div></div></div></AppShell>; }
