@@ -1,11 +1,20 @@
-'use client';
-
-import { FormEvent, useState } from 'react';
-import { createBrowserSupabaseClient } from '@/lib/supabase';
+import { LoginForm } from "@/components/console/LoginForm";
 
 export default function LoginPage() {
-  const supabase = createBrowserSupabaseClient();
-  const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
-  async function submit(e: FormEvent) { e.preventDefault(); setBusy(true); setError(''); const { error } = await supabase.auth.signInWithPassword({ email, password }); if (error) setError(error.message); else window.location.href = '/tv/front'; setBusy(false); }
-  return <main className="auth"><form className="auth-card" onSubmit={submit}><div className="logo">F</div><h1>FETS.TV</h1><p>Sign in to the CBT center operations console.</p><label>Email</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="staff@fets.in" /><label>Password</label><input type="password" value={password} onChange={e => setPassword(e.target.value)} required /><button className="btn gold" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>{error && <div className="error">{error}</div>}</form></main>;
+  return (
+    <div className="flex min-h-screen items-center justify-center shell-bg p-[18px]">
+      <div className="w-full max-w-[380px] rounded-[22px] border border-edge-mid panel-bg p-[22px]">
+        <div className="flex items-center gap-[11px]">
+          <span className="flex h-[44px] w-[44px] items-center justify-center rounded-[14px] gold-bg font-serif text-[23px] text-[#1a1512]">
+            F
+          </span>
+          <span>
+            <span className="block font-serif text-[24px] leading-none">FETS Console</span>
+            <span className="block font-mono text-[10.5px] text-fg-dim">Exam delivery · Site 4960</span>
+          </span>
+        </div>
+        <LoginForm />
+      </div>
+    </div>
+  );
 }

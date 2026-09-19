@@ -1,21 +1,39 @@
-import './globals.css';
-import Link from 'next/link';
+import type { Metadata, Viewport } from "next";
+import { IBM_Plex_Mono, Instrument_Sans, Instrument_Serif } from "next/font/google";
+import "./globals.css";
 
-export const metadata = { title: 'FETS.TV — Operations Console', description: 'CBT Center Management System' };
+const instrumentSans = Instrument_Sans({
+  variable: "--font-instrument-sans",
+  subsets: ["latin"],
+});
 
-const links = [
-  ['front', '▣', 'FRONT', '/front'],
-  ['admin', '▤', 'ADMIN', '/admin'],
-  ['tv', '◉', 'TV', '/display/hall-1-main'],
-  ['roster', '▤', 'ROSTER', '/roster'],
-  ['lab', '▦', 'LAB', '/lab'],
-  ['setup', '◇', 'SETUP', '/setup'],
-];
+const instrumentSerif = Instrument_Serif({
+  variable: "--font-instrument-serif",
+  weight: "400",
+  subsets: ["latin"],
+});
+
+const plexMono = IBM_Plex_Mono({
+  variable: "--font-plex-mono",
+  weight: ["400", "500", "600"],
+  subsets: ["latin"],
+});
+
+export const metadata: Metadata = {
+  title: "FETS Console",
+  description: "Exam delivery console for Forun Testing & Educational Services",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return <html lang="en"><body>{children}</body></html>;
-}
-
-export function AppShell({ children, active }: { children: React.ReactNode; active: string }) {
-  return <div className="shell"><aside className="rail"><div className="logo">F</div><nav className="rail-nav">{links.map(([id, icon, label, href]) => <Link key={id} href={href} className={`rail-link ${active === id ? 'active' : ''}`}><span>{icon}</span>{label}</Link>)}</nav><div className="avatar">AV</div></aside><section className="workspace"><header className="topbar"><div className="location"><span className="site-chip"><i />4960&nbsp; · &nbsp;CALICUT</span><span className="title">{active === 'front' ? 'Front Office' : active === 'admin' ? 'Admin Room' : active === 'tv' ? 'Public Display' : active === 'roster' ? 'Roster & Schedule' : active === 'lab' ? 'Exam Lab' : 'Center Setup'}</span></div><div className="top-right"><span className="clock">10:24</span><span className="tiny">14 SEP · IST</span><span className="avatar">AV</span></div></header>{children}</section></div>;
+  return (
+    // The font variables live on <html> so the :root theme tokens can read them.
+    <html lang="en" className={`${instrumentSans.variable} ${instrumentSerif.variable} ${plexMono.variable}`}>
+      <body>{children}</body>
+    </html>
+  );
 }
