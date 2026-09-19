@@ -1,4 +1,4 @@
-export type StaffRole = "admin" | "front_office" | "lab_staff" | "viewer";
+export type StaffRole = "admin" | "tca" | "front_office" | "lab_staff" | "viewer";
 
 export type CandidateStatus =
   | "scheduled"

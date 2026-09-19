@@ -22,17 +22,31 @@ with a reason.
 - Supabase: Postgres, Auth, Realtime, RLS
 - `exceljs` + `papaparse` for roster import
 
+## Roles
+
+| Role | Can do |
+| --- | --- |
+| `admin` | Everything, including Setup, roster import, seat sync and the backwards-stage override |
+| `tca` | The whole operational floor: front desk, Call / Re-call / Clear, seating, exam clock, breaks, Confirm finish. No Setup, no roster import, no override |
+| `front_office` | Front desk only |
+| `lab_staff` | Lab and floor only |
+| `viewer` | Read only |
+
+Jobs at the centers rotate daily, so most staff are `tca` rather than a fixed
+desk. `fets_guard` treats a TCA as satisfying anything front office or lab staff
+would satisfy; the three call actions name the TCA explicitly.
+
 ## Routes
 
 | Route | Who | What |
 | --- | --- | --- |
 | `/login` | anyone | Staff sign-in |
-| `/front-office` | front office | Search the roster, verify ID, issue a locker key, check in, send called candidates in |
-| `/admin` | admin | Waiting queue with Call / Re-call / Clear, live counters, 11-stage flow, audit trail, override |
+| `/front-office` | front office, TCA | Search the roster, verify ID, issue a locker key, check in, send called candidates in |
+| `/admin` | admin, TCA | Waiting queue with Call / Re-call / Clear, live counters, 11-stage flow, audit trail, override |
 | `/tv` | any operator | Staff-side preview of what the halls are showing |
-| `/floor` | admin, lab staff | Live Floor: one card per occupied seat, exam countdown, breaks, Confirm finish |
+| `/floor` | admin, TCA, lab staff | Live Floor: one card per occupied seat, exam countdown, breaks, Confirm finish |
 | `/admin/roster` | admin | CSV/XLSX import with validation preview, slot sequencing |
-| `/lab` | lab staff | Seat map, faults, handoffs through the pipeline |
+| `/lab` | lab staff, TCA | Seat map, faults, handoffs through the pipeline |
 | `/settings/center` | admin | Scheduling, workflow toggles, paired displays |
 | `/display/<key>` | nobody signed in | The hall TV |
 

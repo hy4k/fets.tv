@@ -9,7 +9,7 @@ import { useNow } from "@/lib/use-clock";
 import type { CandidateStatus } from "@/lib/types";
 
 export function AdminRoomScreen() {
-  const { candidates, center, call, events, operators, rpc, isAdmin } = useConsole();
+  const { candidates, center, call, events, operators, rpc, isAdmin, canCall } = useConsole();
   const { open, toggle } = useDrawers("admin", { flow: false, feed: false, override: false });
   const now = useNow();
 
@@ -73,7 +73,7 @@ export function AdminRoomScreen() {
                   </span>
                   <button
                     type="button"
-                    disabled={!isAdmin || onTv}
+                    disabled={!canCall || onTv}
                     onClick={() => rpc("fets_call_candidate", { p_candidate: c.id }, `Calling ${c.public_token}`)}
                     className={`cursor-pointer rounded-[12px] px-[15px] py-[10px] text-[12px] font-bold whitespace-nowrap ${
                       onTv
@@ -111,7 +111,7 @@ export function AdminRoomScreen() {
               </span>
               <button
                 type="button"
-                disabled={!isAdmin || !called}
+                disabled={!canCall || !called}
                 onClick={() => rpc("fets_recall", { p_center: center.id })}
                 className="cursor-pointer rounded-[11px] border border-[#3a3346] bg-[#221d28] px-[13px] py-[9px] text-[11.5px] font-semibold whitespace-nowrap disabled:opacity-40"
               >
@@ -119,7 +119,7 @@ export function AdminRoomScreen() {
               </button>
               <button
                 type="button"
-                disabled={!isAdmin || !called}
+                disabled={!canCall || !called}
                 onClick={() => rpc("fets_clear_call", { p_center: center.id }, "Display cleared")}
                 className="cursor-pointer rounded-[11px] border border-[#3a3346] bg-transparent px-[13px] py-[9px] text-[11.5px] font-semibold whitespace-nowrap text-[#a79cc4] disabled:opacity-40"
               >

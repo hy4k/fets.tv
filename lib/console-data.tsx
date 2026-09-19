@@ -41,6 +41,7 @@ type ConsoleValue = ConsoleSnapshot & {
   isAdmin: boolean;
   canFrontOffice: boolean;
   canLab: boolean;
+  canCall: boolean;
 };
 
 const ConsoleContext = createContext<ConsoleValue | null>(null);
@@ -185,9 +186,12 @@ export function ConsoleProvider({
       notify,
       refresh,
       rpc,
+      // A TCA works whichever desk the duty roster puts them on, so they hold
+      // every operational capability. Configuration stays with admins.
       isAdmin: snapshot.profile.role === "admin",
-      canFrontOffice: snapshot.profile.role === "admin" || snapshot.profile.role === "front_office",
-      canLab: snapshot.profile.role === "admin" || snapshot.profile.role === "lab_staff",
+      canFrontOffice: ["admin", "tca", "front_office"].includes(snapshot.profile.role),
+      canLab: ["admin", "tca", "lab_staff"].includes(snapshot.profile.role),
+      canCall: ["admin", "tca"].includes(snapshot.profile.role),
     }),
     [snapshot, toasts, notify, refresh, rpc],
   );
