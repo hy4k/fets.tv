@@ -31,6 +31,8 @@ export function PublicDisplay({ displayKey, initial }: { displayKey: string; ini
         className="flex-1"
         hallLabel={state.hall_label}
         timezone={state.timezone}
+        nonce={state.call?.nonce ?? 0}
+        siteLabel={state.label}
         call={
           state.call
             ? {

@@ -27,6 +27,7 @@
   --font-mono: var(--font-plex-mono), ui-monospace, monospace;
 
   --animate-pulse-dot: fetspulse 1.8s infinite;
+  --animate-announce: fetsannounce 900ms ease-out 2;
 
   @keyframes fetspulse {
     0%,
@@ -35,6 +36,17 @@
     }
     50% {
       opacity: 0.3;
+    }
+  }
+
+  /* A re-call has to read as a fresh announcement from across the hall. */
+  @keyframes fetsannounce {
+    0%,
+    100% {
+      filter: brightness(1);
+    }
+    45% {
+      filter: brightness(1.35);
     }
   }
 }

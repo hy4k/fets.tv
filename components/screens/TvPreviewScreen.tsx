@@ -26,6 +26,8 @@ export function TvPreviewScreen() {
         className="flex-1"
         hallLabel={displays[0]?.hall_label ?? "HALL 1"}
         timezone={center.timezone}
+        nonce={call?.call_nonce ?? 0}
+        siteLabel={`${center.site_code} · ${center.name.replace(/^FETS\s+/i, "").toUpperCase()}`}
         call={
           called
             ? {
