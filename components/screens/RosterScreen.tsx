@@ -56,19 +56,39 @@ export function RosterScreen() {
     setBusy(true);
     setPreview(null);
 
-    const body = new FormData();
-    body.append("file", file);
-    const response = await fetch(`${basePath}/api/roster/parse`, { method: "POST", body });
-    const payload = await response.json();
-    setBusy(false);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const response = await fetch(`${basePath}/api/roster/parse`, { method: "POST", body });
 
-    if (!response.ok) {
-      notify(payload.error ?? "Could not read that file", "error");
-      return;
+      // A proxy rejecting the upload answers with HTML, not JSON, so parsing
+      // the body is itself allowed to fail — and used to leave the button
+      // stuck on "Reading…" with nothing said.
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        notify(
+          payload?.error ??
+            (response.status === 413
+              ? "The server rejected that file as too large"
+              : `Upload failed (${response.status})`),
+          "error",
+        );
+        return;
+      }
+
+      if (!payload) {
+        notify("The server sent back something unreadable", "error");
+        return;
+      }
+
+      setPreview(payload as RosterPreview);
+      setExamName(file.name.replace(/\.(csv|xlsx)$/i, "").replace(/[_-]+/g, " "));
+    } catch {
+      notify("Could not reach the server — check the connection and try again", "error");
+    } finally {
+      setBusy(false);
     }
-
-    setPreview(payload as RosterPreview);
-    setExamName(file.name.replace(/\.(csv|xlsx)$/i, "").replace(/[_-]+/g, " "));
   }
 
   async function commit() {
@@ -83,12 +103,12 @@ export function RosterScreen() {
       p_rows: preview.rows,
     });
 
-    setBusy(false);
     if (ok) {
       notify(`Imported ${preview.rows.length} candidates`);
       setPreview(null);
       await refresh();
     }
+    setBusy(false);
   }
 
   return (
@@ -119,11 +139,15 @@ export function RosterScreen() {
             e.target.value = "";
           }}
         />
+        {!isAdmin && (
+          <span className="text-[11px] text-gold">Only an admin can import a roster</span>
+        )}
         <button
           type="button"
           disabled={!isAdmin || busy}
+          title={isAdmin ? undefined : "Only an admin can import a roster"}
           onClick={() => fileInput.current?.click()}
-          className="cursor-pointer rounded-[13px] border border-edge-warm bg-[#221d19] px-[15px] py-[11px] text-[12.5px] font-semibold disabled:opacity-50"
+          className="cursor-pointer rounded-[13px] border border-edge-warm bg-[#221d19] px-[15px] py-[11px] text-[12.5px] font-semibold disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy ? "Reading…" : session ? "Replace" : "Import roster"}
         </button>
