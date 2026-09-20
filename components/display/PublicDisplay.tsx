@@ -32,6 +32,7 @@ export function PublicDisplay({ displayKey, initial }: { displayKey: string; ini
         hallLabel={state.hall_label}
         timezone={state.timezone}
         nonce={state.call?.nonce ?? 0}
+        notice={state.notice ? { body: state.notice.body, tone: state.notice.tone } : null}
         siteLabel={state.label}
         call={
           state.call

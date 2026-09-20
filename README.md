@@ -44,6 +44,7 @@ would satisfy; the three call actions name the TCA explicitly.
 | `/front-office` | front office, TCA | Search the roster, verify ID, issue a locker key, check in, send called candidates in |
 | `/admin` | admin, TCA | Waiting queue with Call / Re-call / Clear, live counters, 11-stage flow, audit trail, override |
 | `/tv` | any operator | Staff-side preview of what the halls are showing |
+| `/notices` | admin, TCA | Hall Messages: put a templated message on the TV, with a live preview of the board |
 | `/floor` | admin, TCA, lab staff | Live Floor: one card per occupied seat, exam countdown, breaks, Confirm finish |
 | `/admin/roster` | admin | CSV/XLSX import with validation preview, slot sequencing |
 | `/lab` | lab staff, TCA | Seat map, faults, handoffs through the pipeline |
@@ -102,6 +103,26 @@ original row number, rejects duplicate roster numbers, and preserves `NO SHOW` a
 exception rather than a stage. Counts and per-row issues are shown before committing.
 Committing closes the previous session and issues `FETS-001…` tokens in roster order,
 scheduling candidates into slots that respect interval, duration, break and lab capacity.
+
+## Hall messages
+
+Staff put a message on the TV by picking a template and filling its one blank.
+The wording is fixed and the final text is rendered by `fets_post_notice` in the
+database, never accepted from the client, so the board can only ever speak in
+the centre's own words — a caller that passes its own `body` is ignored. Slot
+values are validated too: a `time` slot must be a 24-hour `HH:MM`, and nothing
+with control characters or over 40 characters is accepted.
+
+**A message never hides a call.** While someone is being called it sits in a
+band beneath the call; when the board is idle it takes the whole screen. Tone
+(`info`, `warning`, `urgent`) comes from the template and colours the band.
+
+A message can be held until cleared, or expire on its own after 15, 30 or 60
+minutes, so a board left running overnight cannot keep yesterday's notice up.
+Templates live in `notice_templates`; ten are seeded and shared by all centres.
+
+The Notices screen previews with the real `DisplayBoard` at the TV's aspect
+ratio, so what staff approve is what the hall gets.
 
 ## Live Floor
 

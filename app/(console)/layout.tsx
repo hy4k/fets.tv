@@ -40,8 +40,18 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
     );
   }
 
-  const [candidates, workstations, events, call, displays, operators, programmes, openBreaks] =
-    await Promise.all([
+  const [
+    candidates,
+    workstations,
+    events,
+    call,
+    displays,
+    operators,
+    programmes,
+    openBreaks,
+    noticeTemplates,
+    notice,
+  ] = await Promise.all([
     session
       ? supabase
           .from("candidates")
@@ -69,6 +79,15 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
     supabase.from("profiles").select("id, display_name").eq("center_id", center.id),
     supabase.from("exam_programmes").select("*").eq("center_id", center.id).eq("active", true).order("code"),
     supabase.from("candidate_breaks").select("*").eq("center_id", center.id).is("ended_at", null),
+    supabase.from("notice_templates").select("*").eq("active", true).order("sort_order"),
+    supabase
+      .from("display_notices")
+      .select("*")
+      .eq("center_id", center.id)
+      .eq("active", true)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   const snapshot: ConsoleSnapshot = {
@@ -83,6 +102,8 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
     displays: displays.data ?? [],
     programmes: programmes.data ?? [],
     openBreaks: openBreaks.data ?? [],
+    noticeTemplates: noticeTemplates.data ?? [],
+    notice: notice.data ?? null,
     operators: Object.fromEntries((operators.data ?? []).map((o) => [o.id, o.display_name])),
   };
 
