@@ -243,6 +243,16 @@ function buildPreview(
       continue;
     }
 
+    // A merged cell spanning the row — the date banners rosters are divided by —
+    // reaches us as the same value repeated in every cell it covers. Left alone
+    // it imports as a candidate named after the date, and that name reaches the
+    // hall TV.
+    const values = row.filter((cell) => cell !== "");
+    if (values.length > 1 && new Set(values).size === 1) {
+      skipped++;
+      continue;
+    }
+
     const rosterNumber = at(columns.roster_number);
     const { first, last } = splitName(at(columns.full_name), at(columns.first_name), at(columns.last_name));
     const flag = at(columns.roster_flag) || null;

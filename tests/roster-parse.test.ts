@@ -151,3 +151,22 @@ test("a half-recognised header is echoed back, since it is not personal data", a
   assert.ok(!JSON.stringify(preview).includes("Aparna"));
   assert.match(preview.issues[0].message, /Only one column was recognised/);
 });
+
+test("a merged date banner is a separator, not a candidate", async () => {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("Sheet1");
+  ws.addRow(["Roster No", "Name", "Part", "Phone", "Place"]);
+  // Excel hands a merged row back as the same value in every covered cell.
+  ws.addRow(["2026-09-01", "2026-09-01", "2026-09-01", "2026-09-01", "2026-09-01"]);
+  ws.addRow(["1", "Jeremiah Binoi", "PART 2", "8921545788", "ERNAKULAM"]);
+  ws.addRow(["2", "Afra Fathima", "PART 1", "8086915811", "THALASSERY"]);
+
+  const preview = await parseRosterFile("r.xlsx", Buffer.from(await wb.xlsx.writeBuffer()));
+
+  assert.equal(preview.rows.length, 2, "the banner must not become a candidate");
+  assert.equal(preview.counts.skipped, 1);
+  assert.deepEqual(
+    preview.rows.map((r) => r.first_name),
+    ["Jeremiah", "Afra"],
+  );
+});
