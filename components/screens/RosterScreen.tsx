@@ -6,7 +6,7 @@ import { useDrawers } from "@/lib/drawer-store";
 import { useConsole } from "@/lib/console-data";
 import { basePath } from "@/lib/base-path";
 import { clockAt } from "@/lib/format";
-import type { RosterPreview } from "@/lib/types";
+import type { RosterDiagnostics, RosterPreview } from "@/lib/types";
 
 export function RosterScreen() {
   const { candidates, center, rules, session, rpc, isAdmin, notify, refresh } = useConsole();
@@ -158,8 +158,8 @@ export function RosterScreen() {
           <div className="flex flex-wrap items-center gap-[10px]">
             <span className="text-[11px] font-bold tracking-[0.12em] text-gold uppercase">Import preview</span>
             <span className="font-mono text-[11px] text-fg-muted">
-              header row {preview.header_row} · {preview.rows.length} rows · {preview.counts.skipped} blank
-              rows skipped
+              {preview.sheet_used ? `sheet "${preview.sheet_used}" · ` : ""}header row {preview.header_row} ·{" "}
+              {preview.rows.length} rows · {preview.counts.skipped} blank rows skipped
             </span>
           </div>
 
@@ -178,6 +178,8 @@ export function RosterScreen() {
               </div>
             ))}
           </div>
+
+          {preview.diagnostics && <Diagnostics d={preview.diagnostics} />}
 
           {preview.issues.length > 0 && (
             <div className="flex max-h-[150px] flex-col gap-[6px] overflow-y-auto rounded-[14px] border border-edge bg-panel p-[12px]">
@@ -288,6 +290,62 @@ export function RosterScreen() {
           )}
         </div>
       </Drawer>
+    </div>
+  );
+}
+
+/**
+ * When the importer cannot find a header, this says what it actually saw so the
+ * spreadsheet can be fixed on the spot. Rosters carry names and phone numbers,
+ * so it reports structure only — the row's own text appears just when a column
+ * name was recognised, which is what makes it a header rather than a candidate.
+ */
+function Diagnostics({ d }: { d: RosterDiagnostics }) {
+  const fields = Object.entries(d.understood);
+
+  return (
+    <div className="flex flex-col gap-[10px] rounded-[16px] border border-rust/35 bg-rust/5 p-[13px]">
+      <span className="text-[10px] font-bold tracking-[0.12em] text-rust uppercase">
+        What the importer saw
+      </span>
+
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-[8px] font-mono text-[11px]">
+        <span className="text-fg-muted">
+          Sheets: <span className="text-fg">{d.sheets.length > 0 ? d.sheets.join(", ") : "—"}</span>
+        </span>
+        <span className="text-fg-muted">
+          Read: <span className="text-fg">{d.sheet_used ?? "—"}</span>
+        </span>
+        <span className="text-fg-muted">
+          Size: <span className="text-fg">{d.rows_found} rows × {d.columns_found} cols</span>
+        </span>
+        <span className="text-fg-muted">
+          Best row: <span className="text-fg">{d.best_row || "—"}</span>
+        </span>
+      </div>
+
+      {d.header_cells && (
+        <p className="font-mono text-[11px] text-fg-muted">
+          Headers on row {d.best_row}:{" "}
+          <span className="text-fg">{d.header_cells.join(" | ")}</span>
+        </p>
+      )}
+
+      <div className="flex flex-col gap-[4px]">
+        <span className="text-[10px] font-bold tracking-[0.1em] text-fg-dim uppercase">
+          Rename a column to any of these and re-upload
+        </span>
+        {fields.map(([field, aliases]) => (
+          <p key={field} className="font-mono text-[10.5px]">
+            <span className="text-gold">{field.replace(/_/g, " ")}</span>{" "}
+            <span className="text-fg-faint">{aliases.slice(0, 8).join(", ")}</span>
+          </p>
+        ))}
+      </div>
+
+      <p className="text-[11px] text-fg-muted">
+        At least two of these must appear as column headings, in the first 20 rows of a sheet.
+      </p>
     </div>
   );
 }

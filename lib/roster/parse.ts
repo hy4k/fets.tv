@@ -16,12 +16,24 @@ const HEADER_ALIASES: Record<keyof ColumnMap, string[]> = {
     "registration number",
     "candidate id",
     "candidate no",
+    "roll no",
+    "roll number",
+    "roll",
+    "appointment no",
+    "appointment number",
+    "confirmation no",
+    "confirmation number",
+    "booking ref",
+    "booking reference",
+    "reference no",
+    "ref no",
+    "candidate ref",
   ],
-  full_name: ["name", "candidate name", "student name", "full name"],
+  full_name: ["name", "candidate name", "student name", "full name", "candidate", "applicant", "applicant name", "name of candidate"],
   first_name: ["first name", "firstname", "given name"],
   last_name: ["last name", "lastname", "surname", "family name"],
   part: ["part", "section", "module", "paper"],
-  phone: ["phone", "phone no", "phone number", "mobile", "mobile no", "contact", "contact no"],
+  phone: ["phone", "phone no", "phone number", "mobile", "mobile no", "mobile number", "contact", "contact no", "telephone", "tel", "whatsapp"],
   place: ["place", "city", "town", "district", "location"],
   roster_flag: ["flag", "status", "remark", "remarks", "note", "notes", "exception"],
 };
@@ -38,8 +50,27 @@ type ColumnMap = {
 };
 
 export async function parseRosterFile(filename: string, buffer: Buffer): Promise<RosterPreview> {
-  const grid = /\.csv$/i.test(filename) ? parseCsv(buffer) : await parseXlsx(buffer);
-  return buildPreview(filename, grid);
+  const sheets = /\.csv$/i.test(filename)
+    ? [{ name: filename, grid: parseCsv(buffer) }]
+    : await parseXlsx(buffer);
+
+  // Centres send workbooks with a cover sheet, or the roster on the second tab,
+  // so take the first sheet that actually has a header rather than assuming.
+  let fallback: { name: string; grid: string[][] } | null = null;
+
+  for (const sheet of sheets) {
+    if (detectHeaderRow(sheet.grid).index !== -1) return buildPreview(filename, sheet.grid, sheet.name);
+    const size = sheet.grid.reduce((n, row) => n + row.filter(Boolean).length, 0);
+    const best = fallback ? fallback.grid.reduce((n, row) => n + row.filter(Boolean).length, 0) : -1;
+    if (size > best) fallback = sheet;
+  }
+
+  return buildPreview(
+    filename,
+    fallback?.grid ?? [],
+    fallback?.name ?? null,
+    sheets.map((s) => s.name),
+  );
 }
 
 function parseCsv(buffer: Buffer): string[][] {
@@ -47,14 +78,15 @@ function parseCsv(buffer: Buffer): string[][] {
   return result.data.map((row) => (Array.isArray(row) ? row.map(clean) : []));
 }
 
-async function parseXlsx(buffer: Buffer): Promise<string[][]> {
+async function parseXlsx(buffer: Buffer): Promise<{ name: string; grid: string[][] }[]> {
   const workbook = new ExcelJS.Workbook();
   // ExcelJS types want an ArrayBuffer-backed view; a Buffer slice is exactly that.
   await workbook.xlsx.load(buffer as unknown as ArrayBuffer);
 
-  const sheet = workbook.worksheets[0];
-  if (!sheet) return [];
+  return workbook.worksheets.map((sheet) => ({ name: sheet.name, grid: readSheet(sheet) }));
+}
 
+function readSheet(sheet: ExcelJS.Worksheet): string[][] {
   const grid: string[][] = [];
   sheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
     const cells: string[] = [];
@@ -91,7 +123,11 @@ function clean(value: unknown): string {
 }
 
 /** Scan the first rows for the one that actually names the columns. */
-function detectHeaderRow(grid: string[][]): { index: number; columns: ColumnMap } {
+function detectHeaderRow(grid: string[][]): {
+  index: number;
+  columns: ColumnMap;
+  best: { index: number; score: number; columns: ColumnMap };
+} {
   let best = { index: -1, score: 0, columns: emptyColumns() };
 
   for (let i = 0; i < Math.min(grid.length, 20); i++) {
@@ -100,7 +136,9 @@ function detectHeaderRow(grid: string[][]): { index: number; columns: ColumnMap 
     if (score > best.score) best = { index: i, score, columns };
   }
 
-  return best.score >= 2 ? { index: best.index, columns: best.columns } : { index: -1, columns: emptyColumns() };
+  return best.score >= 2
+    ? { index: best.index, columns: best.columns, best }
+    : { index: -1, columns: emptyColumns(), best };
 }
 
 function emptyColumns(): ColumnMap {
@@ -135,8 +173,13 @@ function matchColumns(row: string[]): ColumnMap {
   return columns;
 }
 
-function buildPreview(filename: string, grid: string[][]): RosterPreview {
-  const { index: headerIndex, columns } = detectHeaderRow(grid);
+function buildPreview(
+  filename: string,
+  grid: string[][],
+  sheetName: string | null = null,
+  allSheets: string[] = [],
+): RosterPreview {
+  const { index: headerIndex, columns, best } = detectHeaderRow(grid);
   const rows: RosterRow[] = [];
   const issues: RosterIssue[] = [];
   const seen = new Set<string>();
@@ -145,6 +188,17 @@ function buildPreview(filename: string, grid: string[][]): RosterPreview {
   let warnings = 0;
 
   if (headerIndex === -1) {
+    const matched = Object.entries(best.columns)
+      .filter(([, index]) => index !== null)
+      .map(([field]) => field);
+
+    // Rosters carry candidates' names and phone numbers, so the diagnostic
+    // reports structure only. The row's own text is echoed back just when at
+    // least one column name was recognised — which is what makes it a header
+    // row rather than somebody's personal details.
+    const headerCells =
+      matched.length > 0 ? (grid[best.index] ?? []).filter((cell) => cell !== "").slice(0, 25) : null;
+
     return {
       filename,
       header_row: 0,
@@ -154,10 +208,23 @@ function buildPreview(filename: string, grid: string[][]): RosterPreview {
         {
           source_row: 0,
           level: "error",
-          message: "Could not find a header row — expected columns like roster no, name, part.",
+          message:
+            matched.length === 1
+              ? `Only one column was recognised (${matched[0].replace(/_/g, " ")}). The importer needs at least two.`
+              : "No column names were recognised in the first 20 rows.",
         },
       ],
       counts: { valid: 0, warnings: 0, errors: 1, no_show: 0, skipped: 0 },
+      diagnostics: {
+        sheets: allSheets,
+        sheet_used: sheetName,
+        rows_found: grid.length,
+        columns_found: grid.reduce((n, row) => Math.max(n, row.length), 0),
+        best_row: best.index >= 0 ? best.index + 1 : 0,
+        matched_fields: matched,
+        header_cells: headerCells,
+        understood: HEADER_ALIASES,
+      },
     };
   }
 
@@ -220,6 +287,7 @@ function buildPreview(filename: string, grid: string[][]): RosterPreview {
 
   return {
     filename,
+    sheet_used: sheetName,
     header_row: headerIndex + 1,
     columns: Object.fromEntries(
       Object.entries(columns).map(([field, index]) => [
