@@ -45,7 +45,7 @@ export function FrontOfficeScreen() {
   if (!session) return <EmptyRoster />;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-[14px]">
+    <div className="flex min-h-0 flex-1 flex-col gap-[14px] overflow-y-auto md:overflow-visible">
       {called && (
         <div className="flex shrink-0 flex-wrap items-center gap-[14px] rounded-[20px] mint-bg px-[18px] py-[16px] text-[#0c1711]">
           <span className="text-[11px] font-extrabold tracking-[0.18em] uppercase">Send in</span>
@@ -66,7 +66,7 @@ export function FrontOfficeScreen() {
         </div>
       )}
 
-      <div className="grid min-h-0 flex-1 grid-cols-[repeat(auto-fit,minmax(320px,1fr))] items-stretch gap-[14px]">
+      <div className="grid shrink-0 grid-cols-[repeat(auto-fit,minmax(320px,1fr))] items-stretch gap-[14px] md:min-h-0 md:flex-1">
         <div className="flex min-h-0 flex-col rounded-[20px] border border-edge-mid panel-bg p-[14px]">
           <div className="flex shrink-0 items-center gap-[10px] rounded-[16px] border border-edge-strong bg-panel-soft px-[14px] py-[13px]">
             <span className="font-mono text-[14px] text-fg-dim">⌕</span>
@@ -78,7 +78,7 @@ export function FrontOfficeScreen() {
             />
           </div>
 
-          <div className="mt-[12px] flex min-h-0 flex-1 flex-col gap-[8px] overflow-x-hidden overflow-y-auto">
+          <div className="mt-[12px] flex max-h-[340px] min-h-0 flex-col gap-[8px] overflow-x-hidden overflow-y-auto md:max-h-none md:flex-1">
             {results.map((c) => {
               const chip = statusChip(c);
               const active = selected?.id === c.id;

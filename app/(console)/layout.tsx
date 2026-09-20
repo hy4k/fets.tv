@@ -109,9 +109,12 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
 
   return (
     <ConsoleProvider initial={snapshot}>
-      <div className="flex h-screen gap-[14px] overflow-hidden shell-bg p-[14px]">
+      {/* Phone and tablet get the nav as a bar under the content; from md up it
+          is the side rail. h-dvh, not h-screen, so a phone's address bar does
+          not push the nav off the bottom. */}
+      <div className="flex h-dvh flex-col gap-[10px] overflow-hidden shell-bg p-[10px] md:flex-row md:gap-[14px] md:p-[14px]">
         <NavRail />
-        <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-[14px]">
+        <main className="order-first flex min-h-0 min-w-0 flex-1 flex-col gap-[10px] md:order-none md:gap-[14px]">
           <Header />
           {children}
         </main>

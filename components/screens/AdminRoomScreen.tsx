@@ -41,8 +41,8 @@ export function AdminRoomScreen() {
   }, [candidates]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-[14px]">
-      <div className="grid min-h-0 flex-1 grid-cols-[repeat(auto-fit,minmax(320px,1fr))] items-stretch gap-[14px]">
+    <div className="flex min-h-0 flex-1 flex-col gap-[14px] overflow-y-auto md:overflow-visible">
+      <div className="grid shrink-0 grid-cols-[repeat(auto-fit,minmax(320px,1fr))] items-stretch gap-[14px] md:min-h-0 md:flex-1">
         <div className="flex min-h-0 flex-col rounded-[20px] border border-edge-mid panel-bg p-[14px]">
           <div className="mb-[12px] flex items-center gap-[9px]">
             <span className="text-[11px] font-bold tracking-[0.13em] text-fg-dim uppercase">

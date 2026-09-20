@@ -83,7 +83,7 @@ export function CandidatesScreen() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search name, roster no or token"
-          className="min-w-[240px] rounded-[14px] border border-edge-strong bg-panel-soft px-[15px] py-[12px] text-[14px] outline-none placeholder:text-fg-faint focus:border-gold/50"
+          className="w-full rounded-[14px] md:w-auto md:min-w-[240px] border border-edge-strong bg-panel-soft px-[15px] py-[12px] text-[14px] outline-none placeholder:text-fg-faint focus:border-gold/50"
         />
       </div>
 
@@ -106,7 +106,7 @@ export function CandidatesScreen() {
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[20px] border border-edge-mid panel-bg">
-        <div className="grid shrink-0 grid-cols-[110px_1fr_110px_150px_130px] gap-[12px] border-b border-edge-soft px-[18px] py-[13px] text-[11px] font-semibold text-fg-dim">
+        <div className="hidden shrink-0 grid-cols-[110px_1fr_110px_150px_130px] gap-[12px] border-b border-edge-soft px-[18px] py-[13px] text-[11px] font-semibold text-fg-dim md:grid">
           <span>Token</span>
           <span>Name</span>
           <span>Part</span>
@@ -120,17 +120,17 @@ export function CandidatesScreen() {
             return (
               <div
                 key={c.id}
-                className="grid grid-cols-[110px_1fr_110px_150px_130px] items-center gap-[12px] border-b border-edge-soft/60 px-[18px] py-[14px] hover:bg-panel-soft"
+                className="flex flex-wrap items-center gap-x-[12px] gap-y-[4px] border-b border-edge-soft/60 px-[14px] py-[13px] hover:bg-panel-soft md:grid md:grid-cols-[110px_1fr_110px_150px_130px] md:px-[18px] md:py-[14px]"
               >
                 <span className="font-mono text-[13px] font-semibold">{c.public_token}</span>
-                <span className="min-w-0">
+                <span className="order-first w-full min-w-0 md:order-none md:w-auto">
                   <span className="block truncate text-[14px]">{fullName(c)}</span>
                   <span className="block truncate font-mono text-[11px] text-fg-faint">
                     {c.roster_number}
                   </span>
                 </span>
-                <span className="truncate text-[13px] text-fg-muted">{c.part ?? "—"}</span>
-                <span className="truncate text-[13px] text-fg-muted">{c.place ?? "—"}</span>
+                <span className="truncate text-[12.5px] text-fg-muted md:text-[13px]">{c.part ?? "—"}</span>
+                <span className="truncate text-[12.5px] text-fg-muted md:text-[13px]">{c.place ?? "—"}</span>
                 <span>
                   <span
                     className={`inline-block rounded-[9px] px-[10px] py-[6px] text-[11px] font-semibold ${chip.className}`}
