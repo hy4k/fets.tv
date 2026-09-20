@@ -5,6 +5,8 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 import type {
   Candidate,
   CandidateBreak,
+  DisplayNotice,
+  NoticeTemplate,
   CandidateEvent,
   Center,
   PublicDisplayCall,
@@ -28,6 +30,8 @@ export type ConsoleSnapshot = {
   displays: PublicDisplay[];
   programmes: ExamProgramme[];
   openBreaks: CandidateBreak[];
+  noticeTemplates: NoticeTemplate[];
+  notice: DisplayNotice | null;
   operators: Record<string, string>;
 };
 
@@ -91,8 +95,19 @@ export function ConsoleProvider({
           .order("public_token", { ascending: true })
       : null;
 
-    const [candidates, workstations, events, call, rules, center, displays, programmes, openBreaks] =
-      await Promise.all([
+    const [
+      candidates,
+      workstations,
+      events,
+      call,
+      rules,
+      center,
+      displays,
+      programmes,
+      openBreaks,
+      noticeTemplates,
+      notice,
+    ] = await Promise.all([
       candidatesQuery,
       supabase.from("workstations").select("*").eq("center_id", centerId).order("seat_code"),
       supabase
@@ -114,6 +129,15 @@ export function ConsoleProvider({
       supabase.from("public_displays").select("*").eq("center_id", centerId).order("label"),
       supabase.from("exam_programmes").select("*").eq("center_id", centerId).eq("active", true).order("code"),
       supabase.from("candidate_breaks").select("*").eq("center_id", centerId).is("ended_at", null),
+      supabase.from("notice_templates").select("*").eq("active", true).order("sort_order"),
+      supabase
+        .from("display_notices")
+        .select("*")
+        .eq("center_id", centerId)
+        .eq("active", true)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ]);
 
     setSnapshot((prev) => ({
@@ -128,6 +152,8 @@ export function ConsoleProvider({
       displays: displays.data ?? prev.displays,
       programmes: programmes.data ?? prev.programmes,
       openBreaks: openBreaks.data ?? prev.openBreaks,
+      noticeTemplates: noticeTemplates.data ?? prev.noticeTemplates,
+      notice: notice.data ?? null,
     }));
   }, [centerId, supabase]);
 
@@ -150,6 +176,7 @@ export function ConsoleProvider({
       ["centers", `id=eq.${centerId}`],
       ["candidate_breaks", `center_id=eq.${centerId}`],
       ["exam_programmes", `center_id=eq.${centerId}`],
+      ["display_notices", `center_id=eq.${centerId}`],
     ];
 
     for (const [table, filter] of watched) {

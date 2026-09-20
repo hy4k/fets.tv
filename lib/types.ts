@@ -90,6 +90,44 @@ export type ExamProgramme = {
   created_at: string;
 };
 
+export type NoticeTone = "info" | "warning" | "urgent";
+
+export type NoticeSlot = {
+  key: string;
+  label: string;
+  type: "time" | "text";
+};
+
+export type NoticeTemplate = {
+  id: string;
+  center_id: string | null;
+  key: string;
+  label: string;
+  body_template: string;
+  tone: NoticeTone;
+  slots: NoticeSlot[];
+  sort_order: number;
+  active: boolean;
+  created_at: string;
+};
+
+export type DisplayNotice = {
+  id: string;
+  center_id: string;
+  template_id: string | null;
+  template_key: string;
+  template_label: string;
+  values: Record<string, string>;
+  body: string;
+  tone: NoticeTone;
+  active: boolean;
+  expires_at: string | null;
+  created_by: string | null;
+  created_at: string;
+  cleared_at: string | null;
+  cleared_by: string | null;
+};
+
 export type CandidateBreak = {
   id: string;
   candidate_id: string;
@@ -182,6 +220,7 @@ export type DisplayState = {
     nonce: number;
     updated_at: string;
   } | null;
+  notice: { body: string; tone: NoticeTone; posted_at: string } | null;
   next: { public_token: string; name: string | null; scheduled_at: string | null }[];
   server_time: string;
 };
@@ -227,6 +266,8 @@ export type Database = {
       public_displays: Table<PublicDisplay>;
       public_display_calls: Table<PublicDisplayCall>;
       exam_programmes: Table<ExamProgramme>;
+      notice_templates: Table<NoticeTemplate>;
+      display_notices: Table<DisplayNotice>;
       candidate_breaks: Table<CandidateBreak>;
     };
     Views: Record<never, never>;
@@ -281,6 +322,16 @@ export type Database = {
       };
       fets_break_in: { Args: { p_candidate: string }; Returns: CandidateBreak };
       fets_confirm_finish: { Args: { p_candidate: string; p_note?: string | null }; Returns: Candidate };
+      fets_post_notice: {
+        Args: {
+          p_center: string;
+          p_template: string;
+          p_values?: Record<string, string>;
+          p_expires_minutes?: number | null;
+        };
+        Returns: DisplayNotice;
+      };
+      fets_clear_notice: { Args: { p_center: string }; Returns: void };
     };
     Enums: {
       staff_role: StaffRole;

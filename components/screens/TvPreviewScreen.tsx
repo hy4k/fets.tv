@@ -8,7 +8,7 @@ import { useNow } from "@/lib/use-clock";
 import { clockAt, fullName } from "@/lib/format";
 
 export function TvPreviewScreen() {
-  const { candidates, center, call, displays } = useConsole();
+  const { candidates, center, call, displays, notice } = useConsole();
   const { open, toggle } = useDrawers("tv", { displays: false });
   const now = useNow();
 
@@ -27,6 +27,7 @@ export function TvPreviewScreen() {
         hallLabel={displays[0]?.hall_label ?? "HALL 1"}
         timezone={center.timezone}
         nonce={call?.call_nonce ?? 0}
+        notice={notice ? { body: notice.body, tone: notice.tone } : null}
         siteLabel={`${center.site_code} · ${center.name.replace(/^FETS\s+/i, "").toUpperCase()}`}
         call={
           called

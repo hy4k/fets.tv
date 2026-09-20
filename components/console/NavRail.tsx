@@ -13,7 +13,7 @@ const AUX = [
 
 export function NavRail() {
   const pathname = usePathname();
-  const { candidates, call } = useConsole();
+  const { candidates, call, notice } = useConsole();
 
   const waiting = candidates.filter((c) => c.status === "waiting" && !c.called_at).length;
 
@@ -21,6 +21,7 @@ export function NavRail() {
     { href: "/front-office", n: "01", short: "Front", badge: call?.candidate_id ? 1 : 0 },
     { href: "/admin", n: "02", short: "Admin", badge: waiting },
     { href: "/tv", n: "03", short: "TV", badge: 0 },
+    { href: "/notices", n: "04", short: "Notice", badge: notice ? 1 : 0 },
   ];
 
   return (
