@@ -38,6 +38,10 @@ would satisfy; the three call actions name the TCA explicitly.
 
 ## Routes
 
+The rail follows the working day from the top down — roster, candidates, front
+office, admin room, lab, floor — so staff move down it as the day goes on and
+never have to go back up.
+
 | Route | Who | What |
 | --- | --- | --- |
 | `/login` | anyone | Staff sign-in |
@@ -46,7 +50,8 @@ would satisfy; the three call actions name the TCA explicitly.
 | `/tv` | any operator | Staff-side preview of what the halls are showing |
 | `/notices` | admin, TCA | Hall Messages: put a templated message on the TV, with a live preview of the board |
 | `/floor` | admin, TCA, lab staff | Live Floor: one card per occupied seat, exam countdown, breaks, Confirm finish |
-| `/admin/roster` | admin | CSV/XLSX import with validation preview, slot sequencing |
+| `/roster` | admin | Step 1: upload the day's roster. Nothing else on the page |
+| `/candidates` | any operator | Step 2: the imported roster as a list, searchable and filterable |
 | `/lab` | lab staff, TCA | Seat map, faults, handoffs through the pipeline |
 | `/settings/center` | admin | Scheduling, workflow toggles, paired displays |
 | `/display/<key>` | nobody signed in | The hall TV |

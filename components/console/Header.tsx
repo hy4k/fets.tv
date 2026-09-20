@@ -11,7 +11,8 @@ const TITLES: Record<string, string> = {
   "/tv": "Public Display",
   "/notices": "Hall Messages",
   "/floor": "Live Floor",
-  "/admin/roster": "Roster",
+  "/roster": "Roster",
+  "/candidates": "Candidates",
   "/lab": "Exam Lab",
   "/settings/center": "Center Setup",
 };

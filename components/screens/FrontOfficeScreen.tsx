@@ -100,7 +100,7 @@ export function FrontOfficeScreen() {
                     </span>
                     <span className="block overflow-hidden font-mono text-[10px] text-fg-faint text-ellipsis whitespace-nowrap">
                       {c.roster_number}
-                      {c.part ? ` · PART ${c.part}` : ""}
+                      {c.part ? ` · ${c.part}` : ""}
                     </span>
                   </span>
                   <span
@@ -228,7 +228,7 @@ function CandidateCard({
             {fullName(candidate)}
           </span>
           <span className="block overflow-hidden font-mono text-[10.5px] text-fg-muted text-ellipsis whitespace-nowrap">
-            {[candidate.roster_number, candidate.part && `PART ${candidate.part}`, candidate.place]
+            {[candidate.roster_number, candidate.part, candidate.place]
               .filter(Boolean)
               .join(" · ")}
           </span>
