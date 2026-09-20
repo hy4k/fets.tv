@@ -34,7 +34,14 @@ export async function POST(request: NextRequest) {
   try {
     const preview = await parseRosterFile(file.name, Buffer.from(await file.arrayBuffer()));
     return Response.json(preview);
-  } catch {
-    return Response.json({ error: "Could not read that file — is it a valid spreadsheet?" }, { status: 422 });
+  } catch (error) {
+    // The reason matters — "is it a valid spreadsheet?" told nobody anything.
+    // This is the library's own complaint about the file's structure, which
+    // carries no candidate data.
+    const reason = error instanceof Error ? error.message : String(error);
+    return Response.json(
+      { error: `Could not read that file: ${reason.slice(0, 200)}` },
+      { status: 422 },
+    );
   }
 }

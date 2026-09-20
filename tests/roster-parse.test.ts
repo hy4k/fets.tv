@@ -80,5 +80,74 @@ test("explains itself when there is no recognisable header", async () => {
   const preview = await parseRosterFile("junk.csv", Buffer.from("a,b\n1,2", "utf8"));
   assert.equal(preview.rows.length, 0);
   assert.equal(preview.counts.errors, 1);
-  assert.match(preview.issues[0].message, /header row/);
+  assert.match(preview.issues[0].message, /No column names were recognised/);
+  assert.ok(preview.diagnostics, "a failure has to say what it saw");
+  assert.equal(preview.diagnostics.rows_found, 2);
+});
+
+test("finds the roster when it is not on the first sheet", async () => {
+  const wb = new ExcelJS.Workbook();
+  const cover = wb.addWorksheet("Instructions");
+  cover.addRow(["Please do not edit this workbook"]);
+  cover.addRow([]);
+  const data = wb.addWorksheet("Candidates");
+  data.addRow(["Roster No", "Name", "Part"]);
+  data.addRow(["1", "Aparna Menon", "A"]);
+  data.addRow(["2", "Rahul Krishnan", "B"]);
+
+  const buffer = Buffer.from(await wb.xlsx.writeBuffer());
+  const preview = await parseRosterFile("roster.xlsx", buffer);
+
+  assert.equal(preview.rows.length, 2);
+  assert.equal(preview.sheet_used, "Candidates");
+});
+
+test("reads the board column names centres actually use", async () => {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("Sheet1");
+  ws.addRow(["Roll No", "Candidate", "Mobile Number"]);
+  ws.addRow(["77", "Fathima Zahra", "98765 43210"]);
+
+  const preview = await parseRosterFile("x.xlsx", Buffer.from(await wb.xlsx.writeBuffer()));
+  assert.equal(preview.rows.length, 1);
+  assert.equal(preview.rows[0].roster_number, "77");
+  assert.equal(preview.rows[0].first_name, "Fathima");
+  assert.equal(preview.rows[0].phone, "9876543210");
+});
+
+test("a failed detection reports structure and never candidate data", async () => {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("Data");
+  // No header at all — just people. Nothing here may be echoed back.
+  ws.addRow(["Aparna Menon", "9876543210", "Calicut"]);
+  ws.addRow(["Rahul Krishnan", "9876543211", "Kochi"]);
+
+  const preview = await parseRosterFile("x.xlsx", Buffer.from(await wb.xlsx.writeBuffer()));
+  const d = preview.diagnostics;
+
+  assert.ok(d, "diagnostics should be present");
+  assert.deepEqual(d.sheets, ["Data"]);
+  assert.equal(d.rows_found, 2);
+  assert.equal(d.header_cells, null, "no header was recognised, so no text is echoed");
+
+  const blob = JSON.stringify(preview);
+  for (const secret of ["Aparna", "Menon", "9876543210", "Calicut", "Rahul"]) {
+    assert.ok(!blob.includes(secret), `${secret} must not appear in the response`);
+  }
+});
+
+test("a half-recognised header is echoed back, since it is not personal data", async () => {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("Data");
+  ws.addRow(["Name", "Appointment Slot", "Venue Notes"]);
+  ws.addRow(["Aparna Menon", "09:00", "Lab A"]);
+
+  const preview = await parseRosterFile("x.xlsx", Buffer.from(await wb.xlsx.writeBuffer()));
+  const d = preview.diagnostics;
+
+  assert.ok(d);
+  assert.deepEqual(d.matched_fields, ["full_name"]);
+  assert.deepEqual(d.header_cells, ["Name", "Appointment Slot", "Venue Notes"]);
+  assert.ok(!JSON.stringify(preview).includes("Aparna"));
+  assert.match(preview.issues[0].message, /Only one column was recognised/);
 });

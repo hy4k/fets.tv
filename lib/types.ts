@@ -242,13 +242,27 @@ export type RosterIssue = {
   message: string;
 };
 
+export type RosterDiagnostics = {
+  sheets: string[];
+  sheet_used: string | null;
+  rows_found: number;
+  columns_found: number;
+  best_row: number;
+  matched_fields: string[];
+  /** Only set when a column name was recognised, so this is never personal data. */
+  header_cells: string[] | null;
+  understood: Record<string, string[]>;
+};
+
 export type RosterPreview = {
   filename: string;
+  sheet_used?: string | null;
   header_row: number;
   columns: Record<string, string | null>;
   rows: RosterRow[];
   issues: RosterIssue[];
   counts: { valid: number; warnings: number; errors: number; no_show: number; skipped: number };
+  diagnostics?: RosterDiagnostics;
 };
 
 type Table<Row> = { Row: Row; Insert: Partial<Row>; Update: Partial<Row>; Relationships: [] };
