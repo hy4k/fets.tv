@@ -218,6 +218,15 @@ function buildPreview(
 ): RosterPreview {
   const { index: headerIndex, columns, best } = detectHeaderRow(grid);
   const phones = headerIndex === -1 ? [] : phoneColumns(grid[headerIndex] ?? []);
+
+  // Does this file carry the part inside its exam name? One row proving it
+  // makes a row that fails worth reporting.
+  const examNameCarriesPart =
+    headerIndex !== -1 &&
+    columns.exam_name !== null &&
+    grid
+      .slice(headerIndex + 1)
+      .some((row) => partFromExamName(row?.[columns.exam_name as number] ?? "") !== null);
   const rows: RosterRow[] = [];
   const issues: RosterIssue[] = [];
   const seen = new Set<string>();
@@ -312,7 +321,7 @@ function buildPreview(
     seen.add(rosterNumber);
 
     const part = normalisePart(at(columns.part)) || partFromExamName(at(columns.exam_name));
-    if (columns.part !== null && !part) {
+    if ((columns.part !== null || examNameCarriesPart) && !part) {
       issues.push({ source_row: sourceRow, level: "warning", message: `${rosterNumber}: no part recorded` });
       warnings++;
     }
@@ -367,9 +376,18 @@ const PLACEHOLDER_SURNAMES = [
   ".",
 ];
 
-function isPlaceholderName(value: string): boolean {
+function isPlaceholderSurname(value: string): boolean {
   const bare = value.toLowerCase().replace(/[^a-z]/g, " ").replace(/\s+/g, " ").trim();
   return bare === "" || PLACEHOLDER_SURNAMES.includes(bare);
+}
+
+/**
+ * The given name only loses punctuation-only values. "Nil", "Na" and "None"
+ * are real given names somewhere, and clearing one would promote the surname
+ * into its place.
+ */
+function isEmptyGivenName(value: string): boolean {
+  return value.replace(/[^\p{L}\p{N}]/gu, "").trim() === "";
 }
 
 /** "PART 2 CMA EXAM- ESSAY" is the exam; the part inside it is what staff need. */
@@ -388,8 +406,8 @@ function normalisePart(value: string): string | null {
 }
 
 function splitName(full: string, first: string, last: string) {
-  if (isPlaceholderName(last)) last = "";
-  if (isPlaceholderName(first)) first = "";
+  if (isPlaceholderSurname(last)) last = "";
+  if (isEmptyGivenName(first)) first = "";
   if (first || last) return { first: first || last, last: first ? last : "" };
   if (!full) return { first: "", last: "" };
 

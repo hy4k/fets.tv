@@ -12,6 +12,17 @@
  */
 
 const CFB_SIGNATURE = "d0cf11e0a1b11ae1";
+
+/**
+ * A cell record carries its own row and column, so a malformed or hostile
+ * workbook can claim a cell at row 65,535 column 16,384 and make the dense
+ * grid below a billion entries — from a file well inside the upload limit.
+ * A roster is a few hundred rows of a dozen columns; these are far above
+ * anything real and far below anything that hurts.
+ */
+const MAX_ROWS = 20_000;
+const MAX_COLUMNS = 256;
+const MAX_CELLS = 500_000;
 const FREE_SECTOR = 0xffffffff;
 const END_OF_CHAIN = 0xfffffffe;
 
@@ -199,7 +210,7 @@ function readBiff(stream: Buffer): { name: string; grid: string[][] }[] {
 function readSheet(sheetRecords: Record_[], strings: string[], dateXfs: Set<number>): string[][] {
   const grid: string[][] = [];
   const put = (row: number, column: number, value: string) => {
-    if (row < 0 || column < 0 || row > 1_048_576 || column > 16_384) return;
+    if (row < 0 || column < 0 || row >= MAX_ROWS || column >= MAX_COLUMNS) return;
     (grid[row] ??= [])[column] = value;
   };
 
@@ -270,6 +281,11 @@ function readSheet(sheetRecords: Record_[], strings: string[], dateXfs: Set<numb
   }
 
   const width = grid.reduce((n, row) => Math.max(n, row?.length ?? 0), 0);
+  if (grid.length * width > MAX_CELLS) {
+    throw new Error(
+      `this sheet claims ${grid.length} rows by ${width} columns, which is too large to be a roster`,
+    );
+  }
   return Array.from({ length: grid.length }, (_, r) =>
     Array.from({ length: width }, (_, c) => grid[r]?.[c] ?? ""),
   );
