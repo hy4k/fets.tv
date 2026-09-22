@@ -42,6 +42,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
 
   const [
     candidates,
+    labs,
     workstations,
     events,
     call,
@@ -60,6 +61,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
           .order("scheduled_at", { ascending: true, nullsFirst: false })
           .order("public_token", { ascending: true })
       : Promise.resolve({ data: [] }),
+    supabase.from("labs").select("*").eq("center_id", center.id).order("position"),
     supabase.from("workstations").select("*").eq("center_id", center.id).order("seat_code"),
     supabase
       .from("candidate_events")
@@ -96,6 +98,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
     rules,
     session: session ?? null,
     candidates: candidates.data ?? [],
+    labs: labs.data ?? [],
     workstations: workstations.data ?? [],
     events: events.data ?? [],
     call: call.data ?? null,

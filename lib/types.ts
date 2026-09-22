@@ -158,9 +158,20 @@ export type ScheduleRules = {
   updated_at: string;
 };
 
+export type Lab = {
+  id: string;
+  center_id: string;
+  name: string;
+  position: number;
+  capacity: number;
+  created_at: string;
+};
+
 export type Workstation = {
   id: string;
   center_id: string;
+  /** Null on a seat from a retired bank, which the console no longer shows. */
+  lab_id: string | null;
   lab_name: string;
   seat_code: string;
   status: WorkstationStatus;
@@ -275,6 +286,7 @@ export type Database = {
       exam_sessions: Table<ExamSession>;
       candidates: Table<Candidate>;
       schedule_rules: Table<ScheduleRules>;
+      labs: Table<Lab>;
       workstations: Table<Workstation>;
       candidate_events: Table<CandidateEvent>;
       public_displays: Table<PublicDisplay>;

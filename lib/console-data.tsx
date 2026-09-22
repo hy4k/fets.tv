@@ -12,6 +12,7 @@ import type {
   PublicDisplayCall,
   ExamProgramme,
   ExamSession,
+  Lab,
   Profile,
   PublicDisplay,
   ScheduleRules,
@@ -24,6 +25,7 @@ export type ConsoleSnapshot = {
   rules: ScheduleRules;
   session: ExamSession | null;
   candidates: Candidate[];
+  labs: Lab[];
   workstations: Workstation[];
   events: CandidateEvent[];
   call: PublicDisplayCall | null;
@@ -97,6 +99,7 @@ export function ConsoleProvider({
 
     const [
       candidates,
+      labs,
       workstations,
       events,
       call,
@@ -109,6 +112,7 @@ export function ConsoleProvider({
       notice,
     ] = await Promise.all([
       candidatesQuery,
+      supabase.from("labs").select("*").eq("center_id", centerId).order("position"),
       supabase.from("workstations").select("*").eq("center_id", centerId).order("seat_code"),
       supabase
         .from("candidate_events")
@@ -144,6 +148,7 @@ export function ConsoleProvider({
       ...prev,
       session: session ?? null,
       candidates: candidates?.data ?? (session ? prev.candidates : []),
+      labs: labs.data ?? prev.labs,
       workstations: workstations.data ?? prev.workstations,
       events: events.data ?? prev.events,
       call: call.data ?? null,
@@ -170,6 +175,7 @@ export function ConsoleProvider({
     const watched: [table: string, filter: string][] = [
       ["candidates", `center_id=eq.${centerId}`],
       ["candidate_events", `center_id=eq.${centerId}`],
+      ["labs", `center_id=eq.${centerId}`],
       ["workstations", `center_id=eq.${centerId}`],
       ["public_display_calls", `center_id=eq.${centerId}`],
       ["schedule_rules", `center_id=eq.${centerId}`],
