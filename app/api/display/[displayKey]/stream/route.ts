@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { NextRequest } from "next/server";
+import { withSignedMedia } from "@/lib/notice-media";
 import { supabaseService } from "@/lib/supabase/service";
 
 export const dynamic = "force-dynamic";
@@ -34,7 +35,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         if (closed) return;
         const { data } = await supabase.rpc("fets_display_state", { p_display_key: displayKey });
         if (closed || !data) return;
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+        const state = await withSignedMedia(supabase, data);
+        if (closed || !state) return;
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(state)}\n\n`));
       };
 
       const schedulePush = () => {
@@ -44,7 +47,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
       const channel = supabase.channel(`fets:display:${display.id}`);
       const filter = `center_id=eq.${display.center_id}`;
-      for (const table of ["public_display_calls", "candidates", "centers"]) {
+      for (const table of ["public_display_calls", "candidates", "centers", "display_notices"]) {
         channel.on(
           "postgres_changes",
           { event: "*", schema: "public", table, filter: table === "centers" ? `id=eq.${display.center_id}` : filter },

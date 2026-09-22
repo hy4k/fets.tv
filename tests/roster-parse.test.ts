@@ -170,3 +170,45 @@ test("a merged date banner is a separator, not a candidate", async () => {
     ["Jeremiah", "Afra"],
   );
 });
+
+test("a center can teach the importer a column heading of its own", async () => {
+  const book = new ExcelJS.Workbook();
+  const sheet = book.addWorksheet("Roster");
+  // Headings no built-in alias covers: a board that calls things its own way.
+  sheet.addRow(["Docket", "Examinee", "Cell", "Hometown"]);
+  sheet.addRow(["D-1001", "Fatima Noor", "9847011223", "Calicut"]);
+  sheet.addRow(["D-1002", "Rahul Menon", "9961044556", "Kannur"]);
+  const buffer = Buffer.from(await book.xlsx.writeBuffer());
+
+  const untaught = await parseRosterFile("odd.xlsx", buffer);
+  assert.equal(untaught.rows.length, 0, "nothing should import before the headings are taught");
+
+  const taught = await parseRosterFile("odd.xlsx", buffer, {
+    roster_number: ["docket"],
+    full_name: ["examinee"],
+    phone: ["cell"],
+    place: ["hometown"],
+  });
+
+  assert.equal(taught.rows.length, 2);
+  assert.equal(taught.rows[0].roster_number, "D-1001");
+  assert.equal(taught.rows[0].first_name, "Fatima");
+  assert.equal(taught.rows[0].last_name, "Noor");
+  assert.equal(taught.rows[0].phone, "9847011223");
+  assert.equal(taught.rows[0].place, "Calicut");
+});
+
+test("a center's own heading wins over a built-in one", async () => {
+  const book = new ExcelJS.Workbook();
+  const sheet = book.addWorksheet("Roster");
+  // "Name" is a built-in alias for the full name. A center that uses "Name" for
+  // something else and "Candidate" for the person must be able to say so.
+  sheet.addRow(["Roster No", "Name", "Candidate"]);
+  sheet.addRow(["A-1", "CELPIP General", "Fatima Noor"]);
+  const buffer = Buffer.from(await book.xlsx.writeBuffer());
+
+  const taught = await parseRosterFile("odd.xlsx", buffer, { full_name: ["candidate"] });
+  assert.equal(taught.rows.length, 1);
+  assert.equal(taught.rows[0].first_name, "Fatima");
+  assert.equal(taught.rows[0].last_name, "Noor");
+});

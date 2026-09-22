@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { clockAt, instantFromZonedTime, nowInZone } from "../lib/format.ts";
+import { clockAt, instantFromZonedTime, nowInZone, todayInZone } from "../lib/format.ts";
 
 const IST = "Asia/Kolkata";
 
@@ -40,4 +40,14 @@ test("it survives a DST boundary", () => {
 
 test("nowInZone reads as HH:MM", () => {
   assert.match(nowInZone(IST), /^([01]\d|2[0-3]):[0-5]\d$/);
+});
+
+test("the exam day is the center's day, not UTC's", () => {
+  // 20:00 UTC on the 21st is already 01:30 on the 22nd in Kolkata. A roster
+  // started then belongs to the 22nd; the UTC date would file it a day early.
+  const justAfterLocalMidnight = new Date("2026-09-21T20:00:00Z");
+
+  assert.equal(todayInZone(IST, justAfterLocalMidnight), "2026-09-22");
+  assert.equal(todayInZone("UTC", justAfterLocalMidnight), "2026-09-21");
+  assert.equal(todayInZone("America/New_York", justAfterLocalMidnight), "2026-09-21");
 });

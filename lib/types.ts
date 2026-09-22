@@ -92,6 +92,8 @@ export type ExamProgramme = {
 
 export type NoticeTone = "info" | "warning" | "urgent";
 
+export type NoticeMediaKind = "image" | "video" | "file";
+
 export type NoticeSlot = {
   key: string;
   label: string;
@@ -119,6 +121,10 @@ export type DisplayNotice = {
   template_label: string;
   values: Record<string, string>;
   body: string;
+  /** Set when staff reworded the template before it went up. */
+  body_override: string | null;
+  media_path: string | null;
+  media_kind: NoticeMediaKind | null;
   tone: NoticeTone;
   active: boolean;
   expires_at: string | null;
@@ -158,9 +164,29 @@ export type ScheduleRules = {
   updated_at: string;
 };
 
+export type RosterColumnAlias = {
+  id: string;
+  center_id: string;
+  field: string;
+  alias: string;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type Lab = {
+  id: string;
+  center_id: string;
+  name: string;
+  position: number;
+  capacity: number;
+  created_at: string;
+};
+
 export type Workstation = {
   id: string;
   center_id: string;
+  /** Null on a seat from a retired bank, which the console no longer shows. */
+  lab_id: string | null;
   lab_name: string;
   seat_code: string;
   status: WorkstationStatus;
@@ -220,7 +246,15 @@ export type DisplayState = {
     nonce: number;
     updated_at: string;
   } | null;
-  notice: { body: string; tone: NoticeTone; posted_at: string } | null;
+  notice: {
+    body: string;
+    tone: NoticeTone;
+    /** Storage key while in the database; a signed URL by the time it reaches the browser. */
+    media_path: string | null;
+    media_url?: string | null;
+    media_kind: NoticeMediaKind | null;
+    posted_at: string;
+  } | null;
   next: { public_token: string; name: string | null; scheduled_at: string | null }[];
   server_time: string;
 };
@@ -275,6 +309,8 @@ export type Database = {
       exam_sessions: Table<ExamSession>;
       candidates: Table<Candidate>;
       schedule_rules: Table<ScheduleRules>;
+      labs: Table<Lab>;
+      roster_column_aliases: Table<RosterColumnAlias>;
       workstations: Table<Workstation>;
       candidate_events: Table<CandidateEvent>;
       public_displays: Table<PublicDisplay>;

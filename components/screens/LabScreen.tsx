@@ -1,218 +1,271 @@
 "use client";
 
-import { useState } from "react";
-import { Drawer } from "@/components/ui/Drawer";
-import { useDrawers } from "@/lib/drawer-store";
+import { useMemo, useState } from "react";
+import { Dialog } from "@/components/ui/Dialog";
 import { useConsole } from "@/lib/console-data";
-import { STAGE_LABELS, fullName } from "@/lib/format";
-import type { CandidateStatus, WorkstationStatus } from "@/lib/types";
+import { fullName, initials } from "@/lib/format";
+import type { Candidate, Workstation } from "@/lib/types";
 
-const SEAT_TONES: Record<WorkstationStatus, { dot: string; box: string }> = {
-  active: { dot: "bg-mint", box: "border-mint/40 bg-mint/12" },
-  assigned: { dot: "bg-iris", box: "border-iris/40 bg-iris/12" },
-  free: { dot: "bg-fg-faint", box: "border-edge bg-panel-soft" },
-  cleaning: { dot: "bg-gold", box: "border-gold/40 bg-gold/12" },
-  fault: { dot: "bg-rust", box: "border-rust/40 bg-rust/12" },
-};
+/** Everyone who has been sent in but has nowhere to sit yet. */
+const UNSEATED = ["frisking", "biometrics", "assigned"];
 
-const HANDOFF_STAGES: CandidateStatus[] = ["frisking", "biometrics", "assigned", "lab_entry", "testing"];
-
+/**
+ * Seating, in three taps: the person, the seat, confirm. The page shows who is
+ * still standing; the seats appear only once you have said who you are seating,
+ * so there is never a grid of eighty squares with no question attached to it.
+ */
 export function LabScreen() {
-  const { workstations, candidates, rules, rpc, canLab } = useConsole();
-  const { open, toggle } = useDrawers("lab", { handoff: true });
-  const [lab, setLab] = useState<string>(workstations[0]?.lab_name ?? "A");
-  const [seatId, setSeatId] = useState<string | null>(null);
-  const [candidateId, setCandidateId] = useState<string | null>(null);
+  const { candidates, labs, workstations, session, canLab } = useConsole();
+  const [seatingId, setSeatingId] = useState<string | null>(null);
 
-  const labs = [...new Set(workstations.map((w) => w.lab_name))].sort();
-  const seats = workstations.filter((w) => w.lab_name === lab);
-  const activeSeats = seats.filter((s) => s.status === "active" || s.status === "assigned").length;
-  const seat = seats.find((s) => s.id === seatId) ?? null;
+  const waiting = useMemo(
+    () =>
+      candidates
+        .filter((c) => UNSEATED.includes(c.status) && !c.workstation_id)
+        .sort((a, b) => (a.called_at ?? a.check_in_at ?? "").localeCompare(b.called_at ?? b.check_in_at ?? "")),
+    [candidates],
+  );
 
-  const handoffs = candidates.filter((c) => HANDOFF_STAGES.includes(c.status));
-  const picked = candidates.find((c) => c.id === candidateId) ?? null;
+  const seated = useMemo(
+    () => candidates.filter((c) => c.workstation_id && !c.exam_finished_at),
+    [candidates],
+  );
+
+  const seating = candidates.find((c) => c.id === seatingId) ?? null;
+
+  // Only seats that belong to a lab the centre still has. A retired bank keeps
+  // its rows for the candidates who sat there, but it is not part of the floor.
+  const byLab = useMemo(
+    () =>
+      labs.map((lab) => ({
+        lab,
+        seats: workstations
+          .filter((w) => w.lab_id === lab.id)
+          .sort((a, b) => a.seat_code.localeCompare(b.seat_code, undefined, { numeric: true })),
+      })),
+    [labs, workstations],
+  );
+
+  const free = workstations.filter((w) => w.lab_id && w.status === "free").length;
+
+  if (!session) {
+    return (
+      <div className="flex min-h-0 flex-1 items-center justify-center rounded-[20px] border border-edge-mid panel-bg p-[24px] text-center">
+        <p className="max-w-[360px] text-[13.5px] text-fg-muted">
+          No active roster for this center. Import one from{" "}
+          <span className="font-semibold text-gold">Roster</span> to start seating.
+        </p>
+      </div>
+    );
+  }
+
+  if (labs.length === 0) {
+    return (
+      <div className="flex min-h-0 flex-1 items-center justify-center rounded-[20px] border border-edge-mid panel-bg p-[24px] text-center">
+        <p className="max-w-[360px] text-[13.5px] text-fg-muted">
+          This center has no labs set up. Add them under{" "}
+          <span className="font-semibold text-gold">Setup</span>.
+        </p>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-[12px] overflow-x-hidden overflow-y-auto">
-      <div className="shrink-0 rounded-[20px] border border-edge-mid panel-bg p-[14px]">
-        <div className="mb-[12px] flex flex-wrap gap-[6px]">
-          {(labs.length ? labs : ["A"]).map((name) => {
-            const on = name === lab;
-            return (
-              <button
-                key={name}
-                type="button"
-                onClick={() => {
-                  setLab(name);
-                  setSeatId(null);
-                }}
-                className={`cursor-pointer rounded-[13px] border px-[14px] py-[9px] text-[12px] font-bold ${
-                  on ? "border-gold/50 bg-gold/15 text-gold-bright" : "border-edge bg-panel-soft text-fg-dim"
-                }`}
-              >
-                {name}
-              </button>
-            );
-          })}
-          <span className="flex-1" />
-          <span className="self-center font-mono text-[11px] text-fg-dim">
-            {seats.length} seats · {activeSeats} active
-          </span>
-        </div>
-
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(62px,1fr))] gap-[9px]">
-          {seats.map((s) => {
-            const tone = SEAT_TONES[s.status];
-            const on = s.id === seatId;
-            return (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => setSeatId(s.id)}
-                className={`flex aspect-square cursor-pointer flex-col items-center justify-center gap-[3px] rounded-[16px] border ${
-                  on ? "border-gold/65 bg-gold/20 text-fg" : `${tone.box} text-fg-muted`
-                }`}
-              >
-                <span className="font-mono text-[11.5px] font-semibold">{shortSeat(s.seat_code)}</span>
-                <span className={`h-[6px] w-[6px] rounded-full ${tone.dot}`} />
-              </button>
-            );
-          })}
-          {seats.length === 0 && (
-            <p className="font-mono text-[11px] text-fg-faint">
-              No workstations yet — run “Rebuild seat map” in Setup.
-            </p>
-          )}
-        </div>
-
-        <div className="mt-[13px] flex flex-wrap items-center gap-[9px] border-t border-edge-soft pt-[12px]">
-          {(
-            [
-              ["Active", "bg-mint"],
-              ["Assigned", "bg-iris"],
-              ["Free", "bg-fg-faint"],
-              ["Cleaning", "bg-gold"],
-              ["Fault", "bg-rust"],
-            ] as const
-          ).map(([label, dot]) => (
+    <div className="flex min-h-0 flex-1 flex-col gap-[12px]">
+      <div className="flex shrink-0 flex-wrap items-center gap-[10px]">
+        {byLab.map(({ lab, seats }) => {
+          const open = seats.filter((s) => s.status === "free").length;
+          return (
             <span
-              key={label}
-              className="flex items-center gap-[6px] text-[10.5px] font-bold tracking-[0.06em] text-fg-muted uppercase"
+              key={lab.id}
+              className="rounded-[14px] border border-edge bg-panel-soft px-[14px] py-[10px] text-[12.5px]"
             >
-              <span className={`h-[8px] w-[8px] rounded-[3px] ${dot}`} />
-              {label}
-            </span>
-          ))}
-
-          <span className="flex-1" />
-
-          {seat && (
-            <span className="flex flex-wrap items-center gap-[8px]">
-              <span className="font-mono text-[11px] text-fg-muted">
-                {seat.seat_code} · {seat.status}
+              <span className="font-semibold">{lab.name}</span>
+              <span className="ml-[9px] font-mono text-fg-muted">
+                {open}/{seats.length} free
               </span>
-              <button
-                type="button"
-                disabled={!canLab || !picked || seat.status === "fault"}
-                onClick={() =>
-                  picked &&
-                  rpc(
-                    "fets_assign_workstation",
-                    { p_candidate: picked.id, p_workstation: seat.id },
-                    `${picked.public_token} → ${seat.seat_code}`,
-                  )
-                }
-                className="cursor-pointer rounded-[11px] border border-gold/45 bg-gold/15 px-[12px] py-[8px] text-[11px] font-bold text-gold-bright disabled:opacity-40"
-              >
-                {picked ? `Assign ${picked.public_token}` : "Pick a handoff first"}
-              </button>
-              <button
-                type="button"
-                disabled={!canLab || !!seat.current_candidate_id}
-                onClick={() =>
-                  rpc("fets_set_workstation_status", {
-                    p_workstation: seat.id,
-                    p_status: seat.status === "fault" ? "free" : "fault",
-                  })
-                }
-                className="cursor-pointer rounded-[11px] border border-edge px-[12px] py-[8px] text-[11px] font-bold text-fg-muted disabled:opacity-40"
-              >
-                {seat.status === "fault" ? "Clear fault" : "Mark fault"}
-              </button>
             </span>
-          )}
-        </div>
+          );
+        })}
+        <span className="flex-1" />
+        <span className="text-[12.5px] text-fg-faint">{seated.length} seated</span>
       </div>
 
-      <Drawer label="Handoffs" meta={handoffs.length} metaClassName="text-gold" open={open.handoff} onToggle={toggle("handoff")}>
-        <div className="grid shrink-0 grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-[10px]">
-          {handoffs.map((c) => {
-            const seatCode = workstations.find((w) => w.id === c.workstation_id)?.seat_code;
-            const on = c.id === candidateId;
-            return (
-              <div
-                key={c.id}
-                onClick={() => setCandidateId(c.id)}
-                className={`flex cursor-pointer items-center gap-[10px] rounded-[14px] border p-[11px] ${
-                  on ? "border-gold/50 bg-gold/10" : "border-edge bg-panel-soft"
-                }`}
-              >
-                <span className="w-[72px] shrink-0 font-mono text-[12px] font-semibold whitespace-nowrap">
-                  {c.public_token}
+      <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[20px] border border-edge-mid panel-bg">
+        <div className="flex shrink-0 items-center gap-[10px] border-b border-edge-soft px-[16px] py-[12px]">
+          <span className="text-[11px] font-bold tracking-[0.13em] text-fg-dim uppercase">
+            Waiting for a seat
+          </span>
+          <span className="h-px flex-1 bg-edge-soft" />
+          <span className="font-mono text-[13px] font-semibold text-gold">{waiting.length}</span>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
+          {waiting.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              disabled={!canLab || free === 0}
+              onClick={() => setSeatingId(c.id)}
+              className="flex w-full items-center gap-[12px] border-b border-edge-soft/60 px-[14px] py-[12px] text-left hover:bg-panel-soft disabled:cursor-not-allowed md:px-[18px]"
+            >
+              <span className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-[12px] border border-edge-strong bg-[#251f1b] font-mono text-[11px] font-semibold">
+                {initials(fullName(c))}
+              </span>
+              <span className="block min-w-0 flex-1">
+                <span className="block truncate text-[14px] font-semibold">{fullName(c)}</span>
+                <span className="block truncate font-mono text-[10.5px] text-fg-faint">
+                  {[c.public_token, c.part, c.locker_key && `KEY ${c.locker_key}`]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </span>
-                <span className="min-w-0 flex-1 overflow-hidden font-mono text-[10.5px] text-fg-dim text-ellipsis whitespace-nowrap uppercase">
-                  {STAGE_LABELS[c.status]} → {nextLabel(c.status, rules.biometrics_enabled)}
-                  {seatCode ? ` · ${seatCode}` : ""}
-                </span>
-                <button
-                  type="button"
-                  disabled={!canLab}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void rpc("fets_advance_stage", { p_candidate: c.id }, `${c.public_token} advanced`);
-                  }}
-                  className="cursor-pointer rounded-[10px] border border-edge-warm bg-[#221d19] px-[11px] py-[7px] text-[11px] font-semibold disabled:opacity-40"
-                >
-                  Accept
-                </button>
-              </div>
-            );
-          })}
-          {handoffs.length === 0 && (
-            <p className="font-mono text-[11px] text-fg-faint">
-              Nobody is in the pipeline — candidates appear here once the front office sends them in.
+              </span>
+              <span className="shrink-0 rounded-[12px] border border-gold/45 bg-gold/10 px-[15px] py-[10px] text-[12.5px] font-bold text-gold-bright">
+                Seat them
+              </span>
+            </button>
+          ))}
+
+          {waiting.length === 0 && (
+            <p className="p-[26px] text-center text-[13px] text-fg-faint">
+              Nobody is waiting for a seat.
             </p>
           )}
         </div>
-      </Drawer>
 
-      {picked && (
-        <p className="shrink-0 font-mono text-[10.5px] text-fg-faint">
-          Selected {picked.public_token} · {fullName(picked)} — pick a seat above to assign.
-        </p>
+        {free === 0 && waiting.length > 0 && (
+          <p className="shrink-0 border-t border-rust/30 bg-rust/8 px-[16px] py-[11px] text-[12.5px] text-rust">
+            Every seat is taken. Finish somebody on the Live Floor to free one.
+          </p>
+        )}
+      </section>
+
+      {seating && (
+        <SeatPicker
+          key={seating.id}
+          candidate={seating}
+          byLab={byLab}
+          onClose={() => setSeatingId(null)}
+        />
       )}
     </div>
   );
 }
 
-/** Seats read "LAB A-07"; the lab is already in the tab above. */
-function shortSeat(seatCode: string) {
-  return seatCode.replace(/^LAB\s+[A-Z]-/, "");
-}
+/** The seats, once there is somebody to put in one. */
+function SeatPicker({
+  candidate,
+  byLab,
+  onClose,
+}: {
+  candidate: Candidate;
+  byLab: { lab: { id: string; name: string }; seats: Workstation[] }[];
+  onClose: () => void;
+}) {
+  const { candidates, rpc, canLab } = useConsole();
+  const [chosen, setChosen] = useState<Workstation | null>(null);
+  const [busy, setBusy] = useState(false);
 
-function nextLabel(status: CandidateStatus, biometrics: boolean) {
-  switch (status) {
-    case "frisking":
-      return biometrics ? STAGE_LABELS.biometrics : STAGE_LABELS.assigned;
-    case "biometrics":
-      return STAGE_LABELS.assigned;
-    case "assigned":
-      return STAGE_LABELS.lab_entry;
-    case "lab_entry":
-      return STAGE_LABELS.testing;
-    case "testing":
-      return STAGE_LABELS.completed;
-    default:
-      return "—";
+  const occupantOf = (w: Workstation) =>
+    candidates.find((c) => c.id === w.current_candidate_id)?.public_token ?? null;
+
+  async function confirm() {
+    if (!chosen) return;
+    setBusy(true);
+    const ok = await rpc(
+      "fets_assign_workstation",
+      { p_candidate: candidate.id, p_workstation: chosen.id },
+      `${candidate.public_token} seated at ${chosen.seat_code}`,
+    );
+    setBusy(false);
+    if (ok) onClose();
   }
+
+  return (
+    <Dialog
+      open
+      title={chosen ? `Seat at ${chosen.seat_code}?` : "Choose a seat"}
+      subtitle={`${fullName(candidate)} · ${candidate.public_token}`}
+      onClose={onClose}
+      width={620}
+      footer={
+        <>
+          <button
+            type="button"
+            disabled={!chosen || busy || !canLab}
+            onClick={confirm}
+            className={`flex-1 rounded-[14px] px-[22px] py-[15px] text-[15px] font-bold ${
+              chosen && canLab
+                ? "cursor-pointer bg-[linear-gradient(145deg,oklch(0.83_0.16_158),oklch(0.72_0.15_165))] text-[#0c1711]"
+                : "cursor-not-allowed bg-[#221d19] text-fg-dim"
+            }`}
+          >
+            {busy ? "Seating…" : chosen ? `Confirm ${chosen.seat_code}` : "Pick a seat above"}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="cursor-pointer rounded-[14px] border border-edge px-[20px] py-[15px] text-[14px] font-semibold text-fg-muted"
+          >
+            Cancel
+          </button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-[18px]">
+        {byLab.map(({ lab, seats }) => {
+          const open = seats.filter((s) => s.status === "free").length;
+          return (
+            <div key={lab.id} className="flex flex-col gap-[9px]">
+              <div className="flex items-baseline gap-[10px]">
+                <span className="text-[13.5px] font-semibold">{lab.name}</span>
+                <span className="font-mono text-[11.5px] text-fg-faint">
+                  {open} of {seats.length} free
+                </span>
+              </div>
+
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(58px,1fr))] gap-[7px]">
+                {seats.map((seat) => {
+                  const taken = seat.status !== "free";
+                  const picked = chosen?.id === seat.id;
+                  const number = seat.seat_code.replace(/^.*-/, "");
+                  return (
+                    <button
+                      key={seat.id}
+                      type="button"
+                      disabled={taken || !canLab}
+                      title={
+                        seat.status === "fault"
+                          ? "Marked faulty"
+                          : taken
+                            ? `Taken by ${occupantOf(seat) ?? "somebody"}`
+                            : seat.seat_code
+                      }
+                      onClick={() => setChosen(seat)}
+                      className={`aspect-square rounded-[12px] border font-mono text-[13px] font-semibold ${
+                        picked
+                          ? "border-mint bg-mint/25 text-mint"
+                          : seat.status === "fault"
+                            ? "cursor-not-allowed border-rust/35 bg-rust/8 text-rust/60"
+                            : taken
+                              ? "cursor-not-allowed border-edge bg-panel text-fg-faint/40"
+                              : "cursor-pointer border-edge-warm bg-panel-soft text-fg-muted hover:border-gold hover:text-gold-bright"
+                      }`}
+                    >
+                      {number}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+
+        <p className="text-[12px] leading-[1.5] text-fg-faint">
+          A dim square is taken, a red one is faulty. Picking a seat turns it green; the button below
+          confirms it.
+        </p>
+      </div>
+    </Dialog>
+  );
 }
