@@ -3,7 +3,7 @@ import Papa from "papaparse";
 import { isLegacyXls, readLegacyXls } from "./xls.ts";
 import type { RosterIssue, RosterPreview, RosterRow } from "@/lib/types";
 
-const HEADER_ALIASES: Record<keyof ColumnMap, string[]> = {
+export const HEADER_ALIASES: Record<keyof ColumnMap, string[]> = {
   roster_number: [
     "roster no",
     "roster number",
@@ -42,7 +42,7 @@ const HEADER_ALIASES: Record<keyof ColumnMap, string[]> = {
   roster_flag: ["flag", "status", "remark", "remarks", "note", "notes", "exception"],
 };
 
-type ColumnMap = {
+export type ColumnMap = {
   roster_number: number | null;
   exam_name: number | null;
   full_name: number | null;
@@ -54,7 +54,35 @@ type ColumnMap = {
   roster_flag: number | null;
 };
 
-export async function parseRosterFile(filename: string, buffer: Buffer): Promise<RosterPreview> {
+/**
+ * Column headings a centre has taught the importer, on top of the built-in
+ * list. A fourth board layout should not need a release to be readable.
+ */
+export type ExtraAliases = Partial<Record<keyof ColumnMap, string[]>>;
+
+/**
+ * Both lists, kept apart on purpose.
+ *
+ * A centre's own headings are matched in a pass of their own, before the
+ * built-in ones, because the clash they exist to settle is between columns
+ * rather than between spellings. A file with both "Name" (the exam) and
+ * "Candidate" (the person) would otherwise have "Name" claimed as the full
+ * name before "Candidate" was ever reached, however the field's own list was
+ * ordered.
+ */
+type AliasTable = { extra: ExtraAliases; builtin: Record<keyof ColumnMap, string[]> };
+
+const BUILTIN_TABLE: AliasTable = { extra: {}, builtin: HEADER_ALIASES };
+
+function aliasesFor(extra: ExtraAliases | undefined): AliasTable {
+  return extra ? { extra, builtin: HEADER_ALIASES } : BUILTIN_TABLE;
+}
+
+export async function parseRosterFile(
+  filename: string,
+  buffer: Buffer,
+  extra?: ExtraAliases,
+): Promise<RosterPreview> {
   // Boards export .xls, which is a different format from .xlsx entirely.
   const sheets = isLegacyXls(buffer)
     ? readLegacyXls(buffer)
@@ -66,8 +94,12 @@ export async function parseRosterFile(filename: string, buffer: Buffer): Promise
   // so take the first sheet that actually has a header rather than assuming.
   let fallback: { name: string; grid: string[][] } | null = null;
 
+  const aliases = aliasesFor(extra);
+
   for (const sheet of sheets) {
-    if (detectHeaderRow(sheet.grid).index !== -1) return buildPreview(filename, sheet.grid, sheet.name);
+    if (detectHeaderRow(sheet.grid, aliases).index !== -1) {
+      return buildPreview(filename, sheet.grid, sheet.name, undefined, aliases);
+    }
     const size = sheet.grid.reduce((n, row) => n + row.filter(Boolean).length, 0);
     const best = fallback ? fallback.grid.reduce((n, row) => n + row.filter(Boolean).length, 0) : -1;
     if (size > best) fallback = sheet;
@@ -78,6 +110,7 @@ export async function parseRosterFile(filename: string, buffer: Buffer): Promise
     fallback?.grid ?? [],
     fallback?.name ?? null,
     sheets.map((s) => s.name),
+    aliases,
   );
 }
 
@@ -131,7 +164,10 @@ function clean(value: unknown): string {
 }
 
 /** Scan the first rows for the one that actually names the columns. */
-function detectHeaderRow(grid: string[][]): {
+function detectHeaderRow(
+  grid: string[][],
+  table: AliasTable = BUILTIN_TABLE,
+): {
   index: number;
   columns: ColumnMap;
   best: { index: number; score: number; columns: ColumnMap };
@@ -139,7 +175,7 @@ function detectHeaderRow(grid: string[][]): {
   let best = { index: -1, score: 0, columns: emptyColumns() };
 
   for (let i = 0; i < Math.min(grid.length, 20); i++) {
-    const columns = matchColumns(grid[i] ?? []);
+    const columns = matchColumns(grid[i] ?? [], table);
     const score = Object.values(columns).filter((v) => v !== null).length;
     if (score > best.score) best = { index: i, score, columns };
   }
@@ -164,14 +200,13 @@ function emptyColumns(): ColumnMap {
 }
 
 /** Every column whose heading reads like a phone number, in order. */
-function phoneColumns(row: string[]): number[] {
+function phoneColumns(row: string[], table: AliasTable): number[] {
+  const known = [...(table.extra.phone ?? []), ...table.builtin.phone];
   const out: number[] = [];
   row.forEach((raw, index) => {
     const cell = cleanHeader(raw);
     if (!cell) return;
-    if (HEADER_ALIASES.phone.some((alias) => matchesAlias(cell, alias))) {
-      out.push(index);
-    }
+    if (known.some((alias) => matchesAlias(cell, alias))) out.push(index);
   });
   return out;
 }
@@ -191,21 +226,26 @@ function cleanHeader(raw: string): string {
   return raw.toLowerCase().replace(/[^a-z0-9 .]/g, " ").replace(/\s+/g, " ").trim();
 }
 
-function matchColumns(row: string[]): ColumnMap {
+function matchColumns(row: string[], table: AliasTable = BUILTIN_TABLE): ColumnMap {
   const columns = emptyColumns();
+  const headers = row.map(cleanHeader);
+  const claimed = new Set<number>();
 
-  row.forEach((raw, index) => {
-    const cell = cleanHeader(raw);
-    if (!cell) return;
+  // Pass one: what this centre said. Pass two: what the importer already knew.
+  for (const list of [table.extra, table.builtin] as Partial<Record<keyof ColumnMap, string[]>>[]) {
+    headers.forEach((cell, index) => {
+      if (!cell || claimed.has(index)) return;
 
-    for (const [field, aliases] of Object.entries(HEADER_ALIASES) as [keyof ColumnMap, string[]][]) {
-      if (columns[field] !== null) continue;
-      if (aliases.some((alias) => matchesAlias(cell, alias))) {
-        columns[field] = index;
-        return;
+      for (const [field, aliases] of Object.entries(list) as [keyof ColumnMap, string[]][]) {
+        if (columns[field] !== null) continue;
+        if (aliases.some((alias) => matchesAlias(cell, alias))) {
+          columns[field] = index;
+          claimed.add(index);
+          return;
+        }
       }
-    }
-  });
+    });
+  }
 
   return columns;
 }
@@ -215,9 +255,10 @@ function buildPreview(
   grid: string[][],
   sheetName: string | null = null,
   allSheets: string[] = [],
+  table: AliasTable = BUILTIN_TABLE,
 ): RosterPreview {
-  const { index: headerIndex, columns, best } = detectHeaderRow(grid);
-  const phones = headerIndex === -1 ? [] : phoneColumns(grid[headerIndex] ?? []);
+  const { index: headerIndex, columns, best } = detectHeaderRow(grid, table);
+  const phones = headerIndex === -1 ? [] : phoneColumns(grid[headerIndex] ?? [], table);
 
   // Does this file carry the part inside its exam name? One row proving it
   // makes a row that fails worth reporting.

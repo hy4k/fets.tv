@@ -164,6 +164,15 @@ export type ScheduleRules = {
   updated_at: string;
 };
 
+export type RosterColumnAlias = {
+  id: string;
+  center_id: string;
+  field: string;
+  alias: string;
+  created_by: string | null;
+  created_at: string;
+};
+
 export type Lab = {
   id: string;
   center_id: string;
@@ -301,6 +310,7 @@ export type Database = {
       candidates: Table<Candidate>;
       schedule_rules: Table<ScheduleRules>;
       labs: Table<Lab>;
+      roster_column_aliases: Table<RosterColumnAlias>;
       workstations: Table<Workstation>;
       candidate_events: Table<CandidateEvent>;
       public_displays: Table<PublicDisplay>;

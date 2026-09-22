@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { parseRosterFile } from "@/lib/roster/parse";
+import { parseRosterFile, type ExtraAliases } from "@/lib/roster/parse";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -14,9 +14,26 @@ export async function POST(request: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user) return Response.json({ error: "Not signed in" }, { status: 401 });
 
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role, center_id")
+    .eq("id", user.id)
+    .maybeSingle();
   if (profile?.role !== "admin") {
     return Response.json({ error: "Only an admin can import a roster" }, { status: 403 });
+  }
+
+  // Column headings this centre has taught the importer, on top of the built-in
+  // list, so a layout nobody has seen before can be read without a release.
+  const { data: rows } = await supabase
+    .from("roster_column_aliases")
+    .select("field, alias")
+    .eq("center_id", profile.center_id);
+
+  const extra: ExtraAliases = {};
+  for (const row of rows ?? []) {
+    const field = row.field as keyof ExtraAliases;
+    (extra[field] ??= []).push(row.alias);
   }
 
   const form = await request.formData();
@@ -32,7 +49,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const preview = await parseRosterFile(file.name, Buffer.from(await file.arrayBuffer()));
+    const preview = await parseRosterFile(file.name, Buffer.from(await file.arrayBuffer()), extra);
     return Response.json(preview);
   } catch (error) {
     // The reason matters — "is it a valid spreadsheet?" told nobody anything.

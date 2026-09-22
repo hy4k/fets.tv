@@ -14,6 +14,7 @@ import type {
   ExamSession,
   Lab,
   Profile,
+  RosterColumnAlias,
   PublicDisplay,
   ScheduleRules,
   Workstation,
@@ -26,6 +27,7 @@ export type ConsoleSnapshot = {
   session: ExamSession | null;
   candidates: Candidate[];
   labs: Lab[];
+  columnAliases: RosterColumnAlias[];
   workstations: Workstation[];
   events: CandidateEvent[];
   call: PublicDisplayCall | null;
@@ -100,6 +102,7 @@ export function ConsoleProvider({
     const [
       candidates,
       labs,
+      columnAliases,
       workstations,
       events,
       call,
@@ -113,6 +116,7 @@ export function ConsoleProvider({
     ] = await Promise.all([
       candidatesQuery,
       supabase.from("labs").select("*").eq("center_id", centerId).order("position"),
+      supabase.from("roster_column_aliases").select("*").eq("center_id", centerId).order("field"),
       supabase.from("workstations").select("*").eq("center_id", centerId).order("seat_code"),
       supabase
         .from("candidate_events")
@@ -149,6 +153,7 @@ export function ConsoleProvider({
       session: session ?? null,
       candidates: candidates?.data ?? (session ? prev.candidates : []),
       labs: labs.data ?? prev.labs,
+      columnAliases: columnAliases.data ?? prev.columnAliases,
       workstations: workstations.data ?? prev.workstations,
       events: events.data ?? prev.events,
       call: call.data ?? null,
