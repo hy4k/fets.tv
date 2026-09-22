@@ -152,23 +152,34 @@ export function CandidatesScreen() {
                 disabled={!canFrontOffice}
                 onClick={() => setEditing(c)}
                 style={{ gridTemplateColumns: COLUMNS }}
-                className="flex w-full flex-wrap items-center gap-x-[12px] gap-y-[4px] border-b border-edge-soft/60 px-[14px] py-[13px] text-left hover:bg-panel-soft disabled:cursor-default md:grid md:px-[18px] md:py-[14px]"
+                className="block w-full border-b border-edge-soft/60 px-[14px] py-[13px] text-left hover:bg-panel-soft disabled:cursor-default md:grid md:items-center md:gap-[12px] md:px-[18px] md:py-[14px]"
               >
-                <span className="font-mono text-[13px] font-semibold">{c.public_token}</span>
-                <span className="order-first w-full min-w-0 md:order-none md:w-auto">
-                  <span className="block truncate text-[14px]">{fullName(c)}</span>
-                  <span className="block truncate font-mono text-[11px] text-fg-faint">
+                {/* From md up these are the report's six columns. Below it, the
+                    same six read as a card: who, then what is known about them. */}
+                <span className="mb-[6px] flex items-baseline gap-[10px] md:mb-0 md:block">
+                  <span className="font-mono text-[13px] font-semibold">{c.public_token}</span>
+                  <span className="font-mono text-[11px] text-fg-faint md:hidden">
                     {c.roster_number}
                   </span>
                 </span>
-                <Cell value={c.part} />
-                <Cell value={c.place} />
-                <Cell value={c.phone} mono />
-                <span>
-                  <span
-                    className={`inline-block rounded-[9px] px-[10px] py-[6px] text-[11px] font-semibold ${chip.className}`}
-                  >
-                    {chip.label}
+
+                <span className="order-first mb-[7px] block min-w-0 md:mb-0">
+                  <span className="block truncate text-[15px] md:text-[14px]">{fullName(c)}</span>
+                  <span className="hidden truncate font-mono text-[11px] text-fg-faint md:block">
+                    {c.roster_number}
+                  </span>
+                </span>
+
+                <span className="flex flex-wrap items-center gap-[7px] md:contents">
+                  <Cell label="Part" value={c.part} />
+                  <Cell label="Place" value={c.place} />
+                  <Cell label="Contact" value={c.phone} mono />
+                  <span className="md:block">
+                    <span
+                      className={`inline-block rounded-[9px] px-[10px] py-[6px] text-[11px] font-semibold ${chip.className}`}
+                    >
+                      {chip.label}
+                    </span>
                   </span>
                 </span>
               </button>
@@ -202,14 +213,30 @@ export function CandidatesScreen() {
   );
 }
 
-/** A blank is shown as a blank worth filling, not as a dash to skip over. */
-function Cell({ value, mono = false }: { value: string | null; mono?: boolean }) {
-  if (!value) {
-    return <span className="truncate text-[12px] text-fg-faint italic">add</span>;
-  }
+/**
+ * A blank is shown as a blank worth filling, not as a dash to skip over. In the
+ * table the column heading says which field it is; in the card there is no
+ * heading, so the label comes with the value.
+ */
+function Cell({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: string | null;
+  mono?: boolean;
+}) {
   return (
-    <span className={`truncate text-[12.5px] text-fg-muted md:text-[13px] ${mono ? "font-mono" : ""}`}>
-      {value}
+    <span className="flex min-w-0 items-baseline gap-[5px] rounded-[8px] bg-panel-soft px-[8px] py-[4px] md:block md:bg-transparent md:px-0 md:py-0">
+      <span className="shrink-0 text-[10.5px] font-semibold text-fg-dim md:hidden">{label}</span>
+      {value ? (
+        <span className={`truncate text-[12.5px] text-fg-muted md:text-[13px] ${mono ? "font-mono" : ""}`}>
+          {value}
+        </span>
+      ) : (
+        <span className="text-[12px] text-fg-faint italic">add</span>
+      )}
     </span>
   );
 }
