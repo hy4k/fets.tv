@@ -1,20 +1,28 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Dialog } from "@/components/ui/Dialog";
 import { Drawer } from "@/components/ui/Drawer";
 import { useDrawers } from "@/lib/drawer-store";
 import { useConsole } from "@/lib/console-data";
-import { STAGE_LABELS, clockAt, fullName, initials, statusChip } from "@/lib/format";
+import { clockAt, fullName, initials, statusChip } from "@/lib/format";
 import type { Candidate } from "@/lib/types";
 
 /** Physical locker bank at the front desk. */
 const LOCKER_BANK = 24;
 
+const WAITING_TO_CHECK_IN = ["scheduled", "arrived", "id_checked"];
+
+/**
+ * The desk, as one flow rather than a page of controls. The roster is the page;
+ * checking somebody in starts from their own row and finishes in a pop-up that
+ * closes behind you. Nothing is parked at the bottom waiting to be noticed.
+ */
 export function FrontOfficeScreen() {
   const { candidates, center, call, rpc, canFrontOffice, session } = useConsole();
-  const { open, toggle } = useDrawers("front-office", { lockers: false, recent: false });
+  const { open, toggle } = useDrawers("front-office", { recent: false });
   const [query, setQuery] = useState("");
-  const [pickedId, setPickedId] = useState<string | null>(null);
+  const [checkingInId, setCheckingInId] = useState<string | null>(null);
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -26,30 +34,31 @@ export function FrontOfficeScreen() {
           c.roster_number.toLowerCase().includes(q) ||
           c.public_token.toLowerCase().includes(q),
       )
-      .slice(0, 80);
+      .slice(0, 120);
   }, [candidates, query]);
 
-  const selected = candidates.find((c) => c.id === pickedId) ?? results[0] ?? null;
+  const checkingIn = candidates.find((c) => c.id === checkingInId) ?? null;
   const called = candidates.find((c) => c.id === call?.candidate_id) ?? null;
   const recent = candidates
     .filter((c) => c.check_in_at)
     .sort((a, b) => (a.check_in_at! < b.check_in_at! ? 1 : -1))
     .slice(0, 8);
 
-  const lockersInUse = new Map(
-    candidates
-      .filter((c) => c.locker_key && !["signed_out", "no_show"].includes(c.status))
-      .map((c) => [c.locker_key!, c.public_token]),
-  );
+  const toCheckIn = candidates.filter((c) => WAITING_TO_CHECK_IN.includes(c.status)).length;
 
   if (!session) return <EmptyRoster />;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-[14px] overflow-y-auto md:overflow-visible">
+    <div className="flex min-h-0 flex-1 flex-col gap-[14px]">
+      {/* Somebody has been called and the hall is expecting them. This is the
+          one thing on the page that is not about the roster, so it sits above
+          it rather than inside it. */}
       {called && (
         <div className="flex shrink-0 flex-wrap items-center gap-[14px] rounded-[20px] mint-bg px-[18px] py-[16px] text-[#0c1711]">
           <span className="text-[11px] font-extrabold tracking-[0.18em] uppercase">Send in</span>
-          <span className="font-mono text-[26px] font-semibold whitespace-nowrap">{called.public_token}</span>
+          <span className="font-mono text-[26px] font-semibold whitespace-nowrap">
+            {called.public_token}
+          </span>
           <span className="font-serif text-[25px]">{fullName(called)}</span>
           <span className="flex-1" />
           <span className="rounded-[12px] bg-[#0c1711] px-[14px] py-[9px] text-[13px] font-extrabold tracking-[0.06em] text-mint uppercase">
@@ -58,7 +67,9 @@ export function FrontOfficeScreen() {
           <button
             type="button"
             disabled={!canFrontOffice}
-            onClick={() => rpc("fets_mark_entered", { p_center: center.id }, `${called.public_token} entered`)}
+            onClick={() =>
+              rpc("fets_mark_entered", { p_center: center.id }, `${called.public_token} entered`)
+            }
             className="cursor-pointer rounded-[13px] bg-[#0c1711] px-[18px] py-[12px] text-[13px] font-bold text-[#eafaf1] disabled:opacity-50"
           >
             Entered
@@ -66,89 +77,49 @@ export function FrontOfficeScreen() {
         </div>
       )}
 
-      <div className="grid shrink-0 grid-cols-[repeat(auto-fit,minmax(320px,1fr))] items-stretch gap-[14px] md:min-h-0 md:flex-1">
-        <div className="flex min-h-0 flex-col rounded-[20px] border border-edge-mid panel-bg p-[14px]">
-          <div className="flex shrink-0 items-center gap-[10px] rounded-[16px] border border-edge-strong bg-panel-soft px-[14px] py-[13px]">
-            <span className="font-mono text-[14px] text-fg-dim">⌕</span>
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Roster no · name"
-              className="min-w-0 flex-1 border-0 bg-transparent text-[15px] outline-none placeholder:text-fg-faint"
-            />
-          </div>
-
-          <div className="mt-[12px] flex max-h-[340px] min-h-0 flex-col gap-[8px] overflow-x-hidden overflow-y-auto md:max-h-none md:flex-1">
-            {results.map((c) => {
-              const chip = statusChip(c);
-              const active = selected?.id === c.id;
-              return (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => setPickedId(c.id)}
-                  className={`flex shrink-0 cursor-pointer items-center gap-[10px] rounded-[15px] border p-[11px] text-left text-fg ${
-                    active ? "border-gold/50 bg-gold/10" : "border-edge bg-panel-soft hover:border-edge-warm"
-                  }`}
-                >
-                  <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[11px] border border-edge-strong bg-[#251f1b] font-mono text-[11px] font-semibold">
-                    {initials(fullName(c))}
-                  </span>
-                  <span className="block min-w-0 flex-1">
-                    <span className="block overflow-hidden text-[13.5px] font-semibold text-ellipsis whitespace-nowrap">
-                      {fullName(c)}
-                    </span>
-                    <span className="block overflow-hidden font-mono text-[10px] text-fg-faint text-ellipsis whitespace-nowrap">
-                      {c.roster_number}
-                      {c.part ? ` · ${c.part}` : ""}
-                    </span>
-                  </span>
-                  <span
-                    className={`rounded-[8px] px-[8px] py-[5px] text-[9.5px] font-bold tracking-[0.07em] whitespace-nowrap uppercase ${chip.className}`}
-                  >
-                    {chip.label}
-                  </span>
-                </button>
-              );
-            })}
-            {results.length === 0 && (
-              <p className="rounded-[15px] border border-dashed border-[#38302a] p-[22px] text-center font-mono text-[11px] text-fg-faint">
-                No candidate matches “{query}”
-              </p>
-            )}
-          </div>
-        </div>
-
-        {selected ? (
-          <CandidateCard
-            candidate={selected}
-            lockersInUse={lockersInUse}
-            lockersOpen={open.lockers}
-            onToggleLockers={toggle("lockers")}
+      <div className="flex shrink-0 flex-wrap items-center gap-[12px]">
+        <span className="min-w-0">
+          <span className="block text-[15px] font-semibold">Roster</span>
+          <span className="block text-[12px] text-fg-faint">
+            {toCheckIn} still to check in · {recent.length > 0 ? `${candidates.length - toCheckIn} done` : "none done yet"}
+          </span>
+        </span>
+        <span className="flex-1" />
+        <div className="flex w-full min-w-0 items-center gap-[10px] rounded-[14px] border border-edge-strong bg-panel-soft px-[14px] py-[12px] md:w-[300px]">
+          <span className="font-mono text-[14px] text-fg-dim">⌕</span>
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Roster no · name · token"
+            className="min-w-0 flex-1 border-0 bg-transparent text-[15px] outline-none placeholder:text-fg-faint"
           />
-        ) : (
-          <div className="rounded-[20px] border border-edge-mid panel-bg p-[16px] text-[13px] text-fg-muted">
-            Search for a candidate to begin check-in.
-          </div>
-        )}
+        </div>
       </div>
 
-      <Drawer
-        label="Recent check-ins"
-        meta={recent.length}
-        open={open.recent}
-        onToggle={toggle("recent")}
-      >
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[20px] border border-edge-mid panel-bg">
+        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
+          {results.map((c) => (
+            <RosterRow key={c.id} candidate={c} onCheckIn={() => setCheckingInId(c.id)} />
+          ))}
+          {results.length === 0 && (
+            <p className="p-[28px] text-center text-[13px] text-fg-faint">
+              Nobody matches “{query}”
+            </p>
+          )}
+        </div>
+      </div>
+
+      <Drawer label="Recent check-ins" meta={recent.length} open={open.recent} onToggle={toggle("recent")}>
         <div className="grid shrink-0 grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-[10px]">
           {recent.map((c) => (
             <div
               key={c.id}
               className="flex items-center gap-[10px] rounded-[14px] border border-edge bg-panel-soft p-[11px]"
             >
-              <span className="font-mono text-[12px] font-semibold whitespace-nowrap">{c.public_token}</span>
-              <span className="min-w-0 flex-1 overflow-hidden text-[12px] text-fg-muted text-ellipsis whitespace-nowrap">
-                {fullName(c)}
+              <span className="font-mono text-[12px] font-semibold whitespace-nowrap">
+                {c.public_token}
               </span>
+              <span className="min-w-0 flex-1 truncate text-[12px] text-fg-muted">{fullName(c)}</span>
               <span className="font-mono text-[10px] text-fg-faint">
                 {clockAt(c.check_in_at, center.timezone)}
               </span>
@@ -159,130 +130,192 @@ export function FrontOfficeScreen() {
           )}
         </div>
       </Drawer>
+
+      {checkingIn && (
+        <CheckInDialog
+          key={checkingIn.id}
+          candidate={checkingIn}
+          onClose={() => setCheckingInId(null)}
+        />
+      )}
     </div>
   );
 }
 
-function CandidateCard({
-  candidate,
-  lockersInUse,
-  lockersOpen,
-  onToggleLockers,
-}: {
-  candidate: Candidate;
-  lockersInUse: Map<string, string>;
-  lockersOpen: boolean;
-  onToggleLockers: () => void;
-}) {
-  const { center, rules, rpc, canFrontOffice } = useConsole();
+/** One person on the roster. The button says what happens next to them. */
+function RosterRow({ candidate, onCheckIn }: { candidate: Candidate; onCheckIn: () => void }) {
+  const { canFrontOffice } = useConsole();
+  const chip = statusChip(candidate);
+  const pending = WAITING_TO_CHECK_IN.includes(candidate.status);
+
+  return (
+    <div className="flex items-center gap-[12px] border-b border-edge-soft/60 px-[14px] py-[11px] md:px-[18px] md:py-[12px]">
+      <span className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-[12px] border border-edge-strong bg-[#251f1b] font-mono text-[11px] font-semibold">
+        {initials(fullName(candidate))}
+      </span>
+
+      <span className="block min-w-0 flex-1">
+        <span className="block truncate text-[14px] font-semibold">{fullName(candidate)}</span>
+        <span className="block truncate font-mono text-[10.5px] text-fg-faint">
+          {[candidate.public_token, candidate.roster_number, candidate.part].filter(Boolean).join(" · ")}
+        </span>
+      </span>
+
+      <span
+        className={`shrink-0 rounded-[9px] px-[10px] py-[6px] text-[10.5px] font-bold tracking-[0.06em] uppercase ${chip.className}`}
+      >
+        {chip.label}
+      </span>
+
+      {pending && (
+        <button
+          type="button"
+          disabled={!canFrontOffice}
+          onClick={onCheckIn}
+          className="shrink-0 cursor-pointer rounded-[12px] gold-bg px-[16px] py-[10px] text-[13px] font-bold text-[#1a1512] disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Check in
+        </button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The check-in itself: ID, key, done. The ID tick only turns green when the
+ * tick is pressed, so nobody clears it by tapping the row while scrolling, and
+ * the locker bank opens over the top rather than pushing the steps around.
+ */
+function CheckInDialog({ candidate, onClose }: { candidate: Candidate; onClose: () => void }) {
+  const { candidates, center, rules, rpc, canFrontOffice } = useConsole();
+  const [lockerOpen, setLockerOpen] = useState(false);
 
   const idDone = !!candidate.id_verified_at;
   const keyDone = !!candidate.locker_key;
-  const checkedIn = !!candidate.check_in_at;
   const keyNeeded = rules.locker_key_required;
-  const armed = idDone && (keyDone || !keyNeeded) && candidate.status === "id_checked";
+  const ready = idDone && (keyDone || !keyNeeded) && candidate.status === "id_checked";
 
-  const steps = [
-    {
-      label: "ID cross-verified",
-      done: idDone,
-      value: idDone ? clockAt(candidate.id_verified_at, center.timezone) : "pending",
-      onClick: () =>
-        rpc("fets_verify_id", { p_candidate: candidate.id }, `ID verified · ${candidate.public_token}`),
-      enabled: canFrontOffice && !idDone,
-    },
-    {
-      label: "Locker key issued",
-      done: keyDone,
-      value: candidate.locker_key ?? "select",
-      onClick: onToggleLockers,
-      enabled: canFrontOffice,
-    },
-    {
-      label: "Checked in on roster",
-      done: checkedIn,
-      value: checkedIn ? clockAt(candidate.check_in_at, center.timezone) : "—",
-      onClick: () => {},
-      enabled: false,
-    },
-  ];
+  const lockersInUse = new Map(
+    candidates
+      .filter((c) => c.locker_key && !["signed_out", "no_show"].includes(c.status))
+      .map((c) => [c.locker_key!, c.public_token]),
+  );
 
-  const primaryLabel = checkedIn
-    ? candidate.status === "waiting"
-      ? "Checked in · waiting for call"
-      : `Inside · ${STAGE_LABELS[candidate.status]}`
-    : armed
-      ? `Check in ${candidate.public_token}`
-      : keyNeeded
-        ? "Complete ID + locker key"
-        : "Complete ID check";
+  async function checkIn() {
+    const ok = await rpc(
+      "fets_check_in",
+      { p_candidate: candidate.id },
+      `${candidate.public_token} checked in`,
+    );
+    if (ok) onClose();
+  }
 
   return (
-    <div className="min-h-0 overflow-x-hidden overflow-y-auto rounded-[20px] border border-edge-warm bg-[linear-gradient(160deg,oklch(0.3_0.05_82/0.32),#161311)] px-[16px] pt-[16px] pb-[20px]">
-      <div className="flex items-center gap-[12px]">
-        <span className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-[17px] gold-bg font-serif text-[21px] text-[#1a1512]">
-          {initials(fullName(candidate))}
-        </span>
-        <span className="block min-w-0 flex-1">
-          <span className="block overflow-hidden font-serif text-[27px] leading-[1.1] text-ellipsis whitespace-nowrap">
-            {fullName(candidate)}
-          </span>
-          <span className="block overflow-hidden font-mono text-[10.5px] text-fg-muted text-ellipsis whitespace-nowrap">
-            {[candidate.roster_number, candidate.part, candidate.place]
-              .filter(Boolean)
-              .join(" · ")}
-          </span>
-        </span>
-        <span className="block shrink-0 pr-[2px] text-right">
-          <span className="block font-mono text-[19px] font-semibold whitespace-nowrap text-gold">
-            {candidate.public_token}
-          </span>
-          <span className="block text-[9px] tracking-[0.12em] text-fg-dim uppercase">token</span>
-        </span>
-      </div>
-
-      <div className="mt-[14px] flex flex-col gap-[8px]">
-        {steps.map((step) => (
-          <button
-            key={step.label}
-            type="button"
-            disabled={!step.enabled}
-            onClick={step.onClick}
-            className={`flex items-center gap-[11px] rounded-[15px] border p-[12px] text-left ${
-              step.done ? "border-mint/45 bg-mint/6" : "border-edge bg-panel-soft"
-            } ${step.enabled ? "cursor-pointer hover:border-edge-warm" : "cursor-default"}`}
-          >
-            <span
-              className={`flex h-[24px] w-[24px] shrink-0 items-center justify-center rounded-full border font-mono text-[10px] ${
-                step.done ? "border-mint/45 bg-mint text-[#0c1711]" : "border-edge bg-panel-soft text-fg-faint"
+    <>
+      <Dialog
+        open
+        title={fullName(candidate)}
+        subtitle={[candidate.public_token, candidate.roster_number, candidate.part, candidate.place]
+          .filter(Boolean)
+          .join(" · ")}
+        onClose={onClose}
+        footer={
+          <>
+            <button
+              type="button"
+              disabled={!ready || !canFrontOffice}
+              onClick={checkIn}
+              className={`flex-1 rounded-[14px] px-[22px] py-[15px] text-[14.5px] font-bold ${
+                ready && canFrontOffice
+                  ? "cursor-pointer bg-[linear-gradient(145deg,oklch(0.83_0.16_158),oklch(0.72_0.15_165))] text-[#0c1711]"
+                  : "cursor-not-allowed bg-[#221d19] text-fg-dim"
               }`}
             >
-              {step.done ? "✓" : "·"}
-            </span>
-            <span
-              className={`min-w-0 flex-1 text-[13px] font-semibold ${step.done ? "text-fg" : "text-fg-muted"}`}
+              {ready
+                ? `Check in ${candidate.public_token}`
+                : keyNeeded && !keyDone && idDone
+                  ? "Issue a locker key first"
+                  : "Tick the ID check first"}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="cursor-pointer rounded-[14px] border border-edge px-[20px] py-[15px] text-[14px] font-semibold text-fg-muted"
             >
-              {step.label}
-            </span>
-            <span className="font-mono text-[11px] whitespace-nowrap text-fg-dim">{step.value}</span>
-          </button>
-        ))}
-      </div>
-
-      <button
-        type="button"
-        onClick={onToggleLockers}
-        className="mt-[10px] flex w-full cursor-pointer items-center gap-[10px] rounded-[14px] border border-edge bg-panel-soft px-[12px] py-[11px] text-fg"
+              Close
+            </button>
+          </>
+        }
       >
-        <span className="min-w-0 flex-1 text-left text-[11px] font-bold tracking-[0.11em] text-fg-dim uppercase">
-          Locker keys
-        </span>
-        <span className="font-mono text-[12px] text-gold">{candidate.locker_key ?? "—"}</span>
-        <span className="font-mono text-[11px] text-fg-dim">{lockersOpen ? "－" : "＋"}</span>
-      </button>
+        <div className="flex flex-col gap-[12px]">
+          <Step
+            n="1"
+            label="ID cross-verified"
+            note={idDone ? clockAt(candidate.id_verified_at, center.timezone) : "Tap the circle when the ID matches"}
+            done={idDone}
+            onTick={
+              canFrontOffice && !idDone
+                ? () =>
+                    rpc(
+                      "fets_verify_id",
+                      { p_candidate: candidate.id },
+                      `ID verified · ${candidate.public_token}`,
+                    )
+                : undefined
+            }
+          />
 
-      {lockersOpen && (
-        <div className="mt-[8px] grid grid-cols-[repeat(auto-fit,minmax(54px,1fr))] gap-[8px]">
+          <Step
+            n="2"
+            label={keyNeeded ? "Locker key issued" : "Locker key (not required today)"}
+            note={candidate.locker_key ?? "No key issued"}
+            done={keyDone}
+            action={
+              canFrontOffice
+                ? { label: keyDone ? "Change key" : "Choose a key", onClick: () => setLockerOpen(true) }
+                : undefined
+            }
+          />
+
+          <Step
+            n="3"
+            label="Checked in"
+            note={
+              candidate.check_in_at
+                ? clockAt(candidate.check_in_at, center.timezone)
+                : "The button below finishes it"
+            }
+            done={!!candidate.check_in_at}
+          />
+
+          {canFrontOffice && !candidate.check_in_at && candidate.status !== "no_show" && (
+            <button
+              type="button"
+              onClick={async () => {
+                const ok = await rpc(
+                  "fets_mark_no_show",
+                  { p_candidate: candidate.id, p_note: "Marked at front office" },
+                  `${candidate.public_token} marked no show`,
+                );
+                if (ok) onClose();
+              }}
+              className="mt-[4px] cursor-pointer rounded-[13px] border border-edge px-[12px] py-[11px] text-[11.5px] font-bold tracking-[0.1em] text-fg-faint uppercase hover:border-rust/50 hover:text-rust"
+            >
+              Mark no show
+            </button>
+          )}
+        </div>
+      </Dialog>
+
+      {/* Rendered after the check-in dialog, so it sits over it. */}
+      <Dialog
+        open={lockerOpen}
+        title="Locker keys"
+        subtitle={`For ${fullName(candidate)} · a greyed key is already out`}
+        onClose={() => setLockerOpen(false)}
+        width={460}
+      >
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(62px,1fr))] gap-[9px]">
           {Array.from({ length: LOCKER_BANK }, (_, i) => {
             const code = `K-${String(i + 1).padStart(2, "0")}`;
             const holder = lockersInUse.get(code);
@@ -294,15 +327,20 @@ function CandidateCard({
                 type="button"
                 disabled={taken || !canFrontOffice}
                 title={taken ? `Issued to ${holder}` : undefined}
-                onClick={() =>
-                  rpc("fets_assign_locker", { p_candidate: candidate.id, p_key: code }, `Locker ${code} issued`)
-                }
-                className={`aspect-square cursor-pointer rounded-[13px] border font-mono text-[12px] font-semibold ${
+                onClick={async () => {
+                  const ok = await rpc(
+                    "fets_assign_locker",
+                    { p_candidate: candidate.id, p_key: code },
+                    `Locker ${code} issued`,
+                  );
+                  if (ok) setLockerOpen(false);
+                }}
+                className={`aspect-square rounded-[13px] border font-mono text-[12px] font-semibold ${
                   mine
                     ? "border-gold/60 bg-gold/20 text-gold-bright"
                     : taken
-                      ? "cursor-not-allowed border-edge bg-panel-soft text-fg-faint/50"
-                      : "border-edge bg-panel-soft text-fg-muted hover:border-edge-warm"
+                      ? "cursor-not-allowed border-edge bg-panel-soft text-fg-faint/40"
+                      : "cursor-pointer border-edge bg-panel-soft text-fg-muted hover:border-edge-warm"
                 }`}
               >
                 {code}
@@ -310,36 +348,69 @@ function CandidateCard({
             );
           })}
         </div>
-      )}
+      </Dialog>
+    </>
+  );
+}
 
+/**
+ * A step with its own tick. The tick is the only thing that completes it —
+ * the rest of the row is text, so a stray tap on a busy desk changes nothing.
+ */
+function Step({
+  n,
+  label,
+  note,
+  done,
+  onTick,
+  action,
+}: {
+  n: string;
+  label: string;
+  note: string;
+  done: boolean;
+  onTick?: () => void;
+  action?: { label: string; onClick: () => void };
+}) {
+  // Done is light green. Waiting to be pressed is gold, the colour every other
+  // "do this now" control on the console uses. Inert is flat.
+  const tickClass = done
+    ? "border-mint bg-mint/25 text-mint"
+    : onTick
+      ? "cursor-pointer border-gold bg-gold/12 text-gold-bright hover:bg-gold/25"
+      : "border-edge bg-panel-soft text-fg-faint";
+
+  return (
+    <div
+      className={`flex items-center gap-[13px] rounded-[16px] border p-[13px] ${
+        done ? "border-mint/35 bg-mint/6" : "border-edge bg-panel-soft"
+      }`}
+    >
       <button
         type="button"
-        disabled={!armed || !canFrontOffice}
-        onClick={() =>
-          rpc("fets_check_in", { p_candidate: candidate.id }, `${candidate.public_token} checked in`)
-        }
-        className={`mt-[14px] w-full rounded-[15px] p-[15px] text-[14px] font-bold ${
-          armed && canFrontOffice
-            ? "cursor-pointer bg-[linear-gradient(145deg,oklch(0.83_0.16_158),oklch(0.72_0.15_165))] text-[#0c1711]"
-            : "cursor-default bg-[#221d19] text-fg-dim"
-        }`}
+        disabled={!onTick}
+        onClick={onTick}
+        aria-label={done ? `${label} — done` : `Mark ${label}`}
+        aria-pressed={done}
+        className={`flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border-2 text-[16px] transition-colors ${tickClass}`}
       >
-        {primaryLabel}
+        {done ? "✓" : n}
       </button>
 
-      {canFrontOffice && !checkedIn && candidate.status !== "no_show" && (
+      <span className="min-w-0 flex-1">
+        <span className={`block text-[14px] font-semibold ${done ? "text-fg" : "text-fg-muted"}`}>
+          {label}
+        </span>
+        <span className="block truncate font-mono text-[11.5px] text-fg-faint">{note}</span>
+      </span>
+
+      {action && (
         <button
           type="button"
-          onClick={() =>
-            rpc(
-              "fets_mark_no_show",
-              { p_candidate: candidate.id, p_note: "Marked at front office" },
-              `${candidate.public_token} marked no show`,
-            )
-          }
-          className="mt-[8px] w-full cursor-pointer rounded-[13px] border border-edge px-[12px] py-[9px] text-[11px] font-bold tracking-[0.1em] text-fg-faint uppercase hover:border-rust/50 hover:text-rust"
+          onClick={action.onClick}
+          className="shrink-0 cursor-pointer rounded-[12px] border border-edge-warm px-[14px] py-[10px] text-[12.5px] font-semibold hover:bg-panel"
         >
-          Mark no show
+          {action.label}
         </button>
       )}
     </div>
