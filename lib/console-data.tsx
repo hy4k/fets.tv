@@ -12,6 +12,7 @@ import type {
   PublicDisplayCall,
   ExamProgramme,
   ExamSession,
+  Incident,
   Lab,
   Profile,
   RosterColumnAlias,
@@ -26,6 +27,7 @@ export type ConsoleSnapshot = {
   rules: ScheduleRules;
   session: ExamSession | null;
   candidates: Candidate[];
+  incidents: Incident[];
   labs: Lab[];
   columnAliases: RosterColumnAlias[];
   workstations: Workstation[];
@@ -101,6 +103,7 @@ export function ConsoleProvider({
 
     const [
       candidates,
+      incidents,
       labs,
       columnAliases,
       workstations,
@@ -115,6 +118,12 @@ export function ConsoleProvider({
       notice,
     ] = await Promise.all([
       candidatesQuery,
+      supabase
+        .from("incidents")
+        .select("*")
+        .eq("center_id", centerId)
+        .order("started_at", { ascending: false })
+        .limit(60),
       supabase.from("labs").select("*").eq("center_id", centerId).order("position"),
       supabase.from("roster_column_aliases").select("*").eq("center_id", centerId).order("field"),
       supabase.from("workstations").select("*").eq("center_id", centerId).order("seat_code"),
@@ -152,6 +161,7 @@ export function ConsoleProvider({
       ...prev,
       session: session ?? null,
       candidates: candidates?.data ?? (session ? prev.candidates : []),
+      incidents: incidents.data ?? prev.incidents,
       labs: labs.data ?? prev.labs,
       columnAliases: columnAliases.data ?? prev.columnAliases,
       workstations: workstations.data ?? prev.workstations,
@@ -180,6 +190,7 @@ export function ConsoleProvider({
     const watched: [table: string, filter: string][] = [
       ["candidates", `center_id=eq.${centerId}`],
       ["candidate_events", `center_id=eq.${centerId}`],
+      ["incidents", `center_id=eq.${centerId}`],
       ["labs", `center_id=eq.${centerId}`],
       ["workstations", `center_id=eq.${centerId}`],
       ["public_display_calls", `center_id=eq.${centerId}`],

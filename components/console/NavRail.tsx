@@ -18,10 +18,11 @@ type Group = { key: string; title: string; items: Item[] };
  */
 export function NavRail() {
   const pathname = usePathname();
-  const { candidates, call, notice, openBreaks } = useConsole();
+  const { candidates, call, notice, openBreaks, incidents } = useConsole();
 
   const waiting = candidates.filter((c) => c.status === "waiting" && !c.called_at).length;
   const testing = candidates.filter((c) => c.exam_started_at && !c.exam_finished_at).length;
+  const openIncidents = incidents.filter((i) => !i.resolved_at).length;
 
   const groups: Group[] = [
     {
@@ -58,6 +59,7 @@ export function NavRail() {
           short: "Floor",
           badge: testing + openBreaks.length,
         },
+        { href: "/incidents", label: "Incidents", short: "Issues", badge: openIncidents },
       ],
     },
     {

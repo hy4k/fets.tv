@@ -175,6 +175,39 @@ export type RosterColumnAlias = {
   created_at: string;
 };
 
+export type IncidentKind =
+  | "workstation"
+  | "network"
+  | "power"
+  | "candidate"
+  | "conduct"
+  | "environment"
+  | "delivery"
+  | "other";
+
+export type IncidentSeverity = "minor" | "major" | "critical";
+
+export type Incident = {
+  id: string;
+  center_id: string;
+  exam_session_id: string | null;
+  kind: IncidentKind;
+  severity: IncidentSeverity;
+  summary: string;
+  detail: string | null;
+  candidate_id: string | null;
+  workstation_id: string | null;
+  started_at: string;
+  resolved_at: string | null;
+  resolution: string | null;
+  /** What the candidate lost, as judged by whoever was there. */
+  minutes_lost: number | null;
+  reportable: boolean;
+  logged_by: string | null;
+  resolved_by: string | null;
+  created_at: string;
+};
+
 export type Lab = {
   id: string;
   center_id: string;
@@ -311,6 +344,7 @@ export type Database = {
       exam_sessions: Table<ExamSession>;
       candidates: Table<Candidate>;
       schedule_rules: Table<ScheduleRules>;
+      incidents: Table<Incident>;
       labs: Table<Lab>;
       roster_column_aliases: Table<RosterColumnAlias>;
       workstations: Table<Workstation>;
