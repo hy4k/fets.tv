@@ -11,7 +11,13 @@ export type BoardCall = {
 
 export type BoardNext = { token: string; name: string | null };
 
-export type BoardNotice = { body: string; tone: "info" | "warning" | "urgent" } | null;
+export type BoardNotice = {
+  body: string;
+  tone: "info" | "warning" | "urgent";
+  /** A signed link by the time it reaches here; the bucket itself stays private. */
+  mediaUrl?: string | null;
+  mediaKind?: "image" | "video" | "file" | null;
+} | null;
 
 /** Notice colours. Urgent earns the alarm tone; info must not compete with a call. */
 const NOTICE_TONE = {
@@ -111,9 +117,43 @@ export function DisplayBoard({
               >
                 {tone.eyebrow}
               </span>
-              <span className="max-w-[20ch] shrink-0 font-serif text-[clamp(14px,min(5.4cqw,8cqh),88px)] leading-[1.08] text-fg">
-                {notice.body}
-              </span>
+
+              {/* A picture carries further across a hall than a sentence does,
+                  so when there is one it takes the room and the words sit under
+                  it at a size that still reads from the back. */}
+              {notice.mediaUrl && notice.mediaKind === "image" && (
+                // next/image cannot optimise a signed URL from a private bucket
+                // whose host is not known at build time, and this is one image
+                // on a television, not a page of thumbnails.
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={notice.mediaUrl}
+                  alt=""
+                  className="max-h-[60cqh] min-h-0 w-auto max-w-full flex-1 rounded-[16px] object-contain"
+                />
+              )}
+              {notice.mediaUrl && notice.mediaKind === "video" && (
+                <video
+                  src={notice.mediaUrl}
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  className="max-h-[60cqh] min-h-0 w-auto max-w-full flex-1 rounded-[16px] object-contain"
+                />
+              )}
+
+              {notice.body && (
+                <span
+                  className={`max-w-[26ch] shrink-0 font-serif leading-[1.08] text-fg ${
+                    notice.mediaUrl
+                      ? "text-[clamp(11px,min(3.2cqw,5cqh),48px)]"
+                      : "text-[clamp(14px,min(5.4cqw,8cqh),88px)]"
+                  }`}
+                >
+                  {notice.body}
+                </span>
+              )}
             </>
           ) : (
             <>

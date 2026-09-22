@@ -92,6 +92,8 @@ export type ExamProgramme = {
 
 export type NoticeTone = "info" | "warning" | "urgent";
 
+export type NoticeMediaKind = "image" | "video" | "file";
+
 export type NoticeSlot = {
   key: string;
   label: string;
@@ -119,6 +121,10 @@ export type DisplayNotice = {
   template_label: string;
   values: Record<string, string>;
   body: string;
+  /** Set when staff reworded the template before it went up. */
+  body_override: string | null;
+  media_path: string | null;
+  media_kind: NoticeMediaKind | null;
   tone: NoticeTone;
   active: boolean;
   expires_at: string | null;
@@ -231,7 +237,15 @@ export type DisplayState = {
     nonce: number;
     updated_at: string;
   } | null;
-  notice: { body: string; tone: NoticeTone; posted_at: string } | null;
+  notice: {
+    body: string;
+    tone: NoticeTone;
+    /** Storage key while in the database; a signed URL by the time it reaches the browser. */
+    media_path: string | null;
+    media_url?: string | null;
+    media_kind: NoticeMediaKind | null;
+    posted_at: string;
+  } | null;
   next: { public_token: string; name: string | null; scheduled_at: string | null }[];
   server_time: string;
 };
