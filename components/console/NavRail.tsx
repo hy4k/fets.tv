@@ -31,6 +31,7 @@ export function NavRail() {
   ];
 
   const aside: Item[] = [
+    { href: "/history", label: "Past days", short: "Past", badge: 0 },
     { href: "/tv", label: "TV screen", short: "TV", badge: 0 },
     { href: "/notices", label: "Messages", short: "Message", badge: notice ? 1 : 0 },
     { href: "/settings/center", label: "Setup", short: "Setup", badge: 0 },
