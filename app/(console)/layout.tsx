@@ -42,6 +42,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
 
   const [
     candidates,
+    incidents,
     labs,
     columnAliases,
     workstations,
@@ -62,6 +63,12 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
           .order("scheduled_at", { ascending: true, nullsFirst: false })
           .order("public_token", { ascending: true })
       : Promise.resolve({ data: [] }),
+    supabase
+      .from("incidents")
+      .select("*")
+      .eq("center_id", center.id)
+      .order("started_at", { ascending: false })
+      .limit(60),
     supabase.from("labs").select("*").eq("center_id", center.id).order("position"),
     supabase.from("roster_column_aliases").select("*").eq("center_id", center.id).order("field"),
     supabase.from("workstations").select("*").eq("center_id", center.id).order("seat_code"),
@@ -100,6 +107,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
     rules,
     session: session ?? null,
     candidates: candidates.data ?? [],
+    incidents: incidents.data ?? [],
     labs: labs.data ?? [],
     columnAliases: columnAliases.data ?? [],
     workstations: workstations.data ?? [],
