@@ -43,7 +43,7 @@ export function RosterUploadScreen() {
       }
 
       setPreview(payload as RosterPreview);
-      setExamName(file.name.replace(/\.(csv|xlsx)$/i, "").replace(/[_-]+/g, " "));
+      setExamName(file.name.replace(/\.(csv|xlsx|xls)$/i, "").replace(/[_-]+/g, " "));
     } catch {
       notify("Could not reach the server — check the connection and try again", "error");
     } finally {
@@ -119,14 +119,14 @@ export function RosterUploadScreen() {
             {session ? "Upload a new roster" : "Start by uploading today's roster"}
           </span>
           <span className="max-w-[46ch] text-[14px] leading-[1.5] text-fg-muted">
-            Drop the file here, or choose it below. Excel or CSV. The importer reads the sheet that has
-            the column headings.
+            Drop the file here, or choose it below. The Prometric site roster and candidate contact
+            report both work as they come — .xls, .xlsx or .csv.
           </span>
 
           <input
             ref={fileInput}
             type="file"
-            accept=".csv,.xlsx"
+            accept=".csv,.xlsx,.xls"
             className="hidden"
             onChange={(e) => {
               const file = e.target.files?.[0];

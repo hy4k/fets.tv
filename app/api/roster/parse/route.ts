@@ -23,8 +23,8 @@ export async function POST(request: NextRequest) {
   const file = form.get("file");
   if (!(file instanceof File)) return Response.json({ error: "No file uploaded" }, { status: 400 });
 
-  if (!/\.(csv|xlsx)$/i.test(file.name)) {
-    return Response.json({ error: "Upload a .csv or .xlsx roster" }, { status: 415 });
+  if (!/\.(csv|xlsx|xls)$/i.test(file.name)) {
+    return Response.json({ error: "Upload a .csv, .xlsx or .xls roster" }, { status: 415 });
   }
 
   if (file.size > MAX_BYTES) {

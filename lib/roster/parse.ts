@@ -1,5 +1,6 @@
 import ExcelJS from "exceljs";
 import Papa from "papaparse";
+import { isLegacyXls, readLegacyXls } from "./xls.ts";
 import type { RosterIssue, RosterPreview, RosterRow } from "@/lib/types";
 
 const HEADER_ALIASES: Record<keyof ColumnMap, string[]> = {
@@ -28,18 +29,22 @@ const HEADER_ALIASES: Record<keyof ColumnMap, string[]> = {
     "reference no",
     "ref no",
     "candidate ref",
+    "confirmation",
+    "confirmation number",
   ],
   full_name: ["name", "candidate name", "student name", "full name", "candidate", "applicant", "applicant name", "name of candidate"],
-  first_name: ["first name", "firstname", "given name"],
-  last_name: ["last name", "lastname", "surname", "family name"],
+  first_name: ["first name", "firstname", "given name", "candidate first name"],
+  last_name: ["last name", "lastname", "surname", "family name", "candidate last name"],
   part: ["part", "section", "module", "paper"],
-  phone: ["phone", "phone no", "phone number", "mobile", "mobile no", "mobile number", "contact", "contact no", "telephone", "tel", "whatsapp"],
+  exam_name: ["exam name", "exam", "programme", "program", "programme name", "program name"],
+  phone: ["phone", "phone no", "phone number", "mobile", "mobile no", "mobile number", "contact", "contact no", "contact number", "telephone", "tel", "whatsapp", "daytime phone", "evening phone"],
   place: ["place", "city", "town", "district", "location"],
   roster_flag: ["flag", "status", "remark", "remarks", "note", "notes", "exception"],
 };
 
 type ColumnMap = {
   roster_number: number | null;
+  exam_name: number | null;
   full_name: number | null;
   first_name: number | null;
   last_name: number | null;
@@ -50,9 +55,12 @@ type ColumnMap = {
 };
 
 export async function parseRosterFile(filename: string, buffer: Buffer): Promise<RosterPreview> {
-  const sheets = /\.csv$/i.test(filename)
-    ? [{ name: filename, grid: parseCsv(buffer) }]
-    : await parseXlsx(buffer);
+  // Boards export .xls, which is a different format from .xlsx entirely.
+  const sheets = isLegacyXls(buffer)
+    ? readLegacyXls(buffer)
+    : /\.csv$/i.test(filename)
+      ? [{ name: filename, grid: parseCsv(buffer) }]
+      : await parseXlsx(buffer);
 
   // Centres send workbooks with a cover sheet, or the roster on the second tab,
   // so take the first sheet that actually has a header rather than assuming.
@@ -144,6 +152,7 @@ function detectHeaderRow(grid: string[][]): {
 function emptyColumns(): ColumnMap {
   return {
     roster_number: null,
+    exam_name: null,
     full_name: null,
     first_name: null,
     last_name: null,
@@ -154,16 +163,44 @@ function emptyColumns(): ColumnMap {
   };
 }
 
+/** Every column whose heading reads like a phone number, in order. */
+function phoneColumns(row: string[]): number[] {
+  const out: number[] = [];
+  row.forEach((raw, index) => {
+    const cell = cleanHeader(raw);
+    if (!cell) return;
+    if (HEADER_ALIASES.phone.some((alias) => matchesAlias(cell, alias))) {
+      out.push(index);
+    }
+  });
+  return out;
+}
+
+/**
+ * A heading matches an alias outright, or begins with it — but only for
+ * aliases of two words or more. Letting the single word "candidate" match by
+ * prefix made "Candidate Last Name" read as the full name and silently threw
+ * the surname away.
+ */
+function matchesAlias(cell: string, alias: string): boolean {
+  if (cell === alias) return true;
+  return alias.includes(" ") && cell.startsWith(`${alias} `);
+}
+
+function cleanHeader(raw: string): string {
+  return raw.toLowerCase().replace(/[^a-z0-9 .]/g, " ").replace(/\s+/g, " ").trim();
+}
+
 function matchColumns(row: string[]): ColumnMap {
   const columns = emptyColumns();
 
   row.forEach((raw, index) => {
-    const cell = raw.toLowerCase().replace(/[^a-z0-9 .]/g, " ").replace(/\s+/g, " ").trim();
+    const cell = cleanHeader(raw);
     if (!cell) return;
 
     for (const [field, aliases] of Object.entries(HEADER_ALIASES) as [keyof ColumnMap, string[]][]) {
       if (columns[field] !== null) continue;
-      if (aliases.some((alias) => cell === alias || cell.startsWith(`${alias} `))) {
+      if (aliases.some((alias) => matchesAlias(cell, alias))) {
         columns[field] = index;
         return;
       }
@@ -180,6 +217,16 @@ function buildPreview(
   allSheets: string[] = [],
 ): RosterPreview {
   const { index: headerIndex, columns, best } = detectHeaderRow(grid);
+  const phones = headerIndex === -1 ? [] : phoneColumns(grid[headerIndex] ?? []);
+
+  // Does this file carry the part inside its exam name? One row proving it
+  // makes a row that fails worth reporting.
+  const examNameCarriesPart =
+    headerIndex !== -1 &&
+    columns.exam_name !== null &&
+    grid
+      .slice(headerIndex + 1)
+      .some((row) => partFromExamName(row?.[columns.exam_name as number] ?? "") !== null);
   const rows: RosterRow[] = [];
   const issues: RosterIssue[] = [];
   const seen = new Set<string>();
@@ -273,8 +320,8 @@ function buildPreview(
     }
     seen.add(rosterNumber);
 
-    const part = at(columns.part) || null;
-    if (columns.part !== null && !part) {
+    const part = normalisePart(at(columns.part)) || partFromExamName(at(columns.exam_name));
+    if ((columns.part !== null || examNameCarriesPart) && !part) {
       issues.push({ source_row: sourceRow, level: "warning", message: `${rosterNumber}: no part recorded` });
       warnings++;
     }
@@ -287,7 +334,7 @@ function buildPreview(
       first_name: first,
       last_name: last,
       part,
-      phone: normalisePhone(at(columns.phone)),
+      phone: normalisePhone(phones.map((column) => row[column] ?? "").find(Boolean) ?? at(columns.phone)),
       place: at(columns.place) || null,
       roster_flag: flag,
     });
@@ -311,7 +358,56 @@ function buildPreview(
   };
 }
 
+/**
+ * Boards fill an absent surname in with a placeholder rather than leaving it
+ * blank, and it would otherwise be announced as part of the person's name.
+ */
+const PLACEHOLDER_SURNAMES = [
+  "no last name",
+  "no lastname",
+  "no surname",
+  "nosurname",
+  "not available",
+  "na",
+  "n a",
+  "nil",
+  "none",
+  "-",
+  ".",
+];
+
+function isPlaceholderSurname(value: string): boolean {
+  const bare = value.toLowerCase().replace(/[^a-z]/g, " ").replace(/\s+/g, " ").trim();
+  return bare === "" || PLACEHOLDER_SURNAMES.includes(bare);
+}
+
+/**
+ * The given name only loses punctuation-only values. "Nil", "Na" and "None"
+ * are real given names somewhere, and clearing one would promote the surname
+ * into its place.
+ */
+function isEmptyGivenName(value: string): boolean {
+  return value.replace(/[^\p{L}\p{N}]/gu, "").trim() === "";
+}
+
+/** "PART 2 CMA EXAM- ESSAY" is the exam; the part inside it is what staff need. */
+function partFromExamName(examName: string): string | null {
+  const match = examName.match(/\bpart\s*([0-9]+|i{1,3})\b/i);
+  if (!match) return null;
+  const roman: Record<string, string> = { i: "1", ii: "2", iii: "3" };
+  const value = match[1].toLowerCase();
+  return `PART ${roman[value] ?? value}`;
+}
+
+function normalisePart(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return partFromExamName(trimmed) ?? trimmed;
+}
+
 function splitName(full: string, first: string, last: string) {
+  if (isPlaceholderSurname(last)) last = "";
+  if (isEmptyGivenName(first)) first = "";
   if (first || last) return { first: first || last, last: first ? last : "" };
   if (!full) return { first: "", last: "" };
 
