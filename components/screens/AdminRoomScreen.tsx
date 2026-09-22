@@ -69,16 +69,12 @@ export function AdminRoomScreen() {
             <span className="min-w-0 truncate font-serif text-[24px]">{fullName(called)}</span>
           </div>
 
-          <button
-            type="button"
-            disabled={!canCall}
-            onClick={() =>
-              rpc("fets_mark_entered", { p_center: center.id }, `${called.public_token} entered`)
-            }
-            className="mt-[14px] w-full cursor-pointer rounded-[15px] bg-[linear-gradient(145deg,oklch(0.83_0.16_158),oklch(0.72_0.15_165))] px-[22px] py-[16px] text-[16px] font-bold text-[#0c1711] disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            They have entered
-          </button>
+          {/* Marking somebody in is the front desk's call — they are the ones
+              who can see the door. Putting the same button here too had two
+              rooms racing to press it. */}
+          <p className="mt-[12px] rounded-[13px] bg-[#0c1711]/40 px-[14px] py-[11px] text-[13px] text-mint">
+            The front office marks them in when they arrive at the desk.
+          </p>
 
           <div className="mt-[9px] flex flex-wrap gap-[8px]">
             <button

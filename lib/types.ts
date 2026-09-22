@@ -39,6 +39,8 @@ export type ExamSession = {
   center_id: string;
   exam_date: string;
   exam_name: string;
+  /** Which exam this day runs, and therefore how long each clock lasts. */
+  programme_id: string | null;
   source_filename: string | null;
   status: "draft" | "ready" | "live" | "closed";
   created_by: string | null;
