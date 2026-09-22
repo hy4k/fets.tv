@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Dialog } from "@/components/ui/Dialog";
 import { useConsole } from "@/lib/console-data";
 import { basePath } from "@/lib/base-path";
 import { clockAt } from "@/lib/format";
@@ -22,6 +23,8 @@ export function RosterUploadScreen() {
   const [dragging, setDragging] = useState(false);
   const [examName, setExamName] = useState("");
   const [examDate, setExamDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [byHand, setByHand] = useState(false);
+  const [handName, setHandName] = useState("");
 
   async function onFile(file: File) {
     setBusy(true);
@@ -70,6 +73,22 @@ export function RosterUploadScreen() {
       router.push("/candidates");
     }
     setBusy(false);
+  }
+
+  /** Opens an empty list for the day, for a centre with no file to upload. */
+  async function startByHand() {
+    if (!handName.trim()) return;
+    setBusy(true);
+    const ok = await rpc(
+      "fets_start_blank_session",
+      { p_center: center.id, p_exam_name: handName.trim(), p_exam_date: examDate },
+      "Empty list started — add candidates one by one",
+    );
+    setBusy(false);
+    if (ok) {
+      setByHand(false);
+      router.push("/candidates");
+    }
   }
 
   return (
@@ -145,8 +164,78 @@ export function RosterUploadScreen() {
           </button>
 
           {!isAdmin && <span className="text-[12.5px] text-gold">Only an admin can import a roster.</span>}
+
+          <span className="flex items-center gap-[12px] pt-[6px] text-[12px] text-fg-faint">
+            <span className="h-px w-[40px] bg-edge-soft" />
+            or
+            <span className="h-px w-[40px] bg-edge-soft" />
+          </span>
+
+          <button
+            type="button"
+            disabled={!isAdmin || busy}
+            onClick={() => {
+              setHandName(`Entered by hand — ${examDate}`);
+              setByHand(true);
+            }}
+            className="cursor-pointer rounded-[14px] border border-edge-warm px-[22px] py-[13px] text-[13.5px] font-semibold text-fg-muted hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Enter candidates by hand
+          </button>
         </div>
       )}
+
+      <Dialog
+        open={byHand}
+        title="Enter candidates by hand"
+        subtitle="Starts an empty list for the day. You add people one at a time."
+        onClose={() => setByHand(false)}
+        footer={
+          <>
+            <button
+              type="button"
+              disabled={busy || !handName.trim()}
+              onClick={startByHand}
+              className="flex-1 cursor-pointer rounded-[14px] gold-bg px-[22px] py-[14px] text-[14px] font-bold text-[#1a1512] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {busy ? "Starting…" : "Start an empty list"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setByHand(false)}
+              className="cursor-pointer rounded-[14px] border border-edge px-[20px] py-[14px] text-[14px] font-semibold text-fg-muted"
+            >
+              Cancel
+            </button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-[16px]">
+          <label className="flex flex-col gap-[8px]">
+            <span className="text-[11.5px] font-semibold text-fg-dim">Exam name</span>
+            <input
+              value={handName}
+              onChange={(e) => setHandName(e.target.value)}
+              className="w-full rounded-[12px] border border-edge-strong bg-panel-soft px-[14px] py-[13px] text-[16px] outline-none focus:border-gold/50"
+            />
+          </label>
+          <label className="flex flex-col gap-[8px]">
+            <span className="text-[11.5px] font-semibold text-fg-dim">Exam date</span>
+            <input
+              type="date"
+              value={examDate}
+              onChange={(e) => setExamDate(e.target.value)}
+              className="w-full rounded-[12px] border border-edge-strong bg-panel-soft px-[14px] py-[13px] font-mono text-[16px] outline-none focus:border-gold/50"
+            />
+          </label>
+          {session && (
+            <p className="rounded-[14px] border border-gold/35 bg-gold/8 p-[13px] text-[12.5px] leading-[1.5] text-gold-bright">
+              This closes the current list ({session.exam_name}, {candidates.length} candidates) and
+              starts again from empty.
+            </p>
+          )}
+        </div>
+      </Dialog>
 
       {preview && (
         <div className="flex shrink-0 flex-col gap-[16px] rounded-[24px] border border-edge-mid panel-bg p-[20px]">
