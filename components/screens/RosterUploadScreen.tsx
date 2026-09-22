@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Dialog } from "@/components/ui/Dialog";
 import { useConsole } from "@/lib/console-data";
 import { basePath } from "@/lib/base-path";
-import { clockAt } from "@/lib/format";
+import { clockAt, todayInZone } from "@/lib/format";
 import type { RosterDiagnostics, RosterPreview } from "@/lib/types";
 
 /**
@@ -22,7 +22,7 @@ export function RosterUploadScreen() {
   const [busy, setBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [examName, setExamName] = useState("");
-  const [examDate, setExamDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [examDate, setExamDate] = useState(() => todayInZone(center.timezone));
   const [byHand, setByHand] = useState(false);
   const [handName, setHandName] = useState("");
 

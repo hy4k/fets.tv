@@ -135,3 +135,20 @@ export function instantFromZonedTime(hhmm: string, timezone: string, reference: 
   const settled = guess - zoneOffsetMs(guess - offset, timezone);
   return new Date(settled);
 }
+
+/**
+ * Today's date at the center, as "YYYY-MM-DD".
+ *
+ * An exam day belongs to the centre, not to UTC. Asia/Kolkata runs five and a
+ * half hours ahead, so between local midnight and 05:30 the UTC date is still
+ * yesterday, and a roster started in that window would be filed against the
+ * wrong day unless somebody noticed.
+ */
+export function todayInZone(timezone: string, reference: Date = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(reference);
+}
