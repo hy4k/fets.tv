@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { Dialog } from "@/components/ui/Dialog";
 import { useConsole } from "@/lib/console-data";
-import { clockAt, fullName, instantFromZonedTime, nowInZone } from "@/lib/format";
+import { clockAt, fullName, instantFromZonedTime } from "@/lib/format";
 import { useNow } from "@/lib/use-clock";
 import type { Candidate, CandidateBreak, ExamProgramme, Workstation } from "@/lib/types";
 
@@ -12,11 +13,11 @@ import type { Candidate, CandidateBreak, ExamProgramme, Workstation } from "@/li
  */
 function band(msRemaining: number) {
   const minutes = msRemaining / 60000;
-  if (minutes <= 0) return { key: "over", text: "text-rust", box: "border-rust/60 bg-rust/15", pulse: false };
-  if (minutes < 1) return { key: "last", text: "text-rust", box: "border-rust/60 bg-rust/15", pulse: true };
-  if (minutes <= 15) return { key: "red", text: "text-rust", box: "border-rust/45 bg-rust/10", pulse: false };
-  if (minutes <= 60) return { key: "blue", text: "text-iris", box: "border-iris/45 bg-iris/10", pulse: false };
-  return { key: "green", text: "text-mint", box: "border-mint/40 bg-mint/8", pulse: false };
+  if (minutes <= 0) return { text: "text-rust", row: "bg-rust/12", pulse: true };
+  if (minutes <= 5) return { text: "text-rust", row: "bg-rust/8", pulse: true };
+  if (minutes <= 15) return { text: "text-rust", row: "", pulse: false };
+  if (minutes <= 60) return { text: "text-iris", row: "", pulse: false };
+  return { text: "text-mint", row: "", pulse: false };
 }
 
 function countdown(msRemaining: number) {
@@ -24,13 +25,12 @@ function countdown(msRemaining: number) {
   const total = Math.floor(Math.abs(msRemaining) / 1000);
   const h = Math.floor(total / 3600);
   const m = Math.floor((total % 3600) / 60);
-  const body = h > 0 ? `${h} hr ${String(m).padStart(2, "0")} min` : `${m} min`;
+  const body = h > 0 ? `${h}:${String(m).padStart(2, "0")}` : `${m}m`;
   return over ? `+${body}` : body;
 }
 
 function awayFor(startedAt: string, now: number) {
-  const mins = Math.max(0, Math.round((now - new Date(startedAt).getTime()) / 60000));
-  return `${mins} min`;
+  return `${Math.max(0, Math.round((now - new Date(startedAt).getTime()) / 60000))}m`;
 }
 
 type Seated = {
@@ -38,334 +38,356 @@ type Seated = {
   candidate: Candidate;
   programme: ExamProgramme | null;
   onBreak: CandidateBreak | null;
-  remaining: number | null;
+  remaining: number;
 };
 
+/**
+ * The floor while it is running. Twenty-five people at once will not fit as
+ * cards, so each one is a line: seat, who, how long left, and the two buttons
+ * that matter. What needs attention is lifted out of the list and put across
+ * the top, where it cannot be scrolled past.
+ */
 export function FloorScreen() {
   const { candidates, workstations, programmes, openBreaks, center, rpc, canLab } = useConsole();
   const now = useNow();
+  const [editing, setEditing] = useState<Seated | null>(null);
 
-  const seatById = new Map(workstations.map((w) => [w.id, w]));
+  const seatById = useMemo(() => new Map(workstations.map((w) => [w.id, w])), [workstations]);
 
-  const seated: Seated[] = candidates
-    .filter((c) => c.workstation_id && seatById.has(c.workstation_id) && !c.exam_finished_at)
-    .map((c) => ({
-      seat: seatById.get(c.workstation_id!)!,
-      candidate: c,
-      programme: programmes.find((p) => p.id === c.programme_id) ?? null,
-      onBreak: openBreaks.find((b) => b.candidate_id === c.id) ?? null,
-      remaining: c.exam_expected_end ? new Date(c.exam_expected_end).getTime() - now : null,
-    }))
-    .sort((a, b) => {
-      if (a.remaining === null) return 1;
-      if (b.remaining === null) return -1;
-      return a.remaining - b.remaining;
-    });
+  const seated: Seated[] = useMemo(
+    () =>
+      candidates
+        .filter((c) => c.workstation_id && seatById.has(c.workstation_id) && !c.exam_finished_at)
+        .map((c) => ({
+          seat: seatById.get(c.workstation_id!)!,
+          candidate: c,
+          programme: programmes.find((p) => p.id === c.programme_id) ?? null,
+          onBreak: openBreaks.find((b) => b.candidate_id === c.id) ?? null,
+          remaining: c.exam_expected_end ? new Date(c.exam_expected_end).getTime() - now : Infinity,
+        }))
+        .sort((a, b) => a.remaining - b.remaining),
+    [candidates, seatById, programmes, openBreaks, now],
+  );
 
-  const running = seated.filter((s) => s.remaining !== null);
-  const within = (mins: number) =>
-    running.filter((s) => s.remaining! > 0 && s.remaining! <= mins * 60000).length;
+  const overdue = seated.filter((s) => s.remaining <= 0);
+  const soon = seated.filter((s) => s.remaining > 0 && s.remaining <= 5 * 60000);
+  const away = seated.filter((s) => s.onBreak);
+  const faults = workstations.filter((w) => w.lab_id && w.status === "fault");
 
-  const clusters = (() => {
-    const buckets = new Map<number, number>();
-    for (const s of running) {
-      if (s.remaining === null || s.remaining <= 0) continue;
-      const end = new Date(s.candidate.exam_expected_end!).getTime();
-      const slot = Math.floor(end / (15 * 60000)) * 15 * 60000;
-      buckets.set(slot, (buckets.get(slot) ?? 0) + 1);
-    }
-    return [...buckets.entries()]
-      .filter(([, n]) => n >= 2)
-      .sort(([a], [b]) => a - b)
-      .slice(0, 3)
-      .map(([slot, n]) => ({
-        n,
-        from: clockAt(new Date(slot).toISOString(), center.timezone),
-        to: clockAt(new Date(slot + 15 * 60000).toISOString(), center.timezone),
-      }));
-  })();
-
-  const unavailable = workstations.filter((w) => w.status === "fault" || w.status === "cleaning").length;
-
-  const stats = [
-    { label: "Finishing ≤15 min", value: within(15), className: "text-rust" },
-    { label: "≤30 min", value: within(30), className: "text-iris" },
-    { label: "≤60 min", value: within(60), className: "text-iris" },
-    { label: "On break", value: openBreaks.length, className: "text-gold" },
-    { label: "Seats unavailable", value: unavailable, className: "text-fg-muted" },
-  ];
+  // Anything that needs a person, gathered where a person will see it.
+  const alerts = [
+    overdue.length > 0 && {
+      key: "over",
+      tone: "border-rust bg-rust/15 text-rust",
+      text:
+        overdue.length === 1
+          ? `${overdue[0].seat.seat_code} is past time — confirm or extend`
+          : `${overdue.length} seats are past time — confirm or extend`,
+    },
+    soon.length > 0 && {
+      key: "soon",
+      tone: "border-gold/60 bg-gold/12 text-gold-bright",
+      text: `${soon.length} finishing within 5 minutes: ${soon.map((s) => s.seat.seat_code).join(", ")}`,
+    },
+    away.length > 0 && {
+      key: "away",
+      tone: "border-iris/55 bg-iris/12 text-iris",
+      text: `${away.length} on break: ${away
+        .map((s) => `${s.seat.seat_code} ${awayFor(s.onBreak!.started_at, now)}`)
+        .join(", ")}`,
+    },
+    faults.length > 0 && {
+      key: "fault",
+      tone: "border-rust/50 bg-rust/8 text-rust",
+      text: `Faulty: ${faults.map((w) => w.seat_code).join(", ")}`,
+    },
+  ].filter(Boolean) as { key: string; tone: string; text: string }[];
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-[12px] overflow-x-hidden overflow-y-auto">
-      <div className="grid shrink-0 grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-[12px]">
-        {stats.map((s) => (
-          <div key={s.label} className="rounded-[18px] border border-edge-mid panel-bg p-[13px]">
-            <span className="text-[9.5px] font-bold tracking-[0.12em] text-fg-dim uppercase">{s.label}</span>
-            <div className={`mt-[4px] font-serif text-[34px] leading-[1.05] ${s.className}`}>{s.value}</div>
-          </div>
-        ))}
-      </div>
-
-      {clusters.length > 0 && (
-        <div className="flex shrink-0 flex-wrap gap-[8px]">
-          {clusters.map((c) => (
-            <span
-              key={c.from}
-              className="rounded-[12px] border border-gold/40 bg-gold/10 px-[12px] py-[8px] text-[11.5px] font-semibold text-gold-bright"
+    <div className="flex min-h-0 flex-1 flex-col gap-[11px]">
+      {alerts.length > 0 && (
+        <div className="flex shrink-0 flex-col gap-[7px]">
+          {alerts.map((a) => (
+            <div
+              key={a.key}
+              className={`rounded-[15px] border-2 px-[15px] py-[12px] text-[14px] font-bold ${a.tone}`}
             >
-              {c.n} candidates expected to finish between {c.from} and {c.to}
-            </span>
+              {a.text}
+            </div>
           ))}
         </div>
       )}
 
-      <div className="grid shrink-0 grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-[12px]">
-        {seated.map((s) => (
-          <SeatCard key={s.seat.id} row={s} now={now} canLab={canLab} timezone={center.timezone} rpc={rpc} />
-        ))}
+      <div className="flex shrink-0 flex-wrap items-center gap-[10px]">
+        <span className="text-[11px] font-bold tracking-[0.13em] text-fg-dim uppercase">
+          On the floor
+        </span>
+        <span className="font-mono text-[13px] font-semibold text-gold">{seated.length}</span>
+        <span className="h-px min-w-[12px] flex-1 bg-edge-soft" />
+        <span className="text-[12px] text-fg-faint">
+          {workstations.filter((w) => w.lab_id && w.status === "free").length} seats free
+        </span>
       </div>
 
-      {seated.length === 0 && (
-        <p className="shrink-0 rounded-[20px] border border-dashed border-[#38302a] p-[26px] text-center font-mono text-[11.5px] text-fg-faint">
-          Nobody is seated yet. Assign a workstation on the Lab screen, then start the exam here.
-        </p>
-      )}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[20px] border border-edge-mid panel-bg">
+        <div className="hidden shrink-0 grid-cols-[86px_1fr_78px_64px_auto] items-center gap-[12px] border-b border-edge-soft px-[16px] py-[10px] text-[10.5px] font-semibold text-fg-dim sm:grid">
+          <span>Seat</span>
+          <span>Candidate</span>
+          <span className="text-right">Left</span>
+          <span>Ends</span>
+          <span />
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
+          {seated.map((s) => (
+            <FloorRow
+              key={s.seat.id}
+              row={s}
+              now={now}
+              canLab={canLab}
+              timezone={center.timezone}
+              rpc={rpc}
+              onEdit={() => setEditing(s)}
+            />
+          ))}
+
+          {seated.length === 0 && (
+            <p className="p-[26px] text-center text-[13px] text-fg-faint">
+              Nobody is on the floor. Seating somebody in the Lab starts their clock.
+            </p>
+          )}
+        </div>
+      </div>
 
       <p className="shrink-0 font-mono text-[10.5px] text-fg-faint">
-        Times shown are an operational estimate. The exam software remains authoritative, and the countdown
-        keeps running through breaks.
+        The clock is an estimate and keeps running through breaks. The exam software remains
+        authoritative; nobody is finished until somebody presses Finish.
       </p>
+
+      {editing && (
+        <AdjustDialog key={editing.candidate.id} row={editing} onClose={() => setEditing(null)} />
+      )}
     </div>
   );
 }
 
-function SeatCard({
+function FloorRow({
   row,
   now,
   canLab,
   timezone,
   rpc,
+  onEdit,
 }: {
   row: Seated;
   now: number;
   canLab: boolean;
   timezone: string;
   rpc: (fn: string, args: Record<string, unknown>, ok?: string) => Promise<boolean>;
+  onEdit: () => void;
 }) {
   const { seat, candidate, programme, onBreak, remaining } = row;
-  const started = candidate.exam_started_at;
-
-  if (!started) return <StartCard row={row} canLab={canLab} timezone={timezone} rpc={rpc} />;
-
-  const tone = band(remaining ?? 0);
-  const over = (remaining ?? 0) <= 0;
+  const tone = band(remaining);
 
   return (
-    <div className={`flex flex-col gap-[10px] rounded-[20px] border p-[14px] ${tone.box}`}>
-      <div className="flex items-center gap-[10px]">
-        <span className="font-mono text-[13px] font-semibold">{seat.seat_code}</span>
-        <span className="rounded-[8px] bg-panel-soft px-[8px] py-[4px] font-mono text-[10px] text-fg-muted">
-          {programme?.code ?? "—"}
+    <div
+      className={`grid grid-cols-[1fr_auto] items-center gap-x-[12px] gap-y-[7px] border-b border-edge-soft/60 px-[13px] py-[10px] sm:grid-cols-[86px_1fr_78px_64px_auto] sm:px-[16px] ${tone.row}`}
+    >
+      <span className="order-1 font-mono text-[12.5px] font-semibold whitespace-nowrap">
+        {seat.seat_code}
+      </span>
+
+      <span className="order-3 col-span-2 block min-w-0 sm:order-2 sm:col-span-1">
+        <span className="flex items-center gap-[8px]">
+          <span className="min-w-0 truncate text-[13.5px]">{fullName(candidate)}</span>
+          {onBreak && (
+            <span className="shrink-0 rounded-[7px] bg-iris/20 px-[7px] py-[3px] text-[9.5px] font-bold whitespace-nowrap text-iris uppercase">
+              break {awayFor(onBreak.started_at, now)}
+            </span>
+          )}
         </span>
-        <span className="flex-1" />
-        {onBreak && (
-          <span className="rounded-[8px] bg-gold/15 px-[8px] py-[4px] text-[9.5px] font-bold tracking-[0.06em] text-gold uppercase">
-            On break · {awayFor(onBreak.started_at, now)}
-          </span>
-        )}
-      </div>
+        <span className="block truncate font-mono text-[10px] text-fg-faint">
+          {[candidate.public_token, programme?.code, `${candidate.exam_duration_minutes ?? "?"} min`]
+            .filter(Boolean)
+            .join(" · ")}
+        </span>
+      </span>
 
-      <div>
-        <div className="overflow-hidden text-[13.5px] font-semibold text-ellipsis whitespace-nowrap">
-          {fullName(candidate)}
-        </div>
-        <div className="font-mono text-[10px] text-fg-faint">
-          {candidate.public_token} · started {clockAt(started, timezone)} · {candidate.exam_duration_minutes} min
-          · ends {clockAt(candidate.exam_expected_end, timezone)}
-        </div>
-      </div>
-
-      <div
-        className={`font-mono text-[30px] leading-none font-semibold ${tone.text} ${
+      <button
+        type="button"
+        onClick={onEdit}
+        title="Correct the start time or length"
+        className={`order-2 cursor-pointer text-right font-mono text-[19px] leading-none font-semibold sm:order-3 ${tone.text} ${
           tone.pulse ? "animate-pulse-dot motion-reduce:animate-none" : ""
         }`}
       >
-        {countdown(remaining ?? 0)}
-      </div>
+        {Number.isFinite(remaining) ? countdown(remaining) : "—"}
+      </button>
 
-      {over && (
-        <p className="text-[11px] font-semibold text-rust">Expected end reached — confirm status</p>
-      )}
+      <span className="order-4 hidden font-mono text-[11px] text-fg-faint sm:block">
+        {clockAt(candidate.exam_expected_end, timezone)}
+      </span>
 
-      <div className="flex flex-wrap gap-[6px]">
+      <span className="order-5 col-span-2 flex justify-end gap-[6px] sm:col-span-1">
         {onBreak ? (
           <button
             type="button"
             disabled={!canLab}
             onClick={() => rpc("fets_break_in", { p_candidate: candidate.id }, "Break ended")}
-            className="cursor-pointer rounded-[11px] border border-gold/50 bg-gold/15 px-[12px] py-[8px] text-[11px] font-bold text-gold-bright disabled:opacity-40"
+            className="cursor-pointer rounded-[10px] border border-iris/55 bg-iris/15 px-[11px] py-[8px] text-[11.5px] font-bold text-iris disabled:opacity-40"
           >
-            Break in
+            Back
           </button>
         ) : (
-          <>
-            <button
-              type="button"
-              disabled={!canLab}
-              onClick={() =>
-                rpc(
-                  "fets_break_out",
-                  { p_candidate: candidate.id, p_kind: "scheduled" },
-                  "Scheduled break started",
-                )
-              }
-              className="cursor-pointer rounded-[11px] border border-edge-strong bg-panel-soft/70 px-[12px] py-[8px] text-[11px] font-bold text-fg-muted disabled:opacity-40"
-            >
-              Scheduled break
-            </button>
-            <button
-              type="button"
-              disabled={!canLab}
-              onClick={() => {
-                const reason = window.prompt("Reason for the unscheduled break?");
-                if (reason === null) return;
-                void rpc(
-                  "fets_break_out",
-                  { p_candidate: candidate.id, p_kind: "unscheduled", p_reason: reason || null },
-                  "Unscheduled break recorded",
-                );
-              }}
-              className="cursor-pointer rounded-[11px] border border-edge-strong bg-panel-soft/70 px-[12px] py-[8px] text-[11px] font-bold text-fg-muted disabled:opacity-40"
-            >
-              Unscheduled break
-            </button>
-          </>
+          <button
+            type="button"
+            disabled={!canLab}
+            onClick={() =>
+              rpc(
+                "fets_break_out",
+                { p_candidate: candidate.id, p_kind: "scheduled" },
+                "Break started",
+              )
+            }
+            className="cursor-pointer rounded-[10px] border border-edge-strong bg-panel-soft px-[11px] py-[8px] text-[11.5px] font-bold text-fg-muted disabled:opacity-40"
+          >
+            Break
+          </button>
         )}
-        <span className="flex-1" />
         <button
           type="button"
           disabled={!canLab || !!onBreak}
-          onClick={() => rpc("fets_confirm_finish", { p_candidate: candidate.id }, `${candidate.public_token} finished`)}
-          className="cursor-pointer rounded-[11px] bg-[linear-gradient(145deg,oklch(0.83_0.16_158),oklch(0.72_0.15_165))] px-[13px] py-[8px] text-[11px] font-bold text-[#0c1711] disabled:opacity-40"
+          onClick={() =>
+            rpc(
+              "fets_confirm_finish",
+              { p_candidate: candidate.id },
+              `${candidate.public_token} finished`,
+            )
+          }
+          className="cursor-pointer rounded-[10px] bg-[linear-gradient(145deg,oklch(0.83_0.16_158),oklch(0.72_0.15_165))] px-[13px] py-[8px] text-[11.5px] font-bold text-[#0c1711] disabled:opacity-40"
         >
-          Confirm finish
+          Finish
         </button>
-      </div>
+      </span>
     </div>
   );
 }
 
-function StartCard({
-  row,
-  canLab,
-  timezone,
-  rpc,
-}: {
-  row: Seated;
-  canLab: boolean;
-  timezone: string;
-  rpc: (fn: string, args: Record<string, unknown>, ok?: string) => Promise<boolean>;
-}) {
-  const { programmes, notify } = useConsole();
-  const { seat, candidate } = row;
-  const [programmeId, setProgrammeId] = useState(programmes[0]?.id ?? "");
-  const [duration, setDuration] = useState(String(programmes[0]?.default_duration_minutes ?? 180));
-  const [startTime, setStartTime] = useState(() => nowInZone(timezone));
+/** The clock starts itself now, so this is the correction the user asked for. */
+function AdjustDialog({ row, onClose }: { row: Seated; onClose: () => void }) {
+  const { center, rpc, notify, canLab } = useConsole();
+  const { candidate, seat } = row;
 
-  function pickProgramme(id: string) {
-    setProgrammeId(id);
-    const p = programmes.find((x) => x.id === id);
-    if (p) setDuration(String(p.default_duration_minutes));
+  const [startTime, setStartTime] = useState(() =>
+    clockAt(candidate.exam_started_at, center.timezone),
+  );
+  const [duration, setDuration] = useState(String(candidate.exam_duration_minutes ?? 180));
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(startTime)) {
+      notify("Write the start time as HH:MM on a 24-hour clock", "error");
+      return;
+    }
+    const minutes = Number(duration);
+    if (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440) {
+      notify("Enter a length between 1 and 1440 minutes", "error");
+      return;
+    }
+    if (!reason.trim()) {
+      notify("Say why it is being changed — it goes in the audit trail", "error");
+      return;
+    }
+
+    // Typed as the centre's wall clock. A time that lands in the future belongs
+    // to yesterday's overnight sitting.
+    let startedAt = instantFromZonedTime(startTime, center.timezone);
+    if (startedAt.getTime() > Date.now() + 5 * 60000) {
+      startedAt = new Date(startedAt.getTime() - 24 * 3600 * 1000);
+    }
+
+    setBusy(true);
+    const ok = await rpc(
+      "fets_adjust_exam",
+      {
+        p_candidate: candidate.id,
+        p_started_at: startedAt.toISOString(),
+        p_duration: minutes,
+        p_reason: reason.trim(),
+      },
+      "Clock corrected",
+    );
+    setBusy(false);
+    if (ok) onClose();
   }
 
   return (
-    <div className="flex flex-col gap-[10px] rounded-[20px] border border-edge-mid panel-bg p-[14px]">
-      <div className="flex items-center gap-[10px]">
-        <span className="font-mono text-[13px] font-semibold">{seat.seat_code}</span>
-        <span className="flex-1" />
-        <span className="rounded-[8px] bg-panel-soft px-[8px] py-[4px] text-[9.5px] font-bold tracking-[0.06em] text-fg-dim uppercase">
-          Not started
-        </span>
-      </div>
-
-      <div>
-        <div className="overflow-hidden text-[13.5px] font-semibold text-ellipsis whitespace-nowrap">
-          {fullName(candidate)}
-        </div>
-        <div className="font-mono text-[10px] text-fg-faint">{candidate.public_token}</div>
-      </div>
-
-      <div className="flex flex-wrap items-end gap-[8px]">
-        <label className="flex min-w-[110px] flex-1 flex-col gap-[4px]">
-          <span className="text-[9px] font-bold tracking-[0.1em] text-fg-dim uppercase">Exam</span>
-          <select
-            value={programmeId}
-            onChange={(e) => pickProgramme(e.target.value)}
-            className="rounded-[10px] border border-edge-strong bg-panel-soft px-[9px] py-[8px] text-[12px] outline-none"
+    <Dialog
+      open
+      title="Correct the clock"
+      subtitle={`${fullName(candidate)} · ${seat.seat_code}`}
+      onClose={onClose}
+      footer={
+        <>
+          <button
+            type="button"
+            disabled={busy || !canLab}
+            onClick={save}
+            className="flex-1 cursor-pointer rounded-[14px] gold-bg px-[22px] py-[14px] text-[14px] font-bold text-[#1a1512] disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {programmes.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.code}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex w-[86px] flex-col gap-[4px]">
-          <span className="text-[9px] font-bold tracking-[0.1em] text-fg-dim uppercase">Started</span>
+            {busy ? "Saving…" : "Save the correction"}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="cursor-pointer rounded-[14px] border border-edge px-[20px] py-[14px] text-[14px] font-semibold text-fg-muted"
+          >
+            Cancel
+          </button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-[15px]">
+        <p className="text-[12.5px] leading-[1.5] text-fg-faint">
+          The clock started when this candidate was seated. Change it here if they actually started
+          at a different time, or if the exam is a different length.
+        </p>
+
+        <div className="flex flex-wrap gap-[12px]">
+          <label className="flex w-[120px] flex-col gap-[7px]">
+            <span className="text-[11.5px] font-semibold text-fg-dim">Started at</span>
+            <input
+              inputMode="numeric"
+              maxLength={5}
+              value={startTime}
+              onChange={(e) => setStartTime(e.target.value)}
+              className="rounded-[12px] border border-edge-strong bg-panel-soft px-[13px] py-[12px] font-mono text-[16px] outline-none focus:border-gold/50"
+            />
+          </label>
+          <label className="flex w-[120px] flex-col gap-[7px]">
+            <span className="text-[11.5px] font-semibold text-fg-dim">Minutes</span>
+            <input
+              inputMode="numeric"
+              value={duration}
+              onChange={(e) => setDuration(e.target.value)}
+              className="rounded-[12px] border border-edge-strong bg-panel-soft px-[13px] py-[12px] font-mono text-[16px] outline-none focus:border-gold/50"
+            />
+          </label>
+        </div>
+
+        <label className="flex flex-col gap-[7px]">
+          <span className="text-[11.5px] font-semibold text-fg-dim">
+            Why <span className="font-normal text-fg-faint">— kept in the audit trail</span>
+          </span>
           <input
-            inputMode="numeric"
-            maxLength={5}
-            // The prefill is the clock at render, so server and client can differ by a minute.
-            suppressHydrationWarning
-            value={startTime}
-            onChange={(e) => setStartTime(e.target.value)}
-            className="rounded-[10px] border border-edge-strong bg-panel-soft px-[9px] py-[8px] font-mono text-[12px] outline-none"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Started 10 minutes late"
+            className="rounded-[12px] border border-edge-strong bg-panel-soft px-[13px] py-[12px] text-[15px] outline-none placeholder:text-fg-faint focus:border-gold/50"
           />
         </label>
-        <label className="flex w-[86px] flex-col gap-[4px]">
-          <span className="text-[9px] font-bold tracking-[0.1em] text-fg-dim uppercase">Minutes</span>
-          <input
-            inputMode="numeric"
-            value={duration}
-            onChange={(e) => setDuration(e.target.value)}
-            className="rounded-[10px] border border-edge-strong bg-panel-soft px-[9px] py-[8px] font-mono text-[12px] outline-none"
-          />
-        </label>
-        <button
-          type="button"
-          disabled={!canLab}
-          onClick={() => {
-            if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(startTime)) {
-              notify("Enter the start time as HH:MM on a 24-hour clock", "error");
-              return;
-            }
-            const minutes = Number(duration);
-            if (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440) {
-              notify("Enter a duration between 1 and 1440 minutes", "error");
-              return;
-            }
-            // Typed as the center's wall clock, not the laptop's. A time that
-            // lands in the future belongs to yesterday's overnight sitting.
-            let startedAt = instantFromZonedTime(startTime, timezone);
-            if (startedAt.getTime() > Date.now() + 5 * 60000) {
-              startedAt = new Date(startedAt.getTime() - 24 * 3600 * 1000);
-            }
-            void rpc(
-              "fets_start_exam",
-              {
-                p_candidate: candidate.id,
-                p_programme: programmeId || null,
-                p_started_at: startedAt.toISOString(),
-                p_duration: minutes,
-              },
-              `${candidate.public_token} started`,
-            );
-          }}
-          className="cursor-pointer rounded-[11px] gold-bg px-[14px] py-[9px] text-[11.5px] font-bold text-[#1a1512] disabled:opacity-40"
-        >
-          Start
-        </button>
       </div>
-    </div>
+    </Dialog>
   );
 }
