@@ -14,7 +14,7 @@ import type { RosterDiagnostics, RosterPreview } from "@/lib/types";
  * the candidate list rather than leaving staff to find it.
  */
 export function RosterUploadScreen() {
-  const { center, session, candidates, rpc, isAdmin, notify, refresh } = useConsole();
+  const { center, session, candidates, programmes, rpc, isAdmin, notify, refresh } = useConsole();
   const router = useRouter();
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -25,6 +25,11 @@ export function RosterUploadScreen() {
   const [examDate, setExamDate] = useState(() => todayInZone(center.timezone));
   const [byHand, setByHand] = useState(false);
   const [handName, setHandName] = useState("");
+  // Which exam the day runs. It decides every candidate's clock, and it is the
+  // one thing on this page the file cannot tell us, so it is asked first.
+  const [programmeId, setProgrammeId] = useState("");
+
+  const programme = programmes.find((p) => p.id === programmeId) ?? null;
 
   async function onFile(file: File) {
     setBusy(true);
@@ -64,6 +69,7 @@ export function RosterUploadScreen() {
       p_exam_date: examDate,
       p_filename: preview.filename,
       p_rows: preview.rows,
+      p_programme: programmeId || null,
     });
 
     if (ok) {
@@ -81,7 +87,12 @@ export function RosterUploadScreen() {
     setBusy(true);
     const ok = await rpc(
       "fets_start_blank_session",
-      { p_center: center.id, p_exam_name: handName.trim(), p_exam_date: examDate },
+      {
+        p_center: center.id,
+        p_exam_name: handName.trim(),
+        p_exam_date: examDate,
+        p_programme: programmeId || null,
+      },
       "Empty list started — add candidates one by one",
     );
     setBusy(false);
@@ -118,6 +129,48 @@ export function RosterUploadScreen() {
       )}
 
       {!preview && (
+        <section className="flex shrink-0 flex-col gap-[12px] rounded-[20px] border border-edge-mid panel-bg p-[18px]">
+          <div className="flex items-center gap-[11px]">
+            <span className="flex h-[26px] w-[26px] items-center justify-center rounded-[8px] bg-panel-soft font-mono text-[13px] font-semibold text-fg-dim">
+              1
+            </span>
+            <span className="text-[16px] font-semibold">Which exam is today?</span>
+          </div>
+          <p className="max-w-[62ch] text-[12.5px] leading-[1.5] text-fg-faint">
+            This sets how long every candidate&rsquo;s clock runs once they are seated. Lengths come
+            from Setup, and any one candidate can still be corrected on the Live Floor.
+          </p>
+
+          {programmes.length === 0 ? (
+            <p className="rounded-[14px] border border-gold/35 bg-gold/8 p-[13px] text-[12.5px] text-gold">
+              No exams are set up for this centre yet. Add them under Setup, or carry on and every
+              clock will use the centre&rsquo;s default length.
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-[9px]">
+              {programmes.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setProgrammeId(p.id === programmeId ? "" : p.id)}
+                  className={`cursor-pointer rounded-[14px] border px-[16px] py-[12px] text-left transition-colors ${
+                    p.id === programmeId
+                      ? "border-gold/60 bg-gold/12"
+                      : "border-edge bg-panel-soft hover:border-edge-warm"
+                  }`}
+                >
+                  <span className="block text-[13.5px] font-semibold">{p.code}</span>
+                  <span className="block font-mono text-[11px] text-fg-faint">
+                    {p.default_duration_minutes} min
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {!preview && (
         <div
           onDragOver={(e) => {
             e.preventDefault();
@@ -134,8 +187,11 @@ export function RosterUploadScreen() {
             dragging ? "border-gold bg-gold/8" : "border-[#3a322b] bg-panel-soft"
           }`}
         >
+          <span className="flex h-[26px] w-[26px] items-center justify-center rounded-[8px] bg-panel-soft font-mono text-[13px] font-semibold text-fg-dim">
+            2
+          </span>
           <span className="font-serif text-[30px] leading-[1.15]">
-            {session ? "Upload a new roster" : "Start by uploading today's roster"}
+            {session ? "Upload a new roster" : "Upload today's roster"}
           </span>
           <span className="max-w-[46ch] text-[14px] leading-[1.5] text-fg-muted">
             Drop the file here, or choose it below. The Prometric site roster and candidate contact
@@ -156,12 +212,16 @@ export function RosterUploadScreen() {
 
           <button
             type="button"
-            disabled={!isAdmin || busy}
+            disabled={!isAdmin || busy || (programmes.length > 0 && !programme)}
             onClick={() => fileInput.current?.click()}
             className="cursor-pointer rounded-[14px] gold-bg px-[26px] py-[14px] text-[14px] font-bold text-[#1a1512] disabled:cursor-not-allowed disabled:opacity-40"
           >
             {busy ? "Reading the file…" : "Choose a file"}
           </button>
+
+          {programmes.length > 0 && !programme && (
+            <span className="text-[12.5px] text-gold">Choose the exam above first.</span>
+          )}
 
           {!isAdmin && <span className="text-[12.5px] text-gold">Only an admin can import a roster.</span>}
 
@@ -173,9 +233,9 @@ export function RosterUploadScreen() {
 
           <button
             type="button"
-            disabled={!isAdmin || busy}
+            disabled={!isAdmin || busy || (programmes.length > 0 && !programme)}
             onClick={() => {
-              setHandName(`Entered by hand — ${examDate}`);
+              setHandName(`${programme?.code ?? "Entered by hand"} — ${examDate}`);
               setByHand(true);
             }}
             className="cursor-pointer rounded-[14px] border border-edge-warm px-[22px] py-[13px] text-[13.5px] font-semibold text-fg-muted hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
@@ -241,6 +301,11 @@ export function RosterUploadScreen() {
         <div className="flex shrink-0 flex-col gap-[16px] rounded-[24px] border border-edge-mid panel-bg p-[20px]">
           <div className="flex flex-wrap items-baseline gap-[10px]">
             <span className="font-serif text-[24px]">Check this before importing</span>
+            {programme && (
+              <span className="rounded-[10px] border border-gold/45 bg-gold/10 px-[11px] py-[6px] text-[12px] font-semibold text-gold-bright">
+                {programme.code} · {programme.default_duration_minutes} min
+              </span>
+            )}
             <span className="font-mono text-[12px] text-fg-faint">
               {preview.filename}
               {preview.sheet_used ? ` · sheet "${preview.sheet_used}"` : ""}

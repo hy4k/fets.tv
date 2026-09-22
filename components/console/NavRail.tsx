@@ -5,11 +5,13 @@ import { usePathname } from "next/navigation";
 import { useConsole } from "@/lib/console-data";
 
 type Item = { href: string; n?: string; label: string; short: string; badge: number };
+type Group = { key: string; title: string; items: Item[] };
 
 /**
- * The rail follows the working day from the top down: import the roster, look
- * at who is coming, check them in, call them, seat them, run the clock. Staff
- * move down the list as the day goes on and never have to go back up it.
+ * The rail follows the working day from the top down, but grouped by the room
+ * the work happens in: the desk that receives people, the rooms that move them
+ * through, the floor that runs the clock. Staff learn where they sit and then
+ * only ever look at their own group.
  *
  * On a phone or tablet the same list becomes a scrollable bar under the
  * content, where a thumb can reach it; from md up it is the side rail.
@@ -21,20 +23,53 @@ export function NavRail() {
   const waiting = candidates.filter((c) => c.status === "waiting" && !c.called_at).length;
   const testing = candidates.filter((c) => c.exam_started_at && !c.exam_finished_at).length;
 
-  const day: Item[] = [
-    { href: "/roster", n: "1", label: "Roster", short: "Roster", badge: 0 },
-    { href: "/candidates", n: "2", label: "Candidates", short: "List", badge: candidates.length },
-    { href: "/front-office", n: "3", label: "Front Office", short: "Front", badge: call?.candidate_id ? 1 : 0 },
-    { href: "/admin", n: "4", label: "Admin Room", short: "Admin", badge: waiting },
-    { href: "/lab", n: "5", label: "Lab", short: "Lab", badge: 0 },
-    { href: "/floor", n: "6", label: "Live Floor", short: "Floor", badge: testing + openBreaks.length },
-  ];
-
-  const aside: Item[] = [
-    { href: "/history", label: "Past days", short: "Past", badge: 0 },
-    { href: "/tv", label: "TV screen", short: "TV", badge: 0 },
-    { href: "/notices", label: "Messages", short: "Message", badge: notice ? 1 : 0 },
-    { href: "/settings/center", label: "Setup", short: "Setup", badge: 0 },
+  const groups: Group[] = [
+    {
+      key: "front",
+      title: "Front of house",
+      items: [
+        { href: "/roster", n: "1", label: "Roster", short: "Roster", badge: 0 },
+        { href: "/candidates", n: "2", label: "Candidates", short: "List", badge: candidates.length },
+        {
+          href: "/front-office",
+          n: "3",
+          label: "Front Office",
+          short: "Front",
+          badge: call?.candidate_id ? 1 : 0,
+        },
+      ],
+    },
+    {
+      key: "inside",
+      title: "Inside",
+      items: [
+        { href: "/admin", n: "4", label: "Admin Room", short: "Admin", badge: waiting },
+        { href: "/lab", n: "5", label: "Lab", short: "Lab", badge: 0 },
+      ],
+    },
+    {
+      key: "floor",
+      title: "Running",
+      items: [
+        {
+          href: "/floor",
+          n: "6",
+          label: "Live Floor",
+          short: "Floor",
+          badge: testing + openBreaks.length,
+        },
+      ],
+    },
+    {
+      key: "aside",
+      title: "Elsewhere",
+      items: [
+        { href: "/history", label: "Past days", short: "Past", badge: 0 },
+        { href: "/tv", label: "TV screen", short: "TV", badge: 0 },
+        { href: "/notices", label: "Messages", short: "Message", badge: notice ? 1 : 0 },
+        { href: "/settings/center", label: "Setup", short: "Setup", badge: 0 },
+      ],
+    },
   ];
 
   const isActive = (href: string) => (href === "/tv" ? pathname === href : pathname.startsWith(href));
@@ -51,15 +86,33 @@ export function NavRail() {
         <span className="font-mono text-[11px] tracking-[0.14em] text-fg-dim">FETS</span>
       </div>
 
-      {day.map((item) => (
-        <RailLink key={item.href} item={item} active={isActive(item.href)} />
-      ))}
+      {groups.map((group, i) => (
+        <div key={group.key} className="contents md:block">
+          {/* The heading only earns its space on the rail; in the phone bar the
+              gap between groups says the same thing in less room. */}
+          <span
+            className={`hidden px-[6px] pb-[5px] text-[9.5px] font-bold tracking-[0.16em] text-fg-faint uppercase md:block ${
+              i > 0 ? "pt-[14px]" : ""
+            }`}
+          >
+            {group.title}
+          </span>
 
-      <span className="mx-[4px] my-[10px] hidden h-px shrink-0 bg-edge-soft md:block" />
-      <span className="mx-[2px] w-px shrink-0 self-stretch bg-edge-soft md:hidden" />
+          {i > 0 && (
+            <span className="mx-[3px] w-px shrink-0 self-stretch bg-edge-soft md:hidden" aria-hidden />
+          )}
 
-      {aside.map((item) => (
-        <RailLink key={item.href} item={item} active={isActive(item.href)} muted />
+          <span className="contents md:block md:space-y-[4px]">
+            {group.items.map((item) => (
+              <RailLink
+                key={item.href}
+                item={item}
+                active={isActive(item.href)}
+                muted={group.key === "aside"}
+              />
+            ))}
+          </span>
+        </div>
       ))}
     </nav>
   );
