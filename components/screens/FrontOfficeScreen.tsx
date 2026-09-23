@@ -2,11 +2,12 @@
 
 import { useMemo, useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
+import { MaterialsPanel } from "@/components/screens/MaterialsPanel";
 import { Drawer } from "@/components/ui/Drawer";
 import { useDrawers } from "@/lib/drawer-store";
 import { useConsole } from "@/lib/console-data";
 import { clockAt, fullName, initials, statusChip } from "@/lib/format";
-import type { Candidate } from "@/lib/types";
+import { type Candidate, stillHeld } from "@/lib/types";
 
 /** Physical locker bank at the front desk. */
 const LOCKER_BANK = 24;
@@ -23,6 +24,7 @@ export function FrontOfficeScreen() {
   const { open, toggle } = useDrawers("front-office", { recent: false });
   const [query, setQuery] = useState("");
   const [checkingInId, setCheckingInId] = useState<string | null>(null);
+  const [signingOutId, setSigningOutId] = useState<string | null>(null);
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -38,6 +40,7 @@ export function FrontOfficeScreen() {
   }, [candidates, query]);
 
   const checkingIn = candidates.find((c) => c.id === checkingInId) ?? null;
+  const signingOut = candidates.find((c) => c.id === signingOutId) ?? null;
   const called = candidates.find((c) => c.id === call?.candidate_id) ?? null;
   const recent = candidates
     .filter((c) => c.check_in_at)
@@ -45,6 +48,7 @@ export function FrontOfficeScreen() {
     .slice(0, 8);
 
   const toCheckIn = candidates.filter((c) => WAITING_TO_CHECK_IN.includes(c.status)).length;
+  const toSignOut = candidates.filter((c) => c.status === "completed").length;
 
   if (!session) return <EmptyRoster />;
 
@@ -81,7 +85,9 @@ export function FrontOfficeScreen() {
         <span className="min-w-0">
           <span className="block text-[15px] font-semibold">Roster</span>
           <span className="block text-[12px] text-fg-faint">
-            {toCheckIn} still to check in · {recent.length > 0 ? `${candidates.length - toCheckIn} done` : "none done yet"}
+            {toCheckIn} still to check in
+            {toSignOut > 0 && ` · ${toSignOut} waiting to sign out`}
+            {` · ${candidates.filter((c) => c.status === "signed_out").length} gone home`}
           </span>
         </span>
         <span className="flex-1" />
@@ -99,7 +105,12 @@ export function FrontOfficeScreen() {
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[20px] border border-edge-mid panel-bg">
         <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
           {results.map((c) => (
-            <RosterRow key={c.id} candidate={c} onCheckIn={() => setCheckingInId(c.id)} />
+            <RosterRow
+              key={c.id}
+              candidate={c}
+              onCheckIn={() => setCheckingInId(c.id)}
+              onSignOut={() => setSigningOutId(c.id)}
+            />
           ))}
           {results.length === 0 && (
             <p className="p-[28px] text-center text-[13px] text-fg-faint">
@@ -138,15 +149,35 @@ export function FrontOfficeScreen() {
           onClose={() => setCheckingInId(null)}
         />
       )}
+
+      {signingOut && (
+        <SignOutDialog
+          key={signingOut.id}
+          candidate={signingOut}
+          onClose={() => setSigningOutId(null)}
+        />
+      )}
     </div>
   );
 }
 
 /** One person on the roster. The button says what happens next to them. */
-function RosterRow({ candidate, onCheckIn }: { candidate: Candidate; onCheckIn: () => void }) {
-  const { canFrontOffice } = useConsole();
+function RosterRow({
+  candidate,
+  onCheckIn,
+  onSignOut,
+}: {
+  candidate: Candidate;
+  onCheckIn: () => void;
+  onSignOut: () => void;
+}) {
+  const { canFrontOffice, materials } = useConsole();
   const chip = statusChip(candidate);
   const pending = WAITING_TO_CHECK_IN.includes(candidate.status);
+  const leaving = candidate.status === "completed";
+  const holding = materials
+    .filter((m) => m.candidate_id === candidate.id)
+    .reduce((n, m) => n + stillHeld(m), 0);
 
   return (
     <div className="flex items-center gap-[12px] border-b border-edge-soft/60 px-[14px] py-[11px] md:px-[18px] md:py-[12px]">
@@ -167,6 +198,15 @@ function RosterRow({ candidate, onCheckIn }: { candidate: Candidate; onCheckIn: 
         {chip.label}
       </span>
 
+      {holding > 0 && !pending && (
+        <span
+          title="Still holding something"
+          className="hidden shrink-0 rounded-[9px] border border-gold/40 bg-gold/10 px-[9px] py-[5px] font-mono text-[10.5px] font-semibold text-gold-bright sm:block"
+        >
+          {holding} out
+        </span>
+      )}
+
       {pending && (
         <button
           type="button"
@@ -175,6 +215,17 @@ function RosterRow({ candidate, onCheckIn }: { candidate: Candidate; onCheckIn: 
           className="shrink-0 cursor-pointer rounded-[12px] gold-bg px-[16px] py-[10px] text-[13px] font-bold text-[#1a1512] disabled:cursor-not-allowed disabled:opacity-40"
         >
           Check in
+        </button>
+      )}
+
+      {leaving && (
+        <button
+          type="button"
+          disabled={!canFrontOffice}
+          onClick={onSignOut}
+          className="shrink-0 cursor-pointer rounded-[12px] bg-[linear-gradient(145deg,oklch(0.83_0.16_158),oklch(0.72_0.15_165))] px-[16px] py-[10px] text-[13px] font-bold text-[#0c1711] disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Sign out
         </button>
       )}
     </div>
@@ -277,6 +328,15 @@ function CheckInDialog({ candidate, onClose }: { candidate: Candidate; onClose: 
             }
           />
 
+          {/* What goes in with them. Not a step with a tick, because there is
+              no right number -- some exams need three sheets, some need none. */}
+          <div className="rounded-[16px] border border-edge bg-panel-soft/60 p-[13px]">
+            <span className="mb-[9px] block text-[11px] font-bold tracking-[0.12em] text-fg-faint uppercase">
+              Issued to them
+            </span>
+            <MaterialsPanel candidate={candidate} mode="issue" />
+          </div>
+
           <Step
             n="3"
             label="Checked in"
@@ -350,6 +410,90 @@ function CheckInDialog({ candidate, onClose }: { candidate: Candidate; onClose: 
         </div>
       </Dialog>
     </>
+  );
+}
+
+/**
+ * The other end of the day. They have finished, and now everything the centre
+ * gave them has to come back before they walk out: the key off the board, the
+ * sheets off the desk. The button stays shut until it has.
+ */
+function SignOutDialog({ candidate, onClose }: { candidate: Candidate; onClose: () => void }) {
+  const { center, materials, materialKinds, rpc, canFrontOffice } = useConsole();
+
+  const mine = materials.filter((m) => m.candidate_id === candidate.id);
+  const outstanding = mine.filter((m) => {
+    const kind = materialKinds.find((k) => k.code === m.kind);
+    return kind?.returnable && stillHeld(m) > 0;
+  });
+  const ready = outstanding.length === 0;
+
+  return (
+    <Dialog
+      open
+      title={fullName(candidate)}
+      subtitle={[
+        candidate.public_token,
+        candidate.roster_number,
+        `finished ${clockAt(candidate.completed_at, center.timezone)}`,
+      ]
+        .filter(Boolean)
+        .join(" · ")}
+      onClose={onClose}
+      footer={
+        <>
+          <button
+            type="button"
+            disabled={!ready || !canFrontOffice}
+            onClick={async () => {
+              const ok = await rpc(
+                "fets_sign_out",
+                { p_candidate: candidate.id, p_note: "Signed out at the front desk" },
+                `${candidate.public_token} signed out`,
+              );
+              if (ok) onClose();
+            }}
+            className={`flex-1 rounded-[14px] px-[22px] py-[15px] text-[14.5px] font-bold ${
+              ready && canFrontOffice
+                ? "cursor-pointer bg-[linear-gradient(145deg,oklch(0.83_0.16_158),oklch(0.72_0.15_165))] text-[#0c1711]"
+                : "cursor-not-allowed bg-[#221d19] text-fg-dim"
+            }`}
+          >
+            {ready ? `Sign out ${candidate.public_token}` : "Take everything back first"}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="cursor-pointer rounded-[14px] border border-edge px-[20px] py-[15px] text-[14px] font-semibold text-fg-muted"
+          >
+            Close
+          </button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-[12px]">
+        {candidate.locker_key && (
+          <div className="flex items-center gap-[13px] rounded-[16px] border border-gold/40 bg-gold/8 p-[13px]">
+            <span className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border-2 border-gold bg-gold/12 font-mono text-[12px] font-semibold text-gold-bright">
+              K
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[14px] font-semibold">Locker key back</span>
+              <span className="block font-mono text-[11.5px] text-fg-faint">
+                {candidate.locker_key} — the key frees itself once they are signed out
+              </span>
+            </span>
+          </div>
+        )}
+
+        <div>
+          <span className="mb-[9px] block text-[11px] font-bold tracking-[0.12em] text-fg-faint uppercase">
+            Count it back in
+          </span>
+          <MaterialsPanel candidate={candidate} mode="collect" />
+        </div>
+      </div>
+    </Dialog>
   );
 }
 

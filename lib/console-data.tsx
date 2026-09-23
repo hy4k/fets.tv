@@ -5,6 +5,7 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 import type {
   Candidate,
   CandidateBreak,
+  CandidateMaterial,
   DisplayNotice,
   NoticeTemplate,
   CandidateEvent,
@@ -14,6 +15,7 @@ import type {
   ExamSession,
   Incident,
   Lab,
+  MaterialKind,
   Profile,
   RosterColumnAlias,
   PublicDisplay,
@@ -28,6 +30,9 @@ export type ConsoleSnapshot = {
   session: ExamSession | null;
   candidates: Candidate[];
   incidents: Incident[];
+  /** Everything handed out today, one row per person per thing. */
+  materials: CandidateMaterial[];
+  materialKinds: MaterialKind[];
   labs: Lab[];
   columnAliases: RosterColumnAlias[];
   workstations: Workstation[];
@@ -104,6 +109,7 @@ export function ConsoleProvider({
     const [
       candidates,
       incidents,
+      materials,
       labs,
       columnAliases,
       workstations,
@@ -124,6 +130,9 @@ export function ConsoleProvider({
         .eq("center_id", centerId)
         .order("started_at", { ascending: false })
         .limit(60),
+      session
+        ? supabase.from("candidate_materials").select("*").eq("exam_session_id", session.id)
+        : null,
       supabase.from("labs").select("*").eq("center_id", centerId).order("position"),
       supabase.from("roster_column_aliases").select("*").eq("center_id", centerId).order("field"),
       supabase.from("workstations").select("*").eq("center_id", centerId).order("seat_code"),
@@ -162,6 +171,7 @@ export function ConsoleProvider({
       session: session ?? null,
       candidates: candidates?.data ?? (session ? prev.candidates : []),
       incidents: incidents.data ?? prev.incidents,
+      materials: materials?.data ?? (session ? prev.materials : []),
       labs: labs.data ?? prev.labs,
       columnAliases: columnAliases.data ?? prev.columnAliases,
       workstations: workstations.data ?? prev.workstations,
@@ -191,6 +201,7 @@ export function ConsoleProvider({
       ["candidates", `center_id=eq.${centerId}`],
       ["candidate_events", `center_id=eq.${centerId}`],
       ["incidents", `center_id=eq.${centerId}`],
+      ["candidate_materials", `center_id=eq.${centerId}`],
       ["labs", `center_id=eq.${centerId}`],
       ["workstations", `center_id=eq.${centerId}`],
       ["public_display_calls", `center_id=eq.${centerId}`],

@@ -208,6 +208,42 @@ export type Incident = {
   created_at: string;
 };
 
+/** One thing the centre hands out. Global: every room issues the same list. */
+export type MaterialKind = {
+  code: string;
+  label: string;
+  /** False for anything consumed — water, earplugs. Only true ones hold a sign-out up. */
+  returnable: boolean;
+  active: boolean;
+  sort_order: number;
+};
+
+export type CandidateMaterial = {
+  id: string;
+  center_id: string;
+  exam_session_id: string | null;
+  candidate_id: string;
+  kind: string;
+  /** Only used by 'other'; an empty string otherwise. */
+  label: string;
+  issued_count: number;
+  returned_count: number;
+  /** Not coming back. Counted apart from returned so the day's tally stays honest. */
+  written_off_count: number;
+  written_off_at: string | null;
+  written_off_reason: string | null;
+  first_issued_at: string;
+  last_issued_at: string;
+  issued_by: string | null;
+  returned_at: string | null;
+  returned_by: string | null;
+};
+
+/** How many of this issue are still in the candidate's hands. */
+export function stillHeld(m: CandidateMaterial) {
+  return m.issued_count - m.returned_count - m.written_off_count;
+}
+
 export type Lab = {
   id: string;
   center_id: string;
@@ -345,6 +381,8 @@ export type Database = {
       candidates: Table<Candidate>;
       schedule_rules: Table<ScheduleRules>;
       incidents: Table<Incident>;
+      material_kinds: Table<MaterialKind>;
+      candidate_materials: Table<CandidateMaterial>;
       labs: Table<Lab>;
       roster_column_aliases: Table<RosterColumnAlias>;
       workstations: Table<Workstation>;
@@ -418,6 +456,24 @@ export type Database = {
         Returns: DisplayNotice;
       };
       fets_clear_notice: { Args: { p_center: string }; Returns: void };
+      fets_issue_material: {
+        Args: { p_candidate: string; p_kind: string; p_count?: number; p_label?: string | null };
+        Returns: CandidateMaterial;
+      };
+      fets_return_material: {
+        Args: {
+          p_candidate: string;
+          p_kind: string;
+          p_count?: number | null;
+          p_label?: string | null;
+        };
+        Returns: CandidateMaterial;
+      };
+      fets_write_off_material: {
+        Args: { p_material: string; p_reason: string };
+        Returns: CandidateMaterial;
+      };
+      fets_sign_out: { Args: { p_candidate: string; p_note?: string | null }; Returns: Candidate };
     };
     Enums: {
       staff_role: StaffRole;
