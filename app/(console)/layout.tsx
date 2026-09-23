@@ -45,6 +45,8 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
     incidents,
     materials,
     materialKinds,
+    programmeSections,
+    candidateSections,
     labs,
     columnAliases,
     workstations,
@@ -77,6 +79,18 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
     // Every kind, not only the active ones: something retired mid-day may
     // still be in somebody's hands, and it has to stay collectable.
     supabase.from("material_kinds").select("*").order("sort_order"),
+    supabase
+      .from("programme_sections")
+      .select("*")
+      .order("programme_id")
+      .order("position"),
+    session
+      ? supabase
+          .from("candidate_sections")
+          .select("*")
+          .eq("exam_session_id", session.id)
+          .order("position")
+      : Promise.resolve({ data: [] }),
     supabase.from("labs").select("*").eq("center_id", center.id).order("position"),
     supabase.from("roster_column_aliases").select("*").eq("center_id", center.id).order("field"),
     supabase.from("workstations").select("*").eq("center_id", center.id).order("seat_code"),
@@ -118,6 +132,8 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
     incidents: incidents.data ?? [],
     materials: materials.data ?? [],
     materialKinds: materialKinds.data ?? [],
+    programmeSections: programmeSections.data ?? [],
+    candidateSections: candidateSections.data ?? [],
     labs: labs.data ?? [],
     columnAliases: columnAliases.data ?? [],
     workstations: workstations.data ?? [],

@@ -208,6 +208,42 @@ export type Incident = {
   created_at: string;
 };
 
+export type SectionKind = "section" | "tutorial" | "break";
+
+/** One part of an exam, as planned. The estimate the centre works to. */
+export type ProgrammeSection = {
+  id: string;
+  programme_id: string;
+  position: number;
+  name: string;
+  minutes: number;
+  kind: SectionKind;
+  created_at: string;
+};
+
+/**
+ * One part of an exam, as it actually went. Name and minutes are copied from
+ * the plan at the moment it is confirmed, so editing the plan later cannot
+ * rewrite a day that has happened.
+ */
+export type CandidateSection = {
+  id: string;
+  candidate_id: string;
+  center_id: string;
+  exam_session_id: string | null;
+  programme_section_id: string | null;
+  position: number;
+  name: string;
+  minutes: number;
+  kind: SectionKind;
+  started_at: string;
+  /** Null on the part still running; the exam finishing is the last one's end. */
+  ended_at: string | null;
+  note: string | null;
+  recorded_by: string | null;
+  created_at: string;
+};
+
 /** One thing the centre hands out. Global: every room issues the same list. */
 export type MaterialKind = {
   code: string;
@@ -382,6 +418,8 @@ export type Database = {
       schedule_rules: Table<ScheduleRules>;
       incidents: Table<Incident>;
       material_kinds: Table<MaterialKind>;
+      programme_sections: Table<ProgrammeSection>;
+      candidate_sections: Table<CandidateSection>;
       candidate_materials: Table<CandidateMaterial>;
       labs: Table<Lab>;
       roster_column_aliases: Table<RosterColumnAlias>;
@@ -474,6 +512,23 @@ export type Database = {
         Returns: CandidateMaterial;
       };
       fets_sign_out: { Args: { p_candidate: string; p_note?: string | null }; Returns: Candidate };
+      fets_set_programme_sections: {
+        Args: {
+          p_programme: string;
+          p_sections: { name: string; minutes: number; kind?: SectionKind }[];
+        };
+        Returns: ProgrammeSection[];
+      };
+      fets_confirm_section: {
+        Args: {
+          p_candidate: string;
+          p_position: number;
+          p_at?: string | null;
+          p_note?: string | null;
+        };
+        Returns: CandidateSection;
+      };
+      fets_clear_section: { Args: { p_candidate: string; p_position: number }; Returns: void };
     };
     Enums: {
       staff_role: StaffRole;
