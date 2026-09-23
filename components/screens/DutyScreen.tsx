@@ -44,7 +44,7 @@ function left(ms: number) {
  * an empty lab post at eleven in the morning is worth noticing.
  */
 export function DutyScreen() {
-  const { center, dutyPosts, dutyBlocks, operators, rules, rpc, canCall } = useConsole();
+  const { center, dutyPosts, dutyBlocks, rules, rpc, canCall } = useConsole();
   const now = useNow();
   const [assigning, setAssigning] = useState<DutyPost | null>(null);
 
@@ -71,7 +71,7 @@ export function DutyScreen() {
       {overdue.length > 0 && (
         <div className="shrink-0 rounded-[15px] border-2 border-rust bg-rust/12 px-[15px] py-[12px] text-[14px] font-bold text-rust">
           {overdue.length === 1
-            ? `${operators[overdue[0].block!.profile_id] ?? "Somebody"} has been on ${overdue[0].post.name} past their block`
+            ? `${overdue[0].block!.profile_name} has been on ${overdue[0].post.name} past their block`
             : `${overdue.length} posts are past their block: ${overdue.map((x) => x.post.name).join(", ")}`}
         </div>
       )}
@@ -113,7 +113,7 @@ export function DutyScreen() {
                   <div className="flex items-end gap-[10px]">
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[15px] font-semibold">
-                        {operators[block.profile_id] ?? "Unknown"}
+                        {block.profile_name}
                       </span>
                       <span className="block font-mono text-[11px] text-fg-faint">
                         since {clockAt(block.started_at, center.timezone)} · until{" "}
@@ -224,7 +224,7 @@ function AssignDialog({
       title={post.name}
       subtitle={
         current
-          ? `${operators[current.profile_id] ?? "Somebody"} comes off as the next person goes on`
+          ? `${current.profile_name} comes off as the next person goes on`
           : "Nobody is on this post"
       }
       onClose={onClose}

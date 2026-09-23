@@ -230,7 +230,10 @@ export type DutyBlock = {
   id: string;
   center_id: string;
   post_id: string;
-  profile_id: string;
+  /** Null once the person has left the centre; the name below outlives them. */
+  profile_id: string | null;
+  /** Copied in when they went on, so the record reads right for ever. */
+  profile_name: string;
   started_at: string;
   /** How long it is meant to run. The end is worked out, not stored. */
   minutes: number;

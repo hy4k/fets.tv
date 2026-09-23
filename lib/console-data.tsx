@@ -124,7 +124,8 @@ export function ConsoleProvider({
       programmeSections,
       candidateSections,
       dutyPosts,
-      dutyBlocks,
+      openDuty,
+      servedDuty,
       labs,
       columnAliases,
       workstations,
@@ -157,10 +158,12 @@ export function ConsoleProvider({
             .order("position")
         : null,
       supabase.from("duty_posts").select("*").eq("center_id", centerId).order("position"),
+      supabase.from("duty_blocks").select("*").eq("center_id", centerId).is("ended_at", null),
       supabase
         .from("duty_blocks")
         .select("*")
         .eq("center_id", centerId)
+        .not("ended_at", "is", null)
         .order("started_at", { ascending: false })
         .limit(60),
       supabase.from("labs").select("*").eq("center_id", centerId).order("position"),
@@ -205,7 +208,10 @@ export function ConsoleProvider({
       programmeSections: programmeSections.data ?? prev.programmeSections,
       candidateSections: candidateSections?.data ?? (session ? prev.candidateSections : []),
       dutyPosts: dutyPosts.data ?? prev.dutyPosts,
-      dutyBlocks: dutyBlocks.data ?? prev.dutyBlocks,
+      dutyBlocks:
+        openDuty.data || servedDuty.data
+          ? [...(openDuty.data ?? []), ...(servedDuty.data ?? [])]
+          : prev.dutyBlocks,
       labs: labs.data ?? prev.labs,
       columnAliases: columnAliases.data ?? prev.columnAliases,
       workstations: workstations.data ?? prev.workstations,
@@ -238,6 +244,7 @@ export function ConsoleProvider({
       ["candidate_materials", `center_id=eq.${centerId}`],
       ["candidate_sections", `center_id=eq.${centerId}`],
       ["duty_blocks", `center_id=eq.${centerId}`],
+      ["duty_posts", `center_id=eq.${centerId}`],
       ["labs", `center_id=eq.${centerId}`],
       ["workstations", `center_id=eq.${centerId}`],
       ["public_display_calls", `center_id=eq.${centerId}`],
