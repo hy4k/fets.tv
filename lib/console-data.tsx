@@ -9,6 +9,7 @@ import type {
   CandidateSection,
   DutyBlock,
   DutyPost,
+  Walkthrough,
   DisplayNotice,
   NoticeTemplate,
   CandidateEvent,
@@ -44,6 +45,8 @@ export type ConsoleSnapshot = {
   /** The posts this centre staffs, and who is on them. */
   dutyPosts: DutyPost[];
   dutyBlocks: DutyBlock[];
+  /** Walks of the floor, newest first. */
+  walkthroughs: Walkthrough[];
   labs: Lab[];
   columnAliases: RosterColumnAlias[];
   workstations: Workstation[];
@@ -124,6 +127,7 @@ export function ConsoleProvider({
       programmeSections,
       candidateSections,
       dutyPosts,
+      walkthroughs,
       openDuty,
       servedDuty,
       labs,
@@ -158,6 +162,12 @@ export function ConsoleProvider({
             .order("position")
         : null,
       supabase.from("duty_posts").select("*").eq("center_id", centerId).order("position"),
+      supabase
+        .from("walkthroughs")
+        .select("*")
+        .eq("center_id", centerId)
+        .order("walked_at", { ascending: false })
+        .limit(80),
       supabase.from("duty_blocks").select("*").eq("center_id", centerId).is("ended_at", null),
       supabase
         .from("duty_blocks")
@@ -208,6 +218,7 @@ export function ConsoleProvider({
       programmeSections: programmeSections.data ?? prev.programmeSections,
       candidateSections: candidateSections?.data ?? (session ? prev.candidateSections : []),
       dutyPosts: dutyPosts.data ?? prev.dutyPosts,
+      walkthroughs: walkthroughs.data ?? prev.walkthroughs,
       dutyBlocks:
         openDuty.data || servedDuty.data
           ? [...(openDuty.data ?? []), ...(servedDuty.data ?? [])]
@@ -245,6 +256,7 @@ export function ConsoleProvider({
       ["candidate_sections", `center_id=eq.${centerId}`],
       ["duty_blocks", `center_id=eq.${centerId}`],
       ["duty_posts", `center_id=eq.${centerId}`],
+      ["walkthroughs", `center_id=eq.${centerId}`],
       ["labs", `center_id=eq.${centerId}`],
       ["workstations", `center_id=eq.${centerId}`],
       ["public_display_calls", `center_id=eq.${centerId}`],

@@ -304,6 +304,35 @@ export function ReportBody({
               )}
             </section>
 
+            {report.walks && report.walks.walks > 0 && (
+              <section className="rounded-[18px] border border-edge-mid panel-bg p-[14px]">
+                <h2 className="mb-[10px] text-[11px] font-bold tracking-[0.13em] text-fg-dim uppercase">
+                  Floor walks
+                </h2>
+                <div
+                  className={`flex flex-wrap items-baseline gap-x-[14px] gap-y-[5px] rounded-[13px] border px-[12px] py-[10px] ${
+                    report.walks.gaps_over_interval > 0
+                      ? "border-gold/40 bg-gold/8"
+                      : "border-mint/30 bg-mint/6"
+                  }`}
+                >
+                  <span className="font-mono text-[15px] font-semibold">{report.walks.walks}</span>
+                  <span className="text-[12.5px] text-fg-muted">
+                    walks, meant to be every {report.walks.interval_minutes} minutes
+                  </span>
+                  <span className="flex-1" />
+                  <span className="font-mono text-[12.5px]">
+                    longest gap {report.walks.longest_gap_minutes} min
+                  </span>
+                  {report.walks.gaps_over_interval > 0 && (
+                    <span className="font-mono text-[12.5px] font-semibold text-gold-bright">
+                      {report.walks.gaps_over_interval} over
+                    </span>
+                  )}
+                </div>
+              </section>
+            )}
+
             {report.delays.length > 0 && (
               <section className="rounded-[18px] border border-edge-mid panel-bg p-[14px]">
                 <h2 className="mb-[10px] text-[11px] font-bold tracking-[0.13em] text-fg-dim uppercase">
@@ -526,6 +555,18 @@ function asPlainText(r: ProblemReport, tz: string) {
         );
       }
     }
+  }
+
+  if (r.walks && r.walks.walks > 0) {
+    lines.push(
+      ``,
+      `FLOOR WALKS`,
+      `${r.walks.walks} walks against an interval of ${r.walks.interval_minutes} minutes. ` +
+        `Longest gap ${r.walks.longest_gap_minutes} minutes` +
+        (r.walks.gaps_over_interval > 0
+          ? `, ${r.walks.gaps_over_interval} over the interval.`
+          : `, none over the interval.`),
+    );
   }
 
   if (r.delays.length > 0) {

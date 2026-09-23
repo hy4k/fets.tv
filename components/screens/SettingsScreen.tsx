@@ -474,10 +474,10 @@ function DutySection() {
 
   const retired = dutyPosts.filter((p) => !p.active);
 
-  async function saveMinutes(minutes: number) {
+  async function saveMinutes(patch: Partial<ScheduleRules>) {
     const { error } = await supabaseBrowser()
       .from("schedule_rules")
-      .update({ duty_block_minutes: minutes })
+      .update(patch)
       .eq("center_id", center.id);
     if (error) notify(error.message, "error");
     else await refresh();
@@ -503,17 +503,31 @@ function DutySection() {
   return (
     <>
       <Panel
-        title="How long a block runs"
-        note="A turn on a post. Ninety minutes is the usual answer; a centre that rotates on the hour can say so here."
+        title="The rhythm of a shift"
+        note="A turn on a post, and how often whoever has the floor walks it. Ninety and ten are what FETS runs; a centre that works differently can say so here."
       >
-        <div className="flex items-center gap-[12px] rounded-[15px] border border-edge bg-panel-soft p-[12px]">
-          <span className="min-w-0 flex-1 text-[13px] text-fg-muted">Default block length</span>
-          <Minutes
-            value={rules.duty_block_minutes}
-            disabled={!isAdmin}
-            onCommit={(m) => saveMinutes(m)}
-          />
-          <span className="text-[12px] text-fg-faint">min</span>
+        <div className="flex flex-col gap-[8px]">
+          <div className="flex items-center gap-[12px] rounded-[15px] border border-edge bg-panel-soft p-[12px]">
+            <span className="min-w-0 flex-1 text-[13px] text-fg-muted">Default block length</span>
+            <Minutes
+              value={rules.duty_block_minutes}
+              disabled={!isAdmin}
+              onCommit={(m) => saveMinutes({ duty_block_minutes: m })}
+            />
+            <span className="text-[12px] text-fg-faint">min</span>
+          </div>
+
+          <div className="flex items-center gap-[12px] rounded-[15px] border border-edge bg-panel-soft p-[12px]">
+            <span className="min-w-0 flex-1 text-[13px] text-fg-muted">
+              Walk the floor every
+            </span>
+            <Minutes
+              value={rules.walkthrough_minutes}
+              disabled={!isAdmin}
+              onCommit={(m) => saveMinutes({ walkthrough_minutes: m })}
+            />
+            <span className="text-[12px] text-fg-faint">min</span>
+          </div>
         </div>
       </Panel>
 
