@@ -154,3 +154,29 @@ test("past the end of the plan there is no current part", () => {
   const views = sectionsFor(candidate(), plan, []);
   assert.equal(currentSection(views, ms("2026-09-23T09:00:00Z")), null);
 });
+
+test("a part removed from the plan keeps the observation of it", () => {
+  // The admin deleted Reading after somebody had already sat it.
+  const shortened = plan.slice(0, 2);
+  const views = sectionsFor(candidate(), shortened, [
+    confirmed({ position: 3, name: "Reading", minutes: 55, kind: "section", started_at: "2026-09-23T05:04:00Z" }),
+  ]);
+  assert.equal(views.length, 3);
+  assert.equal(views[2].name, "Reading");
+  assert.equal(views[2].inPlan, false);
+  assert.equal(views[0].inPlan, true);
+});
+
+test("a part still in the plan is marked as such", () => {
+  const views = sectionsFor(candidate(), plan, []);
+  assert.deepEqual(views.map((v) => v.inPlan), [true, true, true]);
+});
+
+test("an observation off the end of the plan still gets an estimate slot", () => {
+  const views = sectionsFor(candidate(), plan.slice(0, 1), [
+    confirmed({ position: 2, name: "Listening", minutes: 50, kind: "section" }),
+  ]);
+  // Tutorial 5 min from 04:00, then the observed Listening's own 50 minutes.
+  assert.equal(views[1].estimatedStart, ms("2026-09-23T04:05:00Z"));
+  assert.equal(views[1].estimatedEnd, ms("2026-09-23T04:55:00Z"));
+});

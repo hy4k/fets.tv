@@ -64,7 +64,10 @@ export function FloorScreen() {
   const now = useNow();
   const [editing, setEditing] = useState<Seated | null>(null);
   const [moving, setMoving] = useState<Seated | null>(null);
-  const [parts, setParts] = useState<Seated | null>(null);
+  // Held by id, not by value: rpc() refreshes and rebuilds these rows, and a
+  // dialog left holding the old object would keep offering an action that has
+  // already happened.
+  const [partsId, setPartsId] = useState<string | null>(null);
 
   const seatById = useMemo(() => new Map(workstations.map((w) => [w.id, w])), [workstations]);
 
@@ -87,6 +90,8 @@ export function FloorScreen() {
         .sort((a, b) => a.remaining - b.remaining),
     [candidates, seatById, programmes, programmeSections, candidateSections, openBreaks, now],
   );
+
+  const partsRow = seated.find((s) => s.candidate.id === partsId) ?? null;
 
   const overdue = seated.filter((s) => s.remaining <= 0);
   const soon = seated.filter((s) => s.remaining > 0 && s.remaining <= 5 * 60000);
@@ -168,7 +173,7 @@ export function FloorScreen() {
               rpc={rpc}
               onEdit={() => setEditing(s)}
               onMove={() => setMoving(s)}
-              onParts={() => setParts(s)}
+              onParts={() => setPartsId(s.candidate.id)}
             />
           ))}
 
@@ -193,7 +198,9 @@ export function FloorScreen() {
         <TransferDialog key={moving.candidate.id} row={moving} onClose={() => setMoving(null)} />
       )}
 
-      {parts && <SectionsDialog key={parts.candidate.id} row={parts} onClose={() => setParts(null)} />}
+      {partsRow && (
+        <SectionsDialog key={partsRow.candidate.id} row={partsRow} onClose={() => setPartsId(null)} />
+      )}
     </div>
   );
 }
@@ -350,13 +357,22 @@ function SectionsDialog({ row, onClose }: { row: Seated; onClose: () => void }) 
   const { candidate, sections } = row;
   const [at, setAt] = useState("");
 
+  // "10:" and "1" are what a half-typed time looks like, and they turn into an
+  // invalid Date. Converting during render would throw and take the page down
+  // mid-keystroke, so nothing is converted until the value is a whole time and
+  // somebody presses a button.
   const typed = at.trim();
-  const when = typed ? instantFromZonedTime(typed, center.timezone).toISOString() : null;
+  const usable = /^([01]?\d|2[0-3]):[0-5]\d$/.test(typed);
+  const blocked = typed !== "" && !usable;
 
   const confirm = (position: number) =>
     rpc(
       "fets_confirm_section",
-      { p_candidate: candidate.id, p_position: position, p_at: when },
+      {
+        p_candidate: candidate.id,
+        p_position: position,
+        p_at: usable ? instantFromZonedTime(typed, center.timezone).toISOString() : null,
+      },
       "Noted",
     );
 
@@ -375,7 +391,10 @@ function SectionsDialog({ row, onClose }: { row: Seated; onClose: () => void }) 
               value={at}
               onChange={(e) => setAt(e.target.value)}
               placeholder="now"
-              className="w-full min-w-0 border-0 bg-transparent font-mono text-[14px] outline-none placeholder:text-fg-faint"
+              aria-invalid={blocked}
+              className={`w-full min-w-0 border-0 bg-transparent font-mono text-[14px] outline-none placeholder:text-fg-faint ${
+                blocked ? "text-rust" : ""
+              }`}
             />
             {typed && (
               <button
@@ -386,6 +405,7 @@ function SectionsDialog({ row, onClose }: { row: Seated; onClose: () => void }) 
                 clear
               </button>
             )}
+            {blocked && <span className="shrink-0 text-[11px] text-rust">HH:MM</span>}
           </label>
           <button
             type="button"
@@ -419,6 +439,11 @@ function SectionsDialog({ row, onClose }: { row: Seated; onClose: () => void }) 
                   {v.kind !== "section" && (
                     <span className="ml-[6px] text-[10.5px] font-normal text-fg-faint">
                       {v.kind}
+                    </span>
+                  )}
+                  {!v.inPlan && (
+                    <span className="ml-[6px] text-[10.5px] font-normal text-rust">
+                      no longer in the plan
                     </span>
                   )}
                 </span>
@@ -466,11 +491,11 @@ function SectionsDialog({ row, onClose }: { row: Seated; onClose: () => void }) 
               ) : (
                 <button
                   type="button"
-                  disabled={!canLab}
+                  disabled={!canLab || blocked}
                   onClick={() => confirm(v.position)}
-                  className="shrink-0 cursor-pointer rounded-[10px] gold-bg px-[13px] py-[8px] text-[11.5px] font-bold text-[#1a1512] disabled:opacity-40"
+                  className="shrink-0 cursor-pointer rounded-[10px] gold-bg px-[13px] py-[8px] text-[11.5px] font-bold text-[#1a1512] disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  {typed ? `Started ${typed}` : "Started now"}
+                  {usable ? `Started ${typed}` : "Started now"}
                 </button>
               )}
             </div>

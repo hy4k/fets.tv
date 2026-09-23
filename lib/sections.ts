@@ -23,6 +23,12 @@ export type SectionView = {
   actualEnd: number | null;
   /** How late it really began, in minutes. Negative means early. */
   driftMinutes: number | null;
+  /**
+   * False when the plan no longer has this part but somebody observed it. The
+   * observation stays visible: it is the record, and dropping it would hide a
+   * part the database still counts.
+   */
+  inPlan: boolean;
 };
 
 /**
@@ -44,31 +50,40 @@ export function sectionsFor(
     .filter((c) => c.candidate_id === candidate.id)
     .sort((a, b) => a.position - b.position);
 
-  const ordered = [...plan].sort((a, b) => a.position - b.position);
   const finished = candidate.exam_finished_at ? new Date(candidate.exam_finished_at).getTime() : null;
+
+  // Every position either side knows about. An admin who removes a part after
+  // somebody has sat it does not thereby unsay what was observed.
+  const planAt = new Map(plan.map((p) => [p.position, p]));
+  const seenAt = new Map(mine.map((c) => [c.position, c]));
+  const positions = [...new Set([...planAt.keys(), ...seenAt.keys()])].sort((a, b) => a - b);
 
   let cursor = start;
 
-  const views = ordered.map((section) => {
-    const confirmed = mine.find((c) => c.position === section.position) ?? null;
+  const views = positions.map((position) => {
+    const section = planAt.get(position) ?? null;
+    const confirmed = seenAt.get(position) ?? null;
+    const minutes = confirmed?.minutes ?? section!.minutes;
+
     const estimatedStart = cursor;
-    const estimatedEnd = cursor + (confirmed?.minutes ?? section.minutes) * 60000;
+    const estimatedEnd = cursor + minutes * 60000;
     cursor = estimatedEnd;
 
     const actualStart = confirmed ? new Date(confirmed.started_at).getTime() : null;
     const actualEnd = confirmed?.ended_at ? new Date(confirmed.ended_at).getTime() : null;
 
     return {
-      position: section.position,
-      name: confirmed?.name ?? section.name,
-      minutes: confirmed?.minutes ?? section.minutes,
-      kind: (confirmed?.kind ?? section.kind) as SectionKind,
+      position,
+      name: confirmed?.name ?? section!.name,
+      minutes,
+      kind: (confirmed?.kind ?? section!.kind) as SectionKind,
       estimatedStart,
       estimatedEnd,
       confirmed,
       actualStart,
       actualEnd,
       driftMinutes: actualStart === null ? null : Math.round((actualStart - estimatedStart) / 60000),
+      inPlan: section !== null,
     };
   });
 
