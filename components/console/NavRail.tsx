@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useConsole } from "@/lib/console-data";
+import { useNow } from "@/lib/use-clock";
 
 type Item = { href: string; n?: string; label: string; short: string; badge: number };
 type Group = { key: string; title: string; items: Item[] };
@@ -18,11 +19,18 @@ type Group = { key: string; title: string; items: Item[] };
  */
 export function NavRail() {
   const pathname = usePathname();
-  const { candidates, call, notice, openBreaks, incidents, canCall } = useConsole();
+  const now = useNow();
+  const { candidates, call, notice, openBreaks, incidents, canCall, dutyBlocks } = useConsole();
 
   const waiting = candidates.filter((c) => c.status === "waiting" && !c.called_at).length;
   const testing = candidates.filter((c) => c.exam_started_at && !c.exam_finished_at).length;
   const openIncidents = incidents.filter((i) => !i.resolved_at).length;
+
+  // Somebody standing a post past their block is the one thing the rail should
+  // say about duty without being opened.
+  const pastBlock = dutyBlocks.filter(
+    (b) => !b.ended_at && now > 0 && new Date(b.started_at).getTime() + b.minutes * 60000 <= now,
+  ).length;
 
   const groups: Group[] = [
     {
@@ -60,6 +68,7 @@ export function NavRail() {
           badge: testing + openBreaks.length,
         },
         { href: "/incidents", label: "Incidents", short: "Issues", badge: openIncidents },
+        { href: "/duty", label: "On duty", short: "Duty", badge: pastBlock },
       ],
     },
     {

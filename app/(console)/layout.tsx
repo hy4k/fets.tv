@@ -47,6 +47,8 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
     materialKinds,
     programmeSections,
     candidateSections,
+    dutyPosts,
+    dutyBlocks,
     labs,
     columnAliases,
     workstations,
@@ -91,6 +93,15 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
           .eq("exam_session_id", session.id)
           .order("position")
       : Promise.resolve({ data: [] }),
+    supabase.from("duty_posts").select("*").eq("center_id", center.id).order("position"),
+    // Everything still open, plus what has already been served today, which is
+    // what a handover needs to show.
+    supabase
+      .from("duty_blocks")
+      .select("*")
+      .eq("center_id", center.id)
+      .order("started_at", { ascending: false })
+      .limit(60),
     supabase.from("labs").select("*").eq("center_id", center.id).order("position"),
     supabase.from("roster_column_aliases").select("*").eq("center_id", center.id).order("field"),
     supabase.from("workstations").select("*").eq("center_id", center.id).order("seat_code"),
@@ -134,6 +145,8 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
     materialKinds: materialKinds.data ?? [],
     programmeSections: programmeSections.data ?? [],
     candidateSections: candidateSections.data ?? [],
+    dutyPosts: dutyPosts.data ?? [],
+    dutyBlocks: dutyBlocks.data ?? [],
     labs: labs.data ?? [],
     columnAliases: columnAliases.data ?? [],
     workstations: workstations.data ?? [],

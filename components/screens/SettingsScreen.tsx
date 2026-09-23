@@ -5,7 +5,7 @@ import { Dialog } from "@/components/ui/Dialog";
 import { useConsole } from "@/lib/console-data";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { HEADER_ALIASES } from "@/lib/roster/parse";
-import type { ExamProgramme, Lab, ScheduleRules, SectionKind } from "@/lib/types";
+import type { DutyPostKind, ExamProgramme, Lab, ScheduleRules, SectionKind } from "@/lib/types";
 
 const SECTIONS = [
   { key: "centre", label: "Centre", blurb: "Name, timezone, and what the TV shows" },
@@ -13,6 +13,7 @@ const SECTIONS = [
   { key: "exams", label: "Exams", blurb: "Which exams run here, how long, and their parts" },
   { key: "day", label: "The day", blurb: "Start, end, break and how candidates are spread out" },
   { key: "flow", label: "Check in and calling", blurb: "Which steps a candidate passes through" },
+  { key: "duty", label: "Duty posts", blurb: "The posts staff rotate through, and how long a block runs" },
   { key: "roster", label: "Roster columns", blurb: "Which spreadsheet headings the importer reads" },
   { key: "screens", label: "TV screens", blurb: "The displays in the hall" },
 ] as const;
@@ -64,6 +65,7 @@ export function SettingsScreen() {
         {section === "exams" && <ExamsSection />}
         {section === "day" && <DaySection />}
         {section === "flow" && <FlowSection />}
+        {section === "duty" && <DutySection />}
         {section === "roster" && <RosterSection />}
         {section === "screens" && <ScreensSection />}
       </section>
@@ -450,6 +452,175 @@ function SectionsEditor({ programme, onClose }: { programme: ExamProgramme; onCl
 }
 
 type Draft = { key: string; name: string; minutes: string; kind: SectionKind };
+
+/* ------------------------------------------------------------------ duty -- */
+
+/**
+ * The posts staff rotate through, and how long a turn on one lasts.
+ *
+ * Retiring a post here does not delete it: the duties already served on it stay
+ * readable, and putting the name back brings the same post — and its history —
+ * along with it.
+ */
+function DutySection() {
+  const { center, dutyPosts, labs, rules, notify, refresh, rpc, isAdmin } = useConsole();
+  const [rows, setRows] = useState<PostDraft[]>(() =>
+    dutyPosts
+      .filter((p) => p.active)
+      .sort((a, b) => a.position - b.position)
+      .map((p) => ({ key: p.id, name: p.name, kind: p.kind, lab_id: p.lab_id ?? "" })),
+  );
+  const [saving, setSaving] = useState(false);
+
+  const retired = dutyPosts.filter((p) => !p.active);
+
+  async function saveMinutes(minutes: number) {
+    const { error } = await supabaseBrowser()
+      .from("schedule_rules")
+      .update({ duty_block_minutes: minutes })
+      .eq("center_id", center.id);
+    if (error) notify(error.message, "error");
+    else await refresh();
+  }
+
+  async function savePosts() {
+    setSaving(true);
+    await rpc(
+      "fets_configure_duty_posts",
+      {
+        p_center: center.id,
+        p_posts: rows.map((r) => ({
+          name: r.name.trim(),
+          kind: r.kind,
+          lab_id: r.kind === "lab" && r.lab_id ? r.lab_id : null,
+        })),
+      },
+      "Posts saved",
+    );
+    setSaving(false);
+  }
+
+  return (
+    <>
+      <Panel
+        title="How long a block runs"
+        note="A turn on a post. Ninety minutes is the usual answer; a centre that rotates on the hour can say so here."
+      >
+        <div className="flex items-center gap-[12px] rounded-[15px] border border-edge bg-panel-soft p-[12px]">
+          <span className="min-w-0 flex-1 text-[13px] text-fg-muted">Default block length</span>
+          <Minutes
+            value={rules.duty_block_minutes}
+            disabled={!isAdmin}
+            onCommit={(m) => saveMinutes(m)}
+          />
+          <span className="text-[12px] text-fg-faint">min</span>
+        </div>
+      </Panel>
+
+      <Panel
+        title="Posts"
+        note="Every place somebody stands. A lab post is the one that has to walk its floor, so point it at the lab it covers."
+      >
+        <div className="flex flex-col gap-[8px]">
+          {rows.map((r, i) => (
+            <div
+              key={r.key}
+              className="flex flex-wrap items-center gap-[8px] rounded-[15px] border border-edge bg-panel-soft p-[10px]"
+            >
+              <span className="w-[22px] shrink-0 text-center font-mono text-[12px] text-fg-faint">
+                {i + 1}
+              </span>
+              <input
+                value={r.name}
+                onChange={(e) =>
+                  setRows((list) =>
+                    list.map((x) => (x.key === r.key ? { ...x, name: e.target.value } : x)),
+                  )
+                }
+                placeholder="Front desk"
+                maxLength={60}
+                className="min-w-[120px] flex-1 rounded-[11px] border border-edge-strong bg-panel px-[11px] py-[9px] text-[13.5px] outline-none placeholder:text-fg-faint focus:border-gold/50"
+              />
+              <select
+                value={r.kind}
+                onChange={(e) =>
+                  setRows((list) =>
+                    list.map((x) =>
+                      x.key === r.key ? { ...x, kind: e.target.value as DutyPostKind } : x,
+                    ),
+                  )
+                }
+                className="rounded-[11px] border border-edge-strong bg-panel px-[9px] py-[9px] text-[12.5px] outline-none focus:border-gold/50"
+              >
+                <option value="front">Front of house</option>
+                <option value="admin">Admin room</option>
+                <option value="lab">Lab</option>
+                <option value="floating">Relief</option>
+              </select>
+              {r.kind === "lab" && (
+                <select
+                  value={r.lab_id}
+                  onChange={(e) =>
+                    setRows((list) =>
+                      list.map((x) => (x.key === r.key ? { ...x, lab_id: e.target.value } : x)),
+                    )
+                  }
+                  className="rounded-[11px] border border-edge-strong bg-panel px-[9px] py-[9px] text-[12.5px] outline-none focus:border-gold/50"
+                >
+                  <option value="">which lab?</option>
+                  {labs.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <button
+                type="button"
+                onClick={() => setRows((list) => list.filter((x) => x.key !== r.key))}
+                aria-label="Retire this post"
+                className="h-[32px] w-[28px] cursor-pointer rounded-[9px] border border-edge text-[13px] text-fg-faint hover:border-rust/50 hover:text-rust"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+
+          <button
+            type="button"
+            onClick={() =>
+              setRows((list) => [
+                ...list,
+                { key: `new-${crypto.randomUUID()}`, name: "", kind: "floating", lab_id: "" },
+              ])
+            }
+            className="cursor-pointer rounded-[13px] border border-dashed border-edge-warm px-[14px] py-[11px] text-[12.5px] font-semibold text-fg-muted hover:bg-panel-soft"
+          >
+            + Add a post
+          </button>
+
+          <button
+            type="button"
+            disabled={!isAdmin || saving || rows.some((r) => !r.name.trim())}
+            onClick={savePosts}
+            className="cursor-pointer rounded-[13px] gold-bg px-[14px] py-[12px] text-[13.5px] font-bold text-[#1a1512] disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {saving ? "Saving…" : `Save ${rows.length} posts`}
+          </button>
+
+          {retired.length > 0 && (
+            <p className="font-mono text-[10.5px] text-fg-faint">
+              Retired, and kept for the record: {retired.map((p) => p.name).join(", ")}. Adding the
+              name back brings the post and its history with it.
+            </p>
+          )}
+        </div>
+      </Panel>
+    </>
+  );
+}
+
+type PostDraft = { key: string; name: string; kind: DutyPostKind; lab_id: string };
 
 /* ------------------------------------------------------------------- day -- */
 
