@@ -7,6 +7,8 @@ import type {
   CandidateBreak,
   CandidateMaterial,
   CandidateSection,
+  DutyBlock,
+  DutyPost,
   DisplayNotice,
   NoticeTemplate,
   CandidateEvent,
@@ -39,6 +41,9 @@ export type ConsoleSnapshot = {
   programmeSections: ProgrammeSection[];
   /** What actually happened, for today's candidates. */
   candidateSections: CandidateSection[];
+  /** The posts this centre staffs, and who is on them. */
+  dutyPosts: DutyPost[];
+  dutyBlocks: DutyBlock[];
   labs: Lab[];
   columnAliases: RosterColumnAlias[];
   workstations: Workstation[];
@@ -118,6 +123,9 @@ export function ConsoleProvider({
       materials,
       programmeSections,
       candidateSections,
+      dutyPosts,
+      openDuty,
+      servedDuty,
       labs,
       columnAliases,
       workstations,
@@ -149,6 +157,15 @@ export function ConsoleProvider({
             .eq("exam_session_id", session.id)
             .order("position")
         : null,
+      supabase.from("duty_posts").select("*").eq("center_id", centerId).order("position"),
+      supabase.from("duty_blocks").select("*").eq("center_id", centerId).is("ended_at", null),
+      supabase
+        .from("duty_blocks")
+        .select("*")
+        .eq("center_id", centerId)
+        .not("ended_at", "is", null)
+        .order("started_at", { ascending: false })
+        .limit(60),
       supabase.from("labs").select("*").eq("center_id", centerId).order("position"),
       supabase.from("roster_column_aliases").select("*").eq("center_id", centerId).order("field"),
       supabase.from("workstations").select("*").eq("center_id", centerId).order("seat_code"),
@@ -190,6 +207,11 @@ export function ConsoleProvider({
       materials: materials?.data ?? (session ? prev.materials : []),
       programmeSections: programmeSections.data ?? prev.programmeSections,
       candidateSections: candidateSections?.data ?? (session ? prev.candidateSections : []),
+      dutyPosts: dutyPosts.data ?? prev.dutyPosts,
+      dutyBlocks:
+        openDuty.data || servedDuty.data
+          ? [...(openDuty.data ?? []), ...(servedDuty.data ?? [])]
+          : prev.dutyBlocks,
       labs: labs.data ?? prev.labs,
       columnAliases: columnAliases.data ?? prev.columnAliases,
       workstations: workstations.data ?? prev.workstations,
@@ -221,6 +243,8 @@ export function ConsoleProvider({
       ["incidents", `center_id=eq.${centerId}`],
       ["candidate_materials", `center_id=eq.${centerId}`],
       ["candidate_sections", `center_id=eq.${centerId}`],
+      ["duty_blocks", `center_id=eq.${centerId}`],
+      ["duty_posts", `center_id=eq.${centerId}`],
       ["labs", `center_id=eq.${centerId}`],
       ["workstations", `center_id=eq.${centerId}`],
       ["public_display_calls", `center_id=eq.${centerId}`],

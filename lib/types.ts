@@ -163,6 +163,8 @@ export type ScheduleRules = {
   auto_resequence: boolean;
   locker_key_required: boolean;
   admin_override_log: boolean;
+  /** How long a duty block runs here. Ninety minutes unless the centre says otherwise. */
+  duty_block_minutes: number;
   updated_at: string;
 };
 
@@ -205,6 +207,39 @@ export type Incident = {
   reportable: boolean;
   logged_by: string | null;
   resolved_by: string | null;
+  created_at: string;
+};
+
+export type DutyPostKind = "front" | "admin" | "lab" | "floating";
+
+/** A place with a job attached: the desk, the admin room, a lab, the relief. */
+export type DutyPost = {
+  id: string;
+  center_id: string;
+  name: string;
+  position: number;
+  kind: DutyPostKind;
+  lab_id: string | null;
+  /** Retired posts stay, so the duties served on them can still be read. */
+  active: boolean;
+  created_at: string;
+};
+
+/** One person on one post, from a time. Open while `ended_at` is null. */
+export type DutyBlock = {
+  id: string;
+  center_id: string;
+  post_id: string;
+  /** Null once the person has left the centre; the name below outlives them. */
+  profile_id: string | null;
+  /** Copied in when they went on, so the record reads right for ever. */
+  profile_name: string;
+  started_at: string;
+  /** How long it is meant to run. The end is worked out, not stored. */
+  minutes: number;
+  ended_at: string | null;
+  note: string | null;
+  started_by: string | null;
   created_at: string;
 };
 
@@ -464,6 +499,8 @@ export type Database = {
       schedule_rules: Table<ScheduleRules>;
       incidents: Table<Incident>;
       material_kinds: Table<MaterialKind>;
+      duty_posts: Table<DutyPost>;
+      duty_blocks: Table<DutyBlock>;
       programme_sections: Table<ProgrammeSection>;
       candidate_sections: Table<CandidateSection>;
       candidate_materials: Table<CandidateMaterial>;
@@ -575,6 +612,24 @@ export type Database = {
         Returns: CandidateSection;
       };
       fets_clear_section: { Args: { p_candidate: string; p_position: number }; Returns: void };
+      fets_configure_duty_posts: {
+        Args: {
+          p_center: string;
+          p_posts: { name: string; kind?: DutyPostKind; lab_id?: string | null }[];
+        };
+        Returns: DutyPost[];
+      };
+      fets_start_duty: {
+        Args: {
+          p_post: string;
+          p_profile: string;
+          p_minutes?: number | null;
+          p_at?: string | null;
+          p_note?: string | null;
+        };
+        Returns: DutyBlock;
+      };
+      fets_end_duty: { Args: { p_block: string; p_at?: string | null }; Returns: DutyBlock };
       fets_problem_report: { Args: { p_session: string }; Returns: ProblemReport };
       fets_save_problem_report: {
         Args: {
