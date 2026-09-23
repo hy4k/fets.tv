@@ -3,7 +3,9 @@ import { Logo, LogoMark } from "@/components/brand/Logo";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export const metadata = {
-  title: "FETS · Exam delivery",
+  // The front door wants the plain name, not "FETS · Exam delivery · FETS", so
+  // it opts out of the layout's template rather than feeding it.
+  title: { absolute: "FETS · Exam delivery" },
   description:
     "The console that runs exam day at Forun Testing & Educational Services, Calicut.",
 };

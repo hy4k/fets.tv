@@ -2,8 +2,9 @@ import Link from "next/link";
 import { LoginForm } from "@/components/console/LoginForm";
 import { Logo, LogoMark } from "@/components/brand/Logo";
 
+// The root layout appends " · FETS"; saying it here too gives it twice.
 export const metadata = {
-  title: "Sign in · FETS",
+  title: "Sign in",
 };
 
 /**
