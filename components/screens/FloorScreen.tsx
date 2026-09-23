@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
+import { WalkthroughBar } from "@/components/screens/WalkthroughBar";
 import { useConsole } from "@/lib/console-data";
 import { clockAt, fullName, instantFromZonedTime } from "@/lib/format";
 import { currentSection, sectionsFor, type SectionView } from "@/lib/sections";
@@ -129,6 +130,9 @@ export function FloorScreen() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-[11px]">
+      {/* The walk belongs where the floor is, so it sits above the alerts. */}
+      <WalkthroughBar />
+
       {alerts.length > 0 && (
         <div className="flex shrink-0 flex-col gap-[7px]">
           {alerts.map((a) => (

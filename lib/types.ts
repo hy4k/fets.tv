@@ -165,6 +165,8 @@ export type ScheduleRules = {
   admin_override_log: boolean;
   /** How long a duty block runs here. Ninety minutes unless the centre says otherwise. */
   duty_block_minutes: number;
+  /** How often the floor is walked. Ten minutes at FETS. */
+  walkthrough_minutes: number;
   updated_at: string;
 };
 
@@ -210,7 +212,7 @@ export type Incident = {
   created_at: string;
 };
 
-export type DutyPostKind = "front" | "admin" | "lab" | "floating";
+export type DutyPostKind = "front" | "admin" | "lab" | "cctv" | "floating";
 
 /** A place with a job attached: the desk, the admin room, a lab, the relief. */
 export type DutyPost = {
@@ -222,6 +224,20 @@ export type DutyPost = {
   lab_id: string | null;
   /** Retired posts stay, so the duties served on them can still be read. */
   active: boolean;
+  created_at: string;
+};
+
+/** A walk of the floor, written down. The gap between them is what a board asks. */
+export type Walkthrough = {
+  id: string;
+  center_id: string;
+  exam_session_id: string | null;
+  duty_block_id: string | null;
+  post_id: string | null;
+  walked_by: string | null;
+  walked_by_name: string;
+  walked_at: string;
+  note: string | null;
   created_at: string;
 };
 
@@ -280,6 +296,15 @@ export type ProblemReport = {
   counts: { rostered: number; sat: number; finished: number; signed_out: number; no_shows: number };
   timeline: ReportEntry[];
   delays: ReportDelay[];
+  /** How the floor was walked: how often it should have been, and the worst gap. */
+  walks: {
+    interval_minutes: number;
+    walks: number;
+    longest_gap_minutes: number;
+    gaps_over_interval: number;
+    first_at: string | null;
+    last_at: string | null;
+  };
   narrative: {
     summary: string | null;
     actions_taken: string | null;
@@ -501,6 +526,7 @@ export type Database = {
       material_kinds: Table<MaterialKind>;
       duty_posts: Table<DutyPost>;
       duty_blocks: Table<DutyBlock>;
+      walkthroughs: Table<Walkthrough>;
       programme_sections: Table<ProgrammeSection>;
       candidate_sections: Table<CandidateSection>;
       candidate_materials: Table<CandidateMaterial>;
@@ -630,6 +656,23 @@ export type Database = {
         Returns: DutyBlock;
       };
       fets_end_duty: { Args: { p_block: string; p_at?: string | null }; Returns: DutyBlock };
+      fets_start_rotation: {
+        Args: {
+          p_center: string;
+          p_profiles: string[];
+          p_minutes?: number | null;
+          p_at?: string | null;
+        };
+        Returns: DutyBlock[];
+      };
+      fets_rotate_duty: {
+        Args: { p_center: string; p_minutes?: number | null; p_at?: string | null };
+        Returns: DutyBlock[];
+      };
+      fets_record_walkthrough: {
+        Args: { p_center: string; p_note?: string | null };
+        Returns: Walkthrough;
+      };
       fets_problem_report: { Args: { p_session: string }; Returns: ProblemReport };
       fets_save_problem_report: {
         Args: {

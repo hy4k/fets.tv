@@ -2,15 +2,17 @@
 
 import { useMemo, useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
+import { WalkthroughBar } from "@/components/screens/WalkthroughBar";
 import { useConsole } from "@/lib/console-data";
 import { clockAt } from "@/lib/format";
 import { useNow } from "@/lib/use-clock";
 import type { DutyBlock, DutyPost } from "@/lib/types";
 
 const KIND_LABEL: Record<string, string> = {
-  front: "Front of house",
-  admin: "Admin room",
-  lab: "Lab",
+  front: "Signs people in and out",
+  admin: "Calls candidates in",
+  lab: "Walks the floor",
+  cctv: "Watches the cameras",
   floating: "Relief",
 };
 
@@ -47,6 +49,7 @@ export function DutyScreen() {
   const { center, dutyPosts, dutyBlocks, rules, rpc, canCall } = useConsole();
   const now = useNow();
   const [assigning, setAssigning] = useState<DutyPost | null>(null);
+  const [starting, setStarting] = useState(false);
 
   const posts = useMemo(
     () => dutyPosts.filter((p) => p.active).sort((a, b) => a.position - b.position),
@@ -66,8 +69,12 @@ export function DutyScreen() {
 
   const empty = posts.filter((p) => !openOn(p.id));
 
+  const staffed = posts.length - empty.length;
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-[11px]">
+      <WalkthroughBar />
+
       {overdue.length > 0 && (
         <div className="shrink-0 rounded-[15px] border-2 border-rust bg-rust/12 px-[15px] py-[12px] text-[14px] font-bold text-rust">
           {overdue.length === 1
@@ -87,6 +94,26 @@ export function DutyScreen() {
         <span className="text-[12px] text-fg-faint">
           Blocks run {rules.duty_block_minutes} minutes
         </span>
+
+        {/* The whole rotation in one press. Everybody moves along one post,
+            which is what actually happens in the room at the ninety minutes. */}
+        <button
+          type="button"
+          disabled={!canCall || staffed < 2}
+          title={staffed < 2 ? "Put people on the posts first" : "Everybody moves along one post"}
+          onClick={() => rpc("fets_rotate_duty", { p_center: center.id }, "Everybody moved along")}
+          className="cursor-pointer rounded-[12px] gold-bg px-[14px] py-[9px] text-[12.5px] font-bold text-[#1a1512] disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Rotate everybody
+        </button>
+        <button
+          type="button"
+          disabled={!canCall}
+          onClick={() => setStarting(true)}
+          className="cursor-pointer rounded-[12px] border border-edge-warm px-[13px] py-[9px] text-[12.5px] font-semibold hover:bg-panel disabled:opacity-40"
+        >
+          Set the rotation
+        </button>
       </div>
 
       <div className="grid min-h-0 flex-1 auto-rows-min gap-[10px] overflow-y-auto sm:grid-cols-2 xl:grid-cols-3">
@@ -178,6 +205,8 @@ export function DutyScreen() {
         )}
       </div>
 
+      {starting && <RotationDialog onClose={() => setStarting(false)} />}
+
       {assigning && (
         <AssignDialog
           key={assigning.id}
@@ -187,6 +216,106 @@ export function DutyScreen() {
         />
       )}
     </div>
+  );
+}
+
+/**
+ * Setting the rotation: the people, in the order the posts are listed.
+ *
+ * The first person named takes the first post, and so on down. From then on
+ * "Rotate everybody" moves each of them one post along, so the order chosen
+ * here is the order they will cycle in for the rest of the day.
+ */
+function RotationDialog({ onClose }: { onClose: () => void }) {
+  const { center, dutyPosts, operators, rules, rpc } = useConsole();
+  const [chosen, setChosen] = useState<string[]>([]);
+
+  const posts = dutyPosts.filter((p) => p.active).sort((a, b) => a.position - b.position);
+  const people = Object.entries(operators).sort((a, b) => a[1].localeCompare(b[1]));
+
+  const toggle = (id: string) =>
+    setChosen((list) =>
+      list.includes(id) ? list.filter((x) => x !== id) : [...list, id].slice(0, posts.length),
+    );
+
+  return (
+    <Dialog
+      open
+      title="Set the rotation"
+      subtitle={`Tap people in the order they take the posts. Blocks run ${rules.duty_block_minutes} minutes.`}
+      onClose={onClose}
+      width={500}
+      footer={
+        <>
+          <button
+            type="button"
+            disabled={chosen.length < 2}
+            onClick={async () => {
+              const ok = await rpc(
+                "fets_start_rotation",
+                { p_center: center.id, p_profiles: chosen },
+                "Rotation started",
+              );
+              if (ok) onClose();
+            }}
+            className="flex-1 cursor-pointer rounded-[14px] gold-bg px-[20px] py-[14px] text-[14px] font-bold text-[#1a1512] disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {chosen.length < 2 ? "Choose at least two" : `Start with ${chosen.length}`}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="cursor-pointer rounded-[14px] border border-edge px-[18px] py-[14px] text-[13.5px] font-semibold text-fg-muted"
+          >
+            Cancel
+          </button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-[12px]">
+        {/* What the choice so far actually means, said plainly. */}
+        <div className="flex flex-col gap-[5px] rounded-[14px] border border-edge bg-panel-soft p-[11px]">
+          {posts.map((post, i) => (
+            <div key={post.id} className="flex items-baseline gap-[8px] text-[12.5px]">
+              <span className="w-[100px] shrink-0 truncate font-semibold">{post.name}</span>
+              <span className={chosen[i] ? "text-gold-bright" : "text-fg-faint"}>
+                {chosen[i] ? operators[chosen[i]] : "—"}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap gap-[7px]">
+          {people.map(([id, name]) => {
+            const at = chosen.indexOf(id);
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => toggle(id)}
+                className={`flex items-center gap-[7px] rounded-[12px] border px-[12px] py-[9px] text-[13px] font-semibold ${
+                  at >= 0
+                    ? "cursor-pointer border-gold/55 bg-gold/12 text-gold-bright"
+                    : "cursor-pointer border-edge bg-panel-soft hover:border-edge-warm"
+                }`}
+              >
+                {at >= 0 && (
+                  <span className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-gold font-mono text-[10px] text-[#1a1512]">
+                    {at + 1}
+                  </span>
+                )}
+                {name}
+              </button>
+            );
+          })}
+        </div>
+
+        <p className="font-mono text-[10.5px] text-fg-faint">
+          Anybody already on a post comes off as this starts. Rotate everybody afterwards moves
+          each of them one post along.
+        </p>
+      </div>
+    </Dialog>
   );
 }
 
