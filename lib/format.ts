@@ -75,9 +75,12 @@ export function statusChip(c: Candidate): Chip {
       return { label: "ID checked", className: "bg-gold/10 text-gold" };
     case "waiting":
       return { label: "Checked in", className: "bg-mint/15 text-mint" };
+    // Two different things now that the desk signs people out: finished the
+    // exam but still in the building, and actually gone.
     case "completed":
+      return { label: "Finished", className: "bg-mint/15 text-mint" };
     case "signed_out":
-      return { label: "Done", className: "bg-mint/10 text-mint" };
+      return { label: "Gone", className: "bg-panel-soft text-fg-faint" };
     default:
       return { label: "Inside", className: "bg-iris/15 text-iris" };
   }

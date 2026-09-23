@@ -43,6 +43,8 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
   const [
     candidates,
     incidents,
+    materials,
+    materialKinds,
     labs,
     columnAliases,
     workstations,
@@ -69,6 +71,12 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
       .eq("center_id", center.id)
       .order("started_at", { ascending: false })
       .limit(60),
+    session
+      ? supabase.from("candidate_materials").select("*").eq("exam_session_id", session.id)
+      : Promise.resolve({ data: [] }),
+    // Every kind, not only the active ones: something retired mid-day may
+    // still be in somebody's hands, and it has to stay collectable.
+    supabase.from("material_kinds").select("*").order("sort_order"),
     supabase.from("labs").select("*").eq("center_id", center.id).order("position"),
     supabase.from("roster_column_aliases").select("*").eq("center_id", center.id).order("field"),
     supabase.from("workstations").select("*").eq("center_id", center.id).order("seat_code"),
@@ -108,6 +116,8 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
     session: session ?? null,
     candidates: candidates.data ?? [],
     incidents: incidents.data ?? [],
+    materials: materials.data ?? [],
+    materialKinds: materialKinds.data ?? [],
     labs: labs.data ?? [],
     columnAliases: columnAliases.data ?? [],
     workstations: workstations.data ?? [],
