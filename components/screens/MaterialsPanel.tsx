@@ -45,7 +45,9 @@ export function MaterialsPanel({
   if (mode === "issue") {
     return (
       <div className="flex flex-wrap gap-[7px]">
-        {materialKinds.map((kind) => {
+        {/* Only what the centre still hands out. A retired kind stays in the
+            collect list below, because somebody may still be holding one. */}
+        {materialKinds.filter((k) => k.active).map((kind) => {
           const out = stillHeld(mine.find((m) => m.kind === kind.code) ?? NOTHING);
 
           return (
