@@ -467,12 +467,16 @@ export function ConsoleProvider({
       rpcRead,
       isUnread,
       isStale,
-      // A TCA works whichever desk the duty roster puts them on, so they hold
-      // every operational capability. Configuration stays with admins.
-      isAdmin: snapshot.profile.role === "admin",
-      canFrontOffice: ["admin", "tca", "front_office"].includes(snapshot.profile.role),
-      canLab: ["admin", "tca", "lab_staff"].includes(snapshot.profile.role),
-      canCall: ["admin", "tca"].includes(snapshot.profile.role),
+      // Everybody who works here can run the place. Three people rotate
+      // through every post in a day, and the one at the desk when a seat needs
+      // adding is the one who should add it — so the only line left is between
+      // staff and a viewer, which is what a retired login or an observer gets.
+      // These four names are kept because the screens read well with them, and
+      // because they are where a narrower rule would go if the centre grows.
+      isAdmin: snapshot.profile.role !== "viewer",
+      canFrontOffice: snapshot.profile.role !== "viewer",
+      canLab: snapshot.profile.role !== "viewer",
+      canCall: snapshot.profile.role !== "viewer",
     }),
     [snapshot, toasts, notify, refresh, rpc, rpcRead, isUnread, isStale],
   );
