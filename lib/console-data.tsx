@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { weekWindow } from "@/lib/coverage";
 import type {
   Candidate,
   CandidateBreak,
@@ -10,6 +11,7 @@ import type {
   DutyBlock,
   DutyPost,
   Walkthrough,
+  StaffDay,
   DisplayNotice,
   NoticeTemplate,
   CandidateEvent,
@@ -44,9 +46,45 @@ export type ConsoleSnapshot = {
   candidateSections: CandidateSection[];
   /** The posts this centre staffs, and who is on them. */
   dutyPosts: DutyPost[];
+
   dutyBlocks: DutyBlock[];
   /** Walks of the floor, newest first. */
   walkthroughs: Walkthrough[];
+  /** Who is not fully in, on which day. No row means in. */
+  staffDays: StaffDay[];
+  /**
+   * The dates `staffDays` was actually fetched for, or null if the fetch
+   * failed.
+   *
+   * Carried rather than recomputed, because the screen's clock ticks every
+   * second while this list was fetched once: recomputing the bounds from a
+   * live `now` eventually claims a week the snapshot never loaded.
+   *
+   * Null rather than an empty list for the failure, because on this one
+   * screen an absent row means somebody is *in*. A fetch that quietly became
+   * `[]` would be read as a full week — the coverage screen announcing that
+   * every day is covered is the precise lie it exists to prevent, and it must
+   * not be able to tell it by failing.
+   */
+  staffDaysWindow: { from: string; to: string } | null;
+  /**
+   * Whether a day is covered is a claim about three things together: who
+   * works here, how many posts a day has to fill, and who is not in. An
+   * empty answer to any of them is a fact; a failed read of any of them is
+   * not, and the two look identical once the rows are gone.
+   *
+   * `rotaUnread` means one of the three has never been read, and the screen
+   * refuses to say anything at all. `rotaStale` means all three were read
+   * once and the last attempt to re-read one failed — so there is data, from
+   * before, possibly from before an edit that has already been written. That
+   * keeps its place on the screen, because a blank grid on a flaky
+   * connection helps nobody, but it stops being presented as current.
+   *
+   * One flag each rather than one per table, because the claim is about the
+   * three of them at once and is equally wrong whichever is out of date.
+   */
+  rotaUnread: boolean;
+  rotaStale: boolean;
   labs: Lab[];
   columnAliases: RosterColumnAlias[];
   workstations: Workstation[];
@@ -124,6 +162,10 @@ export function ConsoleProvider({
   }, []);
 
   const refresh = useCallback(async () => {
+    // Worked out once, so the rows and the bounds recorded beside them are
+    // the same pair even if this runs across midnight.
+    const window = weekWindow();
+
     const { data: session } = await supabase
       .from("exam_sessions")
       .select("*")
@@ -166,6 +208,7 @@ export function ConsoleProvider({
       noticeTemplates,
       notice,
       staff,
+      staffDays,
     ] = await Promise.all([
       candidatesQuery,
       supabase
@@ -239,7 +282,21 @@ export function ConsoleProvider({
         .limit(1)
         .maybeSingle(),
       supabase.from("profiles").select("id, display_name, pin_set_at").eq("center_id", centerId),
+      // A window around today, not the whole history: the grid can page a few
+      // weeks either way without another round trip, and a year of rota does
+      // not ride along on every refresh.
+      supabase
+        .from("staff_days")
+        .select("*")
+        .eq("center_id", centerId)
+        .gte("on_date", window.from)
+        .lte("on_date", window.to),
     ]);
+
+    // The staff list is as much a part of a coverage claim as the rota is:
+    // without it the screen would report that nobody works here and every day
+    // is short, or go on counting somebody who has left.
+    const rotaFailed = Boolean(staffDays.error || dutyPosts.error || staff.error);
 
     setSnapshot((prev) => ({
       ...prev,
@@ -276,6 +333,10 @@ export function ConsoleProvider({
       pinSetAt: staff.data
         ? Object.fromEntries(staff.data.map((o) => [o.id, o.pin_set_at]))
         : prev.pinSetAt,
+      staffDays: staffDays.data ?? prev.staffDays,
+      staffDaysWindow: staffDays.error ? prev.staffDaysWindow : window,
+      rotaUnread: prev.rotaUnread && rotaFailed,
+      rotaStale: rotaFailed,
     }));
   }, [centerId, supabase]);
 
@@ -299,6 +360,7 @@ export function ConsoleProvider({
       ["duty_posts", `center_id=eq.${centerId}`],
       ["walkthroughs", `center_id=eq.${centerId}`],
       ["profiles", `center_id=eq.${centerId}`],
+      ["staff_days", `center_id=eq.${centerId}`],
       ["labs", `center_id=eq.${centerId}`],
       ["workstations", `center_id=eq.${centerId}`],
       ["public_display_calls", `center_id=eq.${centerId}`],
@@ -311,6 +373,17 @@ export function ConsoleProvider({
 
     for (const [table, filter] of watched) {
       channel.on("postgres_changes", { event: "*", schema: "public", table, filter }, scheduleRefresh);
+    }
+
+    // A deleted row arrives carrying only its primary key, so a center_id
+    // filter can never match one and the event is dropped. Marking somebody
+    // back in deletes their staff_days row, and somebody leaving deletes their
+    // profile; without these, the other consoles would go on showing an
+    // absence that has been cancelled, or counting on a person who has gone.
+    // The payload is ignored either way; all it does is prompt a refresh,
+    // which reads back through the usual policies.
+    for (const table of ["staff_days", "profiles"]) {
+      channel.on("postgres_changes", { event: "DELETE", schema: "public", table }, scheduleRefresh);
     }
 
     channel.subscribe();

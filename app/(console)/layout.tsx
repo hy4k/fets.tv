@@ -3,6 +3,7 @@ import { Header } from "@/components/console/Header";
 import { NavRail } from "@/components/console/NavRail";
 import { Toasts } from "@/components/console/Toasts";
 import { ConsoleProvider, type ConsoleSnapshot } from "@/lib/console-data";
+import { weekWindow } from "@/lib/coverage";
 import { supabaseServer } from "@/lib/supabase/server";
 
 /**
@@ -52,6 +53,9 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
     );
   }
 
+  // Once, so the rows and the bounds recorded beside them are the same pair.
+  const rotaWindow = weekWindow();
+
   const [
     candidates,
     incidents,
@@ -75,6 +79,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
     openBreaks,
     noticeTemplates,
     notice,
+    staffDays,
   ] = await Promise.all([
     session
       ? supabase
@@ -166,6 +171,15 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    // A window around today rather than the whole rota, so the grid can page a
+    // couple of months either way without another round trip and a year of
+    // history never rides along on a refresh.
+    supabase
+      .from("staff_days")
+      .select("*")
+      .eq("center_id", center.id)
+      .gte("on_date", rotaWindow.from)
+      .lte("on_date", rotaWindow.to),
   ]);
 
   const snapshot: ConsoleSnapshot = {
@@ -194,6 +208,14 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
     notice: notice.data ?? null,
     operators: Object.fromEntries((operators.data ?? []).map((o) => [o.id, o.display_name])),
     pinSetAt: Object.fromEntries((operators.data ?? []).map((o) => [o.id, o.pin_set_at])),
+    staffDays: staffDays.data ?? [],
+    // Null when the fetch failed: an empty rota and an unread one look the
+    // same from here, and on the coverage screen they mean opposite things.
+    staffDaysWindow: staffDays.error ? null : rotaWindow,
+    // Any of the three unread and the coverage screen says so rather than
+    // guessing; nothing has been read twice yet, so nothing can be stale.
+    rotaUnread: Boolean(staffDays.error || dutyPosts.error || operators.error),
+    rotaStale: false,
   };
 
   return (

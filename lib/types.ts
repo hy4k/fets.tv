@@ -283,6 +283,26 @@ export type HandoverVerdict =
       locked_until?: string | null;
     };
 
+/**
+ * Somebody not fully in, on a day.
+ *
+ * Only exceptions are stored. No row means in, which is what makes an
+ * untouched week read as a full week rather than as an empty one.
+ */
+export type StaffDay = {
+  id: string;
+  center_id: string;
+  /** Null once they have left; the name below outlives them. */
+  profile_id: string | null;
+  profile_name: string;
+  /** YYYY-MM-DD, the centre's own calendar date. */
+  on_date: string;
+  state: "off" | "half";
+  set_by: string | null;
+  set_at: string;
+  created_at: string;
+};
+
 /** One line of a Center Problem Report timeline, as the database assembles it. */
 export type ReportEntry = {
   at: string;
@@ -551,6 +571,7 @@ export type Database = {
       duty_posts: Table<DutyPost>;
       duty_blocks: Table<DutyBlock>;
       walkthroughs: Table<Walkthrough>;
+      staff_days: Table<StaffDay>;
       programme_sections: Table<ProgrammeSection>;
       candidate_sections: Table<CandidateSection>;
       candidate_materials: Table<CandidateMaterial>;
@@ -706,6 +727,11 @@ export type Database = {
         Returns: HandoverVerdict;
       };
       fets_set_pin: { Args: { p_profile: string; p_pin: string }; Returns: void };
+      fets_set_staff_day: {
+        /** 'in' deletes the row, because in is the absence of an exception. */
+        Args: { p_profile: string; p_date: string; p_state: "in" | "off" | "half" };
+        Returns: void;
+      };
       fets_clear_pin: { Args: { p_profile: string }; Returns: void };
       fets_record_walkthrough: {
         Args: { p_center: string; p_note?: string | null };
