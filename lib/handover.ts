@@ -81,6 +81,10 @@ export function handoverState(
     .filter((c) => c.exam_started_at && !c.exam_finished_at)
     .map<SeatedCandidate>((c) => {
       const brk = breakOf.get(c.id) ?? null;
+      // Both instants are kept as numbers, and a timestamp that will not parse
+      // becomes null rather than an Invalid Date. Rendering one of those throws
+      // and takes the whole screen with it.
+      const since = brk ? new Date(brk.started_at).getTime() : NaN;
       const expected = c.exam_expected_end
         ? new Date(c.exam_expected_end).getTime()
         : c.exam_duration_minutes
@@ -94,7 +98,7 @@ export function handoverState(
         seat: c.workstation_id ? (seatOf.get(c.workstation_id) ?? null) : null,
         endsAt: expected !== null && Number.isFinite(expected) ? expected : null,
         onBreak: brk !== null,
-        breakSince: brk ? new Date(brk.started_at).getTime() : null,
+        breakSince: Number.isFinite(since) ? since : null,
       };
     })
     // Whoever is closest to finishing is the one the next person deals with

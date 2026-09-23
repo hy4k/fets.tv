@@ -306,3 +306,28 @@ test("candidates not yet arrived do not on their own make a handover", () => {
   assert.equal(s.notArrived, 1);
   assert.equal(isQuiet(s), true);
 });
+
+test("a timestamp that will not parse becomes null rather than an Invalid Date", () => {
+  const s = run({
+    openBreaks: [
+      {
+        id: "b1",
+        candidate_id: "a",
+        center_id: "ct1",
+        kind: "unscheduled",
+        started_at: "not a date",
+        ended_at: null,
+        authorised_by: null,
+        reason: null,
+        created_at: "2026-09-23T04:48:00Z",
+      },
+    ],
+    candidates: [
+      candidate({ id: "a", exam_started_at: "2026-09-23T04:00:00Z", exam_expected_end: "also not a date" }),
+    ],
+  });
+
+  assert.equal(s.seated[0].onBreak, true);
+  assert.equal(s.seated[0].breakSince, null);
+  assert.equal(s.seated[0].endsAt, null);
+});
