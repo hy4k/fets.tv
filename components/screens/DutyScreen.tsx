@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
+import { HandoverDialog } from "@/components/screens/HandoverDialog";
 import { WalkthroughBar } from "@/components/screens/WalkthroughBar";
 import { useConsole } from "@/lib/console-data";
 import { clockAt } from "@/lib/format";
@@ -49,6 +50,7 @@ export function DutyScreen() {
   const { center, dutyPosts, dutyBlocks, rules, rpc, canCall } = useConsole();
   const now = useNow();
   const [assigning, setAssigning] = useState<DutyPost | null>(null);
+  const [handing, setHanding] = useState<DutyPost | null>(null);
   const [starting, setStarting] = useState(false);
 
   const posts = useMemo(
@@ -60,6 +62,18 @@ export function DutyScreen() {
     dutyBlocks.find((b) => b.post_id === postId && !b.ended_at) ?? null;
 
   const endsAt = (b: DutyBlock) => new Date(b.started_at).getTime() + b.minutes * 60000;
+
+  /**
+   * What the person on this post was told when they took it. The note is
+   * written on the block that closed, so it belongs to the *previous* holder,
+   * and it is matched by the instant the two blocks meet rather than by being
+   * merely the latest — an older note from before a gap is not what this
+   * person was handed.
+   */
+  const handedOver = (block: DutyBlock) =>
+    dutyBlocks.find(
+      (b) => b.post_id === block.post_id && b.ended_at === block.started_at && b.handover_note,
+    )?.handover_note ?? null;
 
   const live = now > 0;
 
@@ -145,6 +159,9 @@ export function DutyScreen() {
                       <span className="block font-mono text-[11px] text-fg-faint">
                         since {clockAt(block.started_at, center.timezone)} · until{" "}
                         {clockAt(new Date(endsAt(block)).toISOString(), center.timezone)}
+                        {block.accepted_with_pin && (
+                          <span className="text-mint"> · signed for</span>
+                        )}
                       </span>
                     </span>
                     <span
@@ -160,11 +177,21 @@ export function DutyScreen() {
                     </p>
                   )}
 
+                  {handedOver(block) && (
+                    <p className="rounded-[11px] border border-edge bg-panel-soft px-[10px] py-[8px] text-[12px] text-fg-muted">
+                      <span className="font-mono text-[10px] tracking-[0.08em] text-fg-faint uppercase">
+                        handed over
+                      </span>
+                      <br />
+                      {handedOver(block)}
+                    </p>
+                  )}
+
                   <div className="flex gap-[7px]">
                     <button
                       type="button"
                       disabled={!canCall}
-                      onClick={() => setAssigning(post)}
+                      onClick={() => setHanding(post)}
                       className="flex-1 cursor-pointer rounded-[12px] gold-bg px-[13px] py-[10px] text-[12.5px] font-bold text-[#1a1512] disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       Hand over
@@ -180,6 +207,18 @@ export function DutyScreen() {
                       Stand down
                     </button>
                   </div>
+
+                  {/* Somebody has to be able to fix a rota at eight in the
+                      morning without the person being in the building. It
+                      records that no PIN was typed, which is the point. */}
+                  <button
+                    type="button"
+                    disabled={!canCall}
+                    onClick={() => setAssigning(post)}
+                    className="cursor-pointer self-start font-mono text-[10.5px] text-fg-faint underline decoration-dotted underline-offset-2 hover:text-fg-muted disabled:opacity-40"
+                  >
+                    change it without a signature
+                  </button>
                 </>
               ) : (
                 <>
@@ -206,6 +245,21 @@ export function DutyScreen() {
       </div>
 
       {starting && <RotationDialog onClose={() => setStarting(false)} />}
+
+      {handing &&
+        (() => {
+          const block = openOn(handing.id);
+          // Somebody else may have taken the post while this was open; without
+          // an outgoing block there is nothing to hand over.
+          return block ? (
+            <HandoverDialog
+              key={handing.id}
+              post={handing}
+              current={block}
+              onClose={() => setHanding(null)}
+            />
+          ) : null;
+        })()}
 
       {assigning && (
         <AssignDialog

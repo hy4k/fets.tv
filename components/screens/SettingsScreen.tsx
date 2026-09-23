@@ -630,11 +630,154 @@ function DutySection() {
           )}
         </div>
       </Panel>
+
+      <PinsPanel />
     </>
   );
 }
 
 type PostDraft = { key: string; name: string; kind: DutyPostKind; lab_id: string };
+
+/**
+ * Signing PINs.
+ *
+ * A PIN is what turns "I handed it over" into a record that the other person
+ * was actually standing there. Anybody may set their own; an admin may set or
+ * clear anybody's, because a PIN nobody can reset is a post locked on the
+ * morning somebody forgets theirs. The PIN itself is never shown again — only
+ * whether one exists, and when it was set.
+ */
+function PinsPanel() {
+  const { profile, operators, pinSetAt, center, rpc, isAdmin } = useConsole();
+  const [editing, setEditing] = useState<string | null>(null);
+  const [pin, setPin] = useState("");
+  const [again, setAgain] = useState("");
+
+  const people = Object.entries(operators).sort((a, b) => a[1].localeCompare(b[1]));
+  const mayEdit = (id: string) => isAdmin || id === profile.id;
+
+  const valid = /^[0-9]{4,6}$/.test(pin);
+  const matches = valid && pin === again;
+
+  async function save(id: string) {
+    const ok = await rpc("fets_set_pin", { p_profile: id, p_pin: pin }, "PIN set");
+    setPin("");
+    setAgain("");
+    if (ok) setEditing(null);
+  }
+
+  return (
+    <Panel
+      title="Signing PINs"
+      note="Four to six digits, typed by whoever is coming on duty when a post changes hands. It is stored as a hash and never shown again; a forgotten one is replaced, not recovered."
+    >
+      <div className="flex flex-col gap-[8px]">
+        {people.map(([id, name]) => {
+          const set = pinSetAt[id] ?? null;
+          const open = editing === id;
+
+          return (
+            <div
+              key={id}
+              className="flex flex-wrap items-center gap-[8px] rounded-[15px] border border-edge bg-panel-soft p-[11px]"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block text-[13.5px] font-semibold">
+                  {name}
+                  {id === profile.id && <span className="text-fg-faint"> (you)</span>}
+                </span>
+                <span
+                  className={`block font-mono text-[10.5px] ${set ? "text-mint" : "text-fg-faint"}`}
+                >
+                  {set
+                    ? `set ${new Intl.DateTimeFormat("en-GB", {
+                        timeZone: center.timezone,
+                        day: "numeric",
+                        month: "short",
+                      }).format(new Date(set))}`
+                    : "no PIN — cannot sign for a post"}
+                </span>
+              </span>
+
+              {!open && (
+                <button
+                  type="button"
+                  disabled={!mayEdit(id)}
+                  onClick={() => {
+                    setEditing(id);
+                    setPin("");
+                    setAgain("");
+                  }}
+                  className="cursor-pointer rounded-[11px] border border-edge-warm px-[12px] py-[8px] text-[12px] font-semibold hover:bg-panel disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {set ? "Replace" : "Set a PIN"}
+                </button>
+              )}
+
+              {!open && set && isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => rpc("fets_clear_pin", { p_profile: id }, `${name}'s PIN cleared`)}
+                  className="cursor-pointer rounded-[11px] border border-edge px-[12px] py-[8px] text-[12px] font-semibold text-fg-faint hover:border-rust/50 hover:text-rust"
+                >
+                  Clear
+                </button>
+              )}
+
+              {open && (
+                <div className="flex w-full flex-wrap items-center gap-[7px]">
+                  <input
+                    value={pin}
+                    onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
+                    type="password"
+                    inputMode="numeric"
+                    autoComplete="new-password"
+                    autoFocus
+                    placeholder="New PIN"
+                    className="w-[120px] rounded-[10px] border border-edge-strong bg-panel px-[10px] py-[8px] text-center font-mono text-[15px] tracking-[0.25em] outline-none focus:border-gold/60"
+                  />
+                  <input
+                    value={again}
+                    onChange={(e) => setAgain(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
+                    type="password"
+                    inputMode="numeric"
+                    autoComplete="new-password"
+                    placeholder="Again"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && matches) void save(id);
+                    }}
+                    className="w-[120px] rounded-[10px] border border-edge-strong bg-panel px-[10px] py-[8px] text-center font-mono text-[15px] tracking-[0.25em] outline-none focus:border-gold/60"
+                  />
+                  <button
+                    type="button"
+                    disabled={!matches}
+                    onClick={() => save(id)}
+                    className="cursor-pointer rounded-[11px] gold-bg px-[13px] py-[9px] text-[12px] font-bold text-[#1a1512] disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {!valid ? "Four to six digits" : matches ? "Save" : "They differ"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditing(null)}
+                    className="cursor-pointer rounded-[11px] border border-edge px-[12px] py-[9px] text-[12px] font-semibold text-fg-muted"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {!isAdmin && (
+          <p className="font-mono text-[10.5px] text-fg-faint">
+            You can set your own. An admin sets or clears anybody else’s.
+          </p>
+        )}
+      </div>
+    </Panel>
+  );
+}
 
 /* ------------------------------------------------------------------- day -- */
 

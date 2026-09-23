@@ -58,6 +58,12 @@ export type ConsoleSnapshot = {
   noticeTemplates: NoticeTemplate[];
   notice: DisplayNotice | null;
   operators: Record<string, string>;
+  /**
+   * When each person last set a signing PIN, or null if they have none.
+   * Separate from `operators` because whether somebody can sign for a post is
+   * a fact the console shows; the PIN itself never leaves the database.
+   */
+  pinSetAt: Record<string, string | null>;
 };
 
 type Toast = { id: number; message: string; tone: "ok" | "error" };
@@ -142,6 +148,7 @@ export function ConsoleProvider({
       openBreaks,
       noticeTemplates,
       notice,
+      staff,
     ] = await Promise.all([
       candidatesQuery,
       supabase
@@ -207,6 +214,7 @@ export function ConsoleProvider({
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle(),
+      supabase.from("profiles").select("id, display_name, pin_set_at").eq("center_id", centerId),
     ]);
 
     setSnapshot((prev) => ({
@@ -235,6 +243,12 @@ export function ConsoleProvider({
       openBreaks: openBreaks.data ?? prev.openBreaks,
       noticeTemplates: noticeTemplates.data ?? prev.noticeTemplates,
       notice: notice.data ?? null,
+      operators: staff.data
+        ? Object.fromEntries(staff.data.map((o) => [o.id, o.display_name]))
+        : prev.operators,
+      pinSetAt: staff.data
+        ? Object.fromEntries(staff.data.map((o) => [o.id, o.pin_set_at]))
+        : prev.pinSetAt,
     }));
   }, [centerId, supabase]);
 

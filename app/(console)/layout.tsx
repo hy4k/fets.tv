@@ -131,7 +131,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
       .limit(1)
       .maybeSingle(),
     supabase.from("public_displays").select("*").eq("center_id", center.id).order("label"),
-    supabase.from("profiles").select("id, display_name").eq("center_id", center.id),
+    supabase.from("profiles").select("id, display_name, pin_set_at").eq("center_id", center.id),
     supabase.from("exam_programmes").select("*").eq("center_id", center.id).eq("active", true).order("code"),
     supabase.from("candidate_breaks").select("*").eq("center_id", center.id).is("ended_at", null),
     supabase.from("notice_templates").select("*").eq("active", true).order("sort_order"),
@@ -170,6 +170,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
     noticeTemplates: noticeTemplates.data ?? [],
     notice: notice.data ?? null,
     operators: Object.fromEntries((operators.data ?? []).map((o) => [o.id, o.display_name])),
+    pinSetAt: Object.fromEntries((operators.data ?? []).map((o) => [o.id, o.pin_set_at])),
   };
 
   return (
