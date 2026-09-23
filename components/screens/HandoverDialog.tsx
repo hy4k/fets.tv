@@ -58,6 +58,18 @@ export function HandoverDialog({
   /** A refused PIN, said here rather than in a toast that slides away. */
   const [refused, setRefused] = useState<string | null>(null);
 
+  /**
+   * The block this screen opened on, frozen.
+   *
+   * The dialog is keyed by the post, not the block, so a realtime refresh can
+   * swap `current` underneath a mounted dialog while the note, the chosen
+   * person and the typed PIN all stay. Reading `current.id` at submit time
+   * would then send the *replacement* as the expected block and wave through
+   * the exact race the check exists to stop.
+   */
+  const [openedOn] = useState(current.id);
+  const movedOn = current.id !== openedOn;
+
   const state = useMemo(
     () =>
       handoverState(
@@ -101,7 +113,8 @@ export function HandoverDialog({
       .filter(Boolean)
       .join(", ");
 
-  const ready = taking !== null && /^[0-9]{4,6}$/.test(pin) && pinSetAt[taking] !== null;
+  const ready =
+    !movedOn && taking !== null && /^[0-9]{4,6}$/.test(pin) && pinSetAt[taking] !== null;
 
   async function accept() {
     if (!ready || busy) return;
@@ -116,7 +129,7 @@ export function HandoverDialog({
       // The block this screen was showing. If somebody else has moved the post
       // in the meantime the database refuses, rather than pinning one person's
       // account on another and closing a block that has only just started.
-      p_expected_block: current.id,
+      p_expected_block: openedOn,
     })) as HandoverVerdict | undefined;
 
     setBusy(false);
@@ -131,7 +144,7 @@ export function HandoverDialog({
       return;
     }
 
-    setRefused(refusal(verdict));
+    setRefused(refusal(verdict, center.timezone));
   }
 
   return (
@@ -149,15 +162,17 @@ export function HandoverDialog({
             onClick={accept}
             className="flex-1 cursor-pointer rounded-[14px] gold-bg px-[20px] py-[14px] text-[14px] font-bold text-[#1a1512] disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {taking === null
-              ? "Who is taking it?"
-              : pinSetAt[taking] === null
-                ? `${operators[taking]} has no PIN yet`
-                : /^[0-9]{4,6}$/.test(pin)
-                  ? busy
-                    ? "Checking…"
-                    : `${operators[taking]} accepts ${post.name}`
-                  : `${operators[taking]}, type your PIN`}
+            {movedOn
+              ? `${post.name} has changed hands`
+              : taking === null
+                ? "Who is taking it?"
+                : pinSetAt[taking] === null
+                  ? `${operators[taking]} has no PIN yet`
+                  : /^[0-9]{4,6}$/.test(pin)
+                    ? busy
+                      ? "Checking…"
+                      : `${operators[taking]} accepts ${post.name}`
+                    : `${operators[taking]}, type your PIN`}
           </button>
           <button
             type="button"
@@ -170,6 +185,13 @@ export function HandoverDialog({
       }
     >
       <div className="flex flex-col gap-[13px]">
+        {movedOn && (
+          <p className="rounded-[13px] border-2 border-rust bg-rust/12 px-[12px] py-[10px] text-[13px] font-semibold text-rust">
+            {current.profile_name} has taken {post.name} since this screen opened. Close this and
+            start again, so the note goes to the right person.
+          </p>
+        )}
+
         {/* 1. What the room is doing. */}
         <section className="flex flex-col gap-[9px] rounded-[15px] border border-edge bg-panel-soft p-[12px]">
           <h3 className="text-[10.5px] font-bold tracking-[0.13em] text-fg-dim uppercase">
@@ -372,15 +394,13 @@ export function HandoverDialog({
  * should know a lockout is coming before it arrives; somebody guessing
  * somebody else's learns only that the room is not worth the afternoon.
  */
-function refusal(v: Extract<HandoverVerdict, { ok: false }>) {
+function refusal(v: Extract<HandoverVerdict, { ok: false }>, timezone: string) {
   if (v.reason === "no_pin") {
     return `${v.name} has not set a PIN yet. An admin can set one under Setup.`;
   }
   if (v.reason === "locked") {
     return v.locked_until
-      ? `Too many wrong tries. ${v.name} can sign again after ${new Date(
-          v.locked_until,
-        ).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}.`
+      ? `Too many wrong tries. ${v.name} can sign again after ${clockAt(v.locked_until, timezone)}.`
       : `Too many wrong tries. ${v.name} is locked out for a few minutes.`;
   }
   return v.tries_left === 1
