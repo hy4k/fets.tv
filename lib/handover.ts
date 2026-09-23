@@ -10,7 +10,7 @@ import type {
 // Relative and with the extension so the plain node test runner resolves
 // these at runtime; the `@/` alias only exists inside the bundler.
 import { stillHeld } from "./types.ts";
-import { fullName, isInHall } from "./format.ts";
+import { fullName, isInHall, isToday } from "./format.ts";
 
 /** One candidate mid-exam, with the clock the next person inherits. */
 export type SeatedCandidate = {
@@ -66,6 +66,7 @@ export function handoverState(
     walkthroughs: Walkthrough[];
     workstations: Workstation[];
     walkthroughMinutes: number;
+    timezone: string;
   },
   now: number,
 ): HandoverState {
@@ -123,7 +124,12 @@ export function handoverState(
     })
     .sort((a, b) => a.token.localeCompare(b.token) || a.label.localeCompare(b.label));
 
-  const lastWalk = walkthroughs.length > 0 ? walkthroughs[0] : null;
+  // Only today's walks. The snapshot holds the last eighty whenever they
+  // happened, so the first handover of a new morning would otherwise report
+  // yesterday's final walk as the last one, hours overdue, instead of saying
+  // plainly that nobody has walked the floor yet.
+  const lastWalk =
+    walkthroughs.find((w) => isToday(w.walked_at, input.timezone, now)) ?? null;
   const walkOverdueMinutes = lastWalk
     ? Math.floor((now - new Date(lastWalk.walked_at).getTime()) / 60000) - input.walkthroughMinutes
     : null;

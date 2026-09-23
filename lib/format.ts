@@ -147,6 +147,19 @@ export function instantFromZonedTime(hhmm: string, timezone: string, reference: 
  * yesterday, and a roster started in that window would be filed against the
  * wrong day unless somebody noticed.
  */
+/**
+ * Whether an instant falls on the centre's current day.
+ *
+ * "Last walked 17:22" at nine the next morning is not an answer, it is
+ * yesterday's answer wearing today's clothes, so anything that reports on the
+ * day has to ask this first.
+ */
+export function isToday(iso: string, timezone: string, now: number = Date.now()) {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return false;
+  return todayInZone(timezone, at) === todayInZone(timezone, new Date(now));
+}
+
 export function todayInZone(timezone: string, reference: Date = new Date()) {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: timezone,

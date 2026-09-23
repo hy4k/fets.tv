@@ -73,6 +73,15 @@ type ConsoleValue = ConsoleSnapshot & {
   notify: (message: string, tone?: Toast["tone"]) => void;
   refresh: () => Promise<void>;
   rpc: (fn: string, args: Record<string, unknown>, okMessage?: string) => Promise<boolean>;
+  /**
+   * Like `rpc`, but hands back what the function returned.
+   *
+   * Some functions answer with a verdict instead of raising -- a wrong PIN has
+   * to record the attempt, and an exception would roll that record back with
+   * it -- so the caller needs the payload, not just whether the call landed.
+   * Undefined means the call itself failed; the toast has already been shown.
+   */
+  rpcRead: (fn: string, args: Record<string, unknown>) => Promise<unknown>;
   isAdmin: boolean;
   canFrontOffice: boolean;
   canLab: boolean;
@@ -88,6 +97,13 @@ export function useConsole() {
 }
 
 let toastSeq = 0;
+
+/** Two overlapping fetches into one list, first occurrence winning. */
+function mergeById<T extends { id: string }>(...lists: T[][]) {
+  const seen = new Map<string, T>();
+  for (const list of lists) for (const row of list) if (!seen.has(row.id)) seen.set(row.id, row);
+  return [...seen.values()];
+}
 
 export function ConsoleProvider({
   initial,
@@ -129,6 +145,7 @@ export function ConsoleProvider({
     const [
       candidates,
       incidents,
+      openIncidents,
       materials,
       programmeSections,
       candidateSections,
@@ -157,6 +174,13 @@ export function ConsoleProvider({
         .eq("center_id", centerId)
         .order("started_at", { ascending: false })
         .limit(60),
+      // Open ones without a limit; see the layout for why.
+      supabase
+        .from("incidents")
+        .select("*")
+        .eq("center_id", centerId)
+        .is("resolved_at", null)
+        .order("started_at", { ascending: false }),
       session
         ? supabase.from("candidate_materials").select("*").eq("exam_session_id", session.id)
         : null,
@@ -221,7 +245,10 @@ export function ConsoleProvider({
       ...prev,
       session: session ?? null,
       candidates: candidates?.data ?? (session ? prev.candidates : []),
-      incidents: incidents.data ?? prev.incidents,
+      incidents:
+        incidents.data || openIncidents.data
+          ? mergeById(openIncidents.data ?? [], incidents.data ?? [])
+          : prev.incidents,
       materials: materials?.data ?? (session ? prev.materials : []),
       programmeSections: programmeSections.data ?? prev.programmeSections,
       candidateSections: candidateSections?.data ?? (session ? prev.candidateSections : []),
@@ -271,6 +298,7 @@ export function ConsoleProvider({
       ["duty_blocks", `center_id=eq.${centerId}`],
       ["duty_posts", `center_id=eq.${centerId}`],
       ["walkthroughs", `center_id=eq.${centerId}`],
+      ["profiles", `center_id=eq.${centerId}`],
       ["labs", `center_id=eq.${centerId}`],
       ["workstations", `center_id=eq.${centerId}`],
       ["public_display_calls", `center_id=eq.${centerId}`],
@@ -308,6 +336,20 @@ export function ConsoleProvider({
     [notify, refresh, supabase],
   );
 
+  const rpcRead = useCallback(
+    async (fn: string, args: Record<string, unknown>) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase.rpc as any)(fn, args);
+      if (error) {
+        notify(error.message, "error");
+        return undefined;
+      }
+      await refresh();
+      return data;
+    },
+    [notify, refresh, supabase],
+  );
+
   const value = useMemo<ConsoleValue>(
     () => ({
       ...snapshot,
@@ -315,6 +357,7 @@ export function ConsoleProvider({
       notify,
       refresh,
       rpc,
+      rpcRead,
       // A TCA works whichever desk the duty roster puts them on, so they hold
       // every operational capability. Configuration stays with admins.
       isAdmin: snapshot.profile.role === "admin",
@@ -322,7 +365,7 @@ export function ConsoleProvider({
       canLab: ["admin", "tca", "lab_staff"].includes(snapshot.profile.role),
       canCall: ["admin", "tca"].includes(snapshot.profile.role),
     }),
-    [snapshot, toasts, notify, refresh, rpc],
+    [snapshot, toasts, notify, refresh, rpc, rpcRead],
   );
 
   return <ConsoleContext.Provider value={value}>{children}</ConsoleContext.Provider>;

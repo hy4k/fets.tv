@@ -5,6 +5,18 @@ import { Toasts } from "@/components/console/Toasts";
 import { ConsoleProvider, type ConsoleSnapshot } from "@/lib/console-data";
 import { supabaseServer } from "@/lib/supabase/server";
 
+/**
+ * Two overlapping fetches into one list, first occurrence winning.
+ *
+ * The open rows and the recent history are asked for separately so neither
+ * limit can hide the other, and they overlap in the middle.
+ */
+function mergeById<T extends { id: string }>(...lists: T[][]) {
+  const seen = new Map<string, T>();
+  for (const list of lists) for (const row of list) if (!seen.has(row.id)) seen.set(row.id, row);
+  return [...seen.values()];
+}
+
 export default async function ConsoleLayout({ children }: { children: React.ReactNode }) {
   const supabase = await supabaseServer();
 
@@ -43,6 +55,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
   const [
     candidates,
     incidents,
+    openIncidents,
     materials,
     materialKinds,
     programmeSections,
@@ -77,6 +90,16 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
       .eq("center_id", center.id)
       .order("started_at", { ascending: false })
       .limit(60),
+    // Everything still open, without a limit, the same way the duty blocks are
+    // fetched. A slice of the sixty newest is history; an unresolved incident
+    // that falls off the end of it stops appearing in a handover, which is the
+    // one place it must not.
+    supabase
+      .from("incidents")
+      .select("*")
+      .eq("center_id", center.id)
+      .is("resolved_at", null)
+      .order("started_at", { ascending: false }),
     session
       ? supabase.from("candidate_materials").select("*").eq("exam_session_id", session.id)
       : Promise.resolve({ data: [] }),
@@ -151,7 +174,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
     rules,
     session: session ?? null,
     candidates: candidates.data ?? [],
-    incidents: incidents.data ?? [],
+    incidents: mergeById(openIncidents.data ?? [], incidents.data ?? []),
     materials: materials.data ?? [],
     materialKinds: materialKinds.data ?? [],
     programmeSections: programmeSections.data ?? [],
