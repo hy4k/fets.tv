@@ -151,6 +151,43 @@ export function thinDays(week: CoverageDay[]) {
   return week.filter((d) => !d.isPast && d.tone === "thin");
 }
 
+/**
+ * How much of the rota travels in the snapshot: five weeks back, twelve on.
+ *
+ * Enough to page the grid a couple of months either way without another round
+ * trip, and far short of the year the database will accept, so a full history
+ * never rides along on a refresh that happens every time anybody presses
+ * anything.
+ *
+ * It lives here rather than beside the fetches because the server layout calls
+ * it too, and every export of a "use client" module is a client reference that
+ * the server cannot call.
+ */
+export function weekWindow(now: Date = new Date()) {
+  const day = 86400000;
+  return {
+    from: dayString(now.getTime() - 35 * day),
+    to: dayString(now.getTime() + 84 * day),
+  };
+}
+
+/**
+ * Which weeks the grid may show, as offsets from this week.
+ *
+ * Only weeks lying wholly inside the loaded window count. Outside it the
+ * snapshot simply has no rows, so every cell would read "in" and the screen
+ * would cheerfully report a week as covered that nobody has planned — the one
+ * lie this screen must never tell.
+ */
+export function weekRange(today: string, window: { from: string; to: string }) {
+  const week = 7 * 86400000;
+  const monday = dayMs(mondayOf(today));
+  return {
+    min: Math.ceil((dayMs(window.from) - monday) / week),
+    max: Math.floor((dayMs(window.to) - 6 * 86400000 - monday) / week),
+  };
+}
+
 /** "Wed 23", "Wed 23 and Thu 24", "Wed 23, Thu 24 and Fri 25". */
 export function listDays(days: CoverageDay[]) {
   const names = days.map((d) => `${d.weekday} ${d.dayOfMonth}`);

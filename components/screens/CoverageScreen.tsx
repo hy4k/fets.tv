@@ -10,6 +10,8 @@ import {
   shiftWeeks,
   shortDays,
   thinDays,
+  weekRange,
+  weekWindow,
 } from "@/lib/coverage";
 import type { DayState } from "@/lib/coverage";
 import { todayInZone } from "@/lib/format";
@@ -38,6 +40,17 @@ export function CoverageScreen() {
 
   const [offset, setOffset] = useState(0);
   const [saving, setSaving] = useState<string | null>(null);
+
+  // Only the weeks the snapshot actually carries. Beyond them there are no
+  // rows, so every cell would read "in" and the screen would report a week as
+  // covered that nobody has planned — and an edit out there would seem to do
+  // nothing, because the refresh afterwards would not fetch it back.
+  const range = useMemo(
+    () => (today ? weekRange(today, weekWindow(new Date(now))) : { min: 0, max: 0 }),
+    [today, now],
+  );
+  const atStart = offset <= range.min;
+  const atEnd = offset >= range.max;
 
   const staff = useMemo(
     () =>
@@ -113,17 +126,21 @@ export function CoverageScreen() {
         <span className="flex shrink-0 gap-[6px]">
           <button
             type="button"
-            onClick={() => setOffset((o) => o - 1)}
+            disabled={atStart}
+            onClick={() => setOffset((o) => Math.max(o - 1, range.min))}
             aria-label="The week before"
-            className="cursor-pointer rounded-[11px] border border-edge-warm px-[13px] py-[8px] text-[13px] font-semibold hover:bg-panel"
+            title={atStart ? "The rota does not go back further than this" : "The week before"}
+            className="cursor-pointer rounded-[11px] border border-edge-warm px-[13px] py-[8px] text-[13px] font-semibold hover:bg-panel disabled:cursor-not-allowed disabled:opacity-35"
           >
             ←
           </button>
           <button
             type="button"
-            onClick={() => setOffset((o) => o + 1)}
+            disabled={atEnd}
+            onClick={() => setOffset((o) => Math.min(o + 1, range.max))}
             aria-label="The week after"
-            className="cursor-pointer rounded-[11px] border border-edge-warm px-[13px] py-[8px] text-[13px] font-semibold hover:bg-panel"
+            title={atEnd ? "The rota does not go forward further than this" : "The week after"}
+            className="cursor-pointer rounded-[11px] border border-edge-warm px-[13px] py-[8px] text-[13px] font-semibold hover:bg-panel disabled:cursor-not-allowed disabled:opacity-35"
           >
             →
           </button>

@@ -8,6 +8,8 @@ import {
   shiftWeeks,
   shortDays,
   thinDays,
+  weekRange,
+  weekWindow,
 } from "../lib/coverage.ts";
 import type { StaffDay } from "../lib/types.ts";
 
@@ -32,6 +34,9 @@ const day = (profile: string, on_date: string, state: "off" | "half"): StaffDay 
   set_at: "2026-09-20T00:00:00Z",
   created_at: "2026-09-20T00:00:00Z",
 });
+
+const sundayOf = (monday: string) =>
+  new Date(Date.parse(`${monday}T00:00:00Z`) + 6 * 86400000).toISOString().slice(0, 10);
 
 const week = (staffDays: StaffDay[] = [], needs = 3, weekOf = "2026-09-23") =>
   coverageWeek({ staff: STAFF, staffDays, needs, timezone: TZ, weekOf, now: NOW });
@@ -194,4 +199,44 @@ test("days are listed the way somebody would say them", () => {
   assert.equal(listDays(shortDays(w).slice(0, 1)), "Thu 24");
   assert.equal(listDays(shortDays(w).slice(0, 2)), "Thu 24 and Fri 25");
   assert.equal(listDays(shortDays(w)), "Thu 24, Fri 25 and Sat 26");
+});
+
+test("the window is five weeks back and twelve on", () => {
+  const w = weekWindow(new Date("2026-09-23T06:00:00Z"));
+  assert.equal(w.from, "2026-08-19");
+  assert.equal(w.to, "2026-12-16");
+});
+
+test("only weeks lying wholly inside the window may be paged to", () => {
+  const today = "2026-09-23"; // Wednesday; this week is Mon 21 – Sun 27
+  const r = weekRange(today, weekWindow(new Date("2026-09-23T06:00:00Z")));
+
+  // Back: the window opens on Wed 19 Aug, so the week of Mon 17 is half out
+  // and the first whole week back is Mon 24 Aug — four weeks before this one.
+  assert.equal(r.min, -4);
+  assert.equal(mondayOf(today), "2026-09-21");
+  assert.equal(shiftWeeks(mondayOf(today), r.min), "2026-08-24");
+
+  // Forward: the window closes on Wed 16 Dec, so the last whole week is the
+  // one ending Sun 13 Dec. The week after it starts inside the window and ends
+  // outside it, which is exactly the case the range has to exclude.
+  assert.equal(shiftWeeks(mondayOf(today), r.max), "2026-12-07");
+  assert.equal(sundayOf(shiftWeeks(mondayOf(today), r.max)), "2026-12-13");
+  assert.ok(shiftWeeks(mondayOf(today), r.max + 1) <= "2026-12-16");
+  assert.ok(sundayOf(shiftWeeks(mondayOf(today), r.max + 1)) > "2026-12-16");
+});
+
+test("every week inside the range really is inside the window", () => {
+  const win = weekWindow(new Date("2026-09-23T06:00:00Z"));
+  const r = weekRange("2026-09-23", win);
+
+  for (let k = r.min; k <= r.max; k++) {
+    const mon = shiftWeeks(mondayOf("2026-09-23"), k);
+    assert.ok(mon >= win.from, `${mon} before ${win.from}`);
+    assert.ok(sundayOf(mon) <= win.to, `${sundayOf(mon)} after ${win.to}`);
+  }
+
+  // And the weeks just outside are outside for a reason.
+  assert.ok(shiftWeeks(mondayOf("2026-09-23"), r.min - 1) < win.from);
+  assert.ok(sundayOf(shiftWeeks(mondayOf("2026-09-23"), r.max + 1)) > win.to);
 });

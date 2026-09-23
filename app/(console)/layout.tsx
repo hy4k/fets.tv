@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import { Header } from "@/components/console/Header";
 import { NavRail } from "@/components/console/NavRail";
 import { Toasts } from "@/components/console/Toasts";
-import { ConsoleProvider, weekWindow, type ConsoleSnapshot } from "@/lib/console-data";
+import { ConsoleProvider, type ConsoleSnapshot } from "@/lib/console-data";
+import { weekWindow } from "@/lib/coverage";
 import { supabaseServer } from "@/lib/supabase/server";
 
 /**

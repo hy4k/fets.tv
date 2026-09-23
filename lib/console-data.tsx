@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { weekWindow } from "@/lib/coverage";
 import type {
   Candidate,
   CandidateBreak,
@@ -100,19 +101,6 @@ export function useConsole() {
 }
 
 let toastSeq = 0;
-
-/**
- * How much of the rota travels in the snapshot: five weeks back, twelve on.
- *
- * Enough to page the grid a couple of months out without another round trip,
- * and far short of the year the database will accept, so a full history never
- * rides along on a refresh that happens every time anybody presses anything.
- */
-export function weekWindow(now: Date = new Date()) {
-  const day = 86400000;
-  const iso = (ms: number) => new Date(ms).toISOString().slice(0, 10);
-  return { from: iso(now.getTime() - 35 * day), to: iso(now.getTime() + 84 * day) };
-}
 
 /** Two overlapping fetches into one list, first occurrence winning. */
 function mergeById<T extends { id: string }>(...lists: T[][]) {
@@ -340,6 +328,18 @@ export function ConsoleProvider({
     for (const [table, filter] of watched) {
       channel.on("postgres_changes", { event: "*", schema: "public", table, filter }, scheduleRefresh);
     }
+
+    // A deleted row arrives carrying only its primary key, so a center_id
+    // filter can never match one and the event is dropped. Marking somebody
+    // back in deletes their staff_days row, so without this the other consoles
+    // would go on showing an absence that has been cancelled. The payload is
+    // ignored either way; all it does is prompt a refresh, which reads back
+    // through the usual policies.
+    channel.on(
+      "postgres_changes",
+      { event: "DELETE", schema: "public", table: "staff_days" },
+      scheduleRefresh,
+    );
 
     channel.subscribe();
 
