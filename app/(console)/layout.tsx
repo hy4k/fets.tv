@@ -30,18 +30,19 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
   const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
   if (!profile) redirect("/login?error=no-profile");
 
-  const [{ data: center }, { data: rules }, { data: session }] = await Promise.all([
-    supabase.from("centers").select("*").eq("id", profile.center_id).single(),
-    supabase.from("schedule_rules").select("*").eq("center_id", profile.center_id).maybeSingle(),
-    supabase
-      .from("exam_sessions")
-      .select("*")
-      .eq("center_id", profile.center_id)
-      .in("status", ["ready", "live"])
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-  ]);
+  const [{ data: center }, { data: rules }, { data: session, error: sessionError }] =
+    await Promise.all([
+      supabase.from("centers").select("*").eq("id", profile.center_id).single(),
+      supabase.from("schedule_rules").select("*").eq("center_id", profile.center_id).maybeSingle(),
+      supabase
+        .from("exam_sessions")
+        .select("*")
+        .eq("center_id", profile.center_id)
+        .in("status", ["ready", "live"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
 
   if (!center || !rules) {
     return (
@@ -214,9 +215,13 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
     // What never arrived. Nothing has been read twice yet, so nothing can be
     // stale; a first load either has the rows or does not.
     unread: [
-      ...(candidates.error ? (["candidates"] as const) : []),
+      // A failed read of the exam day looks exactly like a day with no exam
+      // on, and the loads that hang off it were skipped rather than attempted,
+      // so they have no error of their own and the day answers for them.
+      ...(sessionError ? (["exam_sessions"] as const) : []),
+      ...(candidates.error || sessionError ? (["candidates"] as const) : []),
       ...(incidents.error || openIncidents.error ? (["incidents"] as const) : []),
-      ...(materials.error ? (["candidate_materials"] as const) : []),
+      ...(materials.error || sessionError ? (["candidate_materials"] as const) : []),
       ...(openBreaks.error ? (["candidate_breaks"] as const) : []),
       ...(staffDays.error ? (["staff_days"] as const) : []),
       ...(dutyPosts.error ? (["duty_posts"] as const) : []),

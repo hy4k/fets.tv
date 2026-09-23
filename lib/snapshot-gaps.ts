@@ -5,8 +5,14 @@
  * notice template shows up as a screen with nothing on it, which is obvious
  * and not a claim about the room; these are the ones where silence means
  * "all clear".
+ *
+ * `exam_sessions` is here because everything about today hangs off it. A
+ * failed read of it looks exactly like a day with no exam on, and the loads
+ * that depend on it are then skipped rather than failed — so it has to carry
+ * them with it.
  */
 export type SnapshotTable =
+  | "exam_sessions"
   | "candidates"
   | "incidents"
   | "candidate_materials"

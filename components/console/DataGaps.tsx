@@ -5,6 +5,7 @@ import type { SnapshotTable } from "@/lib/console-data";
 
 /** What to call each load in a sentence somebody on the floor would use. */
 const NAMES: Record<SnapshotTable, string> = {
+  exam_sessions: "today's exam day",
   candidates: "today's candidates",
   incidents: "incidents",
   candidate_materials: "what has been handed out",

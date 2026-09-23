@@ -75,3 +75,21 @@ test("no table is ever in both lists at once", () => {
     }
   }
 });
+
+test("the exam day carries the loads that hang off it", () => {
+  // The dependants are skipped, not attempted, when the day cannot be read, so
+  // they never report an error of their own. Whoever builds the list has to
+  // add them; this fixes the shape that produces once it does.
+  const after = gapsAfterRefresh(none, ["exam_sessions", "candidates", "candidate_materials"]);
+
+  assert.deepEqual(after.stale, ["exam_sessions", "candidates", "candidate_materials"]);
+  assert.deepEqual(after.unread, []);
+});
+
+test("a day that has never been read keeps its dependants unread with it", () => {
+  const prev: Gaps = { unread: ["exam_sessions", "candidates"], stale: [] };
+  const after = gapsAfterRefresh(prev, ["exam_sessions", "candidates"]);
+
+  assert.deepEqual(after.unread, ["exam_sessions", "candidates"]);
+  assert.deepEqual(after.stale, []);
+});

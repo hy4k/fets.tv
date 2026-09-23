@@ -171,7 +171,7 @@ export function ConsoleProvider({
     // the same pair even if this runs across midnight.
     const window = weekWindow();
 
-    const { data: session } = await supabase
+    const { data: session, error: sessionError } = await supabase
       .from("exam_sessions")
       .select("*")
       .eq("center_id", centerId)
@@ -300,10 +300,15 @@ export function ConsoleProvider({
 
     // Which loads failed this time round; gapsAfterRefresh decides what that
     // means for each of them.
+    // A failed read of the exam day is indistinguishable from a day with no
+    // exam on, and the loads that hang off it were skipped rather than
+    // attempted — so they have no error of their own to report and the day
+    // has to answer for them. Otherwise a blip mid-exam reads as "no roster".
     const failed: SnapshotTable[] = [
-      ...(candidates?.error ? (["candidates"] as const) : []),
+      ...(sessionError ? (["exam_sessions"] as const) : []),
+      ...(candidates?.error || sessionError ? (["candidates"] as const) : []),
       ...(incidents.error || openIncidents.error ? (["incidents"] as const) : []),
-      ...(materials?.error ? (["candidate_materials"] as const) : []),
+      ...(materials?.error || sessionError ? (["candidate_materials"] as const) : []),
       ...(openBreaks.error ? (["candidate_breaks"] as const) : []),
       ...(staffDays.error ? (["staff_days"] as const) : []),
       ...(dutyPosts.error ? (["duty_posts"] as const) : []),
@@ -312,7 +317,8 @@ export function ConsoleProvider({
 
     setSnapshot((prev) => ({
       ...prev,
-      session: session ?? null,
+      // Keep the day we had rather than declaring there isn't one.
+      session: sessionError ? prev.session : (session ?? null),
       candidates: candidates?.data ?? (session ? prev.candidates : []),
       incidents:
         incidents.data || openIncidents.data
