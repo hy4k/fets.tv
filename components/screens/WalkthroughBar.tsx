@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useConsole } from "@/lib/console-data";
-import { clockAt } from "@/lib/format";
+import { clockAt, isToday } from "@/lib/format";
 import { useNow } from "@/lib/use-clock";
 
 /**
@@ -27,7 +27,9 @@ export function WalkthroughBar() {
   const may = canLab || canFrontOffice;
   const every = rules.walkthrough_minutes * 60000;
 
-  const last = walkthroughs[0] ?? null;
+  // Today's walks only. Yesterday's last walk is not this morning's answer,
+  // and counting down from it would open the day fourteen hours overdue.
+  const last = walkthroughs.find((w) => isToday(w.walked_at, center.timezone, now)) ?? null;
   const lastAt = last ? new Date(last.walked_at).getTime() : null;
   const due = lastAt === null ? null : lastAt + every;
   const live = now > 0;

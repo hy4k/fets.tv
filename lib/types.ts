@@ -267,6 +267,22 @@ export type DutyBlock = {
   created_at: string;
 };
 
+/**
+ * What accepting a handover answered.
+ *
+ * A wrong PIN comes back as a verdict rather than an error because the attempt
+ * has to be counted, and an exception would roll the count back with it.
+ */
+export type HandoverVerdict =
+  | { ok: true; block: DutyBlock }
+  | {
+      ok: false;
+      reason: "no_pin" | "wrong_pin" | "locked";
+      name: string;
+      tries_left?: number;
+      locked_until?: string | null;
+    };
+
 /** One line of a Center Problem Report timeline, as the database assembles it. */
 export type ReportEntry = {
   at: string;
@@ -684,8 +700,10 @@ export type Database = {
           p_pin: string;
           p_handover_note?: string | null;
           p_minutes?: number | null;
+          /** The block the screen was showing, or null if it showed nobody on. */
+          p_expected_block?: string | null;
         };
-        Returns: DutyBlock;
+        Returns: HandoverVerdict;
       };
       fets_set_pin: { Args: { p_profile: string; p_pin: string }; Returns: void };
       fets_clear_pin: { Args: { p_profile: string }; Returns: void };

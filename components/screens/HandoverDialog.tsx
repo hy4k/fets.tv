@@ -6,7 +6,7 @@ import { useConsole } from "@/lib/console-data";
 import { clockAt, sinceLabel } from "@/lib/format";
 import { handoverState, isQuiet } from "@/lib/handover";
 import { useNow } from "@/lib/use-clock";
-import type { DutyBlock, DutyPost } from "@/lib/types";
+import type { DutyBlock, DutyPost, HandoverVerdict } from "@/lib/types";
 
 /**
  * Handing a post over.
@@ -44,7 +44,8 @@ export function HandoverDialog({
     pinSetAt,
     dutyBlocks,
     dutyPosts,
-    rpc,
+    rpcRead,
+    notify,
   } = useConsole();
 
   const now = useNow();
@@ -54,6 +55,8 @@ export function HandoverDialog({
   const [pin, setPin] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  /** A refused PIN, said here rather than in a toast that slides away. */
+  const [refused, setRefused] = useState<string | null>(null);
 
   const state = useMemo(
     () =>
@@ -67,6 +70,7 @@ export function HandoverDialog({
           walkthroughs,
           workstations,
           walkthroughMinutes: rules.walkthrough_minutes,
+          timezone: center.timezone,
         },
         now,
       ),
@@ -79,6 +83,7 @@ export function HandoverDialog({
       walkthroughs,
       workstations,
       rules,
+      center,
       now,
     ],
   );
@@ -101,19 +106,32 @@ export function HandoverDialog({
   async function accept() {
     if (!ready || busy) return;
     setBusy(true);
-    const ok = await rpc(
-      "fets_accept_handover",
-      {
-        p_post: post.id,
-        p_profile: taking,
-        p_pin: pin,
-        p_handover_note: note.trim() || null,
-      },
-      `${operators[taking!]} has ${post.name}`,
-    );
+    setRefused(null);
+
+    const verdict = (await rpcRead("fets_accept_handover", {
+      p_post: post.id,
+      p_profile: taking,
+      p_pin: pin,
+      p_handover_note: note.trim() || null,
+      // The block this screen was showing. If somebody else has moved the post
+      // in the meantime the database refuses, rather than pinning one person's
+      // account on another and closing a block that has only just started.
+      p_expected_block: current.id,
+    })) as HandoverVerdict | undefined;
+
     setBusy(false);
     setPin("");
-    if (ok) onClose();
+
+    // Undefined means the call itself failed and has already been reported.
+    if (!verdict) return;
+
+    if (verdict.ok) {
+      notify(`${operators[taking!]} has ${post.name}`);
+      onClose();
+      return;
+    }
+
+    setRefused(refusal(verdict));
   }
 
   return (
@@ -281,6 +299,7 @@ export function HandoverDialog({
                   onClick={() => {
                     setTaking(chosen ? null : id);
                     setPin("");
+                    setRefused(null);
                   }}
                   className={`cursor-pointer rounded-[12px] border px-[12px] py-[9px] text-left text-[13px] font-semibold ${
                     chosen
@@ -318,7 +337,10 @@ export function HandoverDialog({
                 </span>
                 <input
                   value={pin}
-                  onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
+                  onChange={(e) => {
+                    setPin(e.target.value.replace(/[^0-9]/g, "").slice(0, 6));
+                    setRefused(null);
+                  }}
                   type="password"
                   inputMode="numeric"
                   autoComplete="off"
@@ -331,10 +353,39 @@ export function HandoverDialog({
                 />
               </label>
             ))}
+
+          {refused && (
+            <p className="rounded-[12px] border border-rust/50 bg-rust/10 px-[11px] py-[9px] text-[12.5px] font-semibold text-rust">
+              {refused}
+            </p>
+          )}
         </section>
       </div>
     </Dialog>
   );
+}
+
+/**
+ * What to say when a PIN is turned down.
+ *
+ * Counting the tries out loud is deliberate. Somebody mistyping their own PIN
+ * should know a lockout is coming before it arrives; somebody guessing
+ * somebody else's learns only that the room is not worth the afternoon.
+ */
+function refusal(v: Extract<HandoverVerdict, { ok: false }>) {
+  if (v.reason === "no_pin") {
+    return `${v.name} has not set a PIN yet. An admin can set one under Setup.`;
+  }
+  if (v.reason === "locked") {
+    return v.locked_until
+      ? `Too many wrong tries. ${v.name} can sign again after ${new Date(
+          v.locked_until,
+        ).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}.`
+      : `Too many wrong tries. ${v.name} is locked out for a few minutes.`;
+  }
+  return v.tries_left === 1
+    ? "That PIN is not right. One more wrong try locks it."
+    : `That PIN is not right. ${v.tries_left ?? 0} tries left.`;
 }
 
 function Tally({ n, label, tone }: { n: number; label: string; tone: boolean }) {

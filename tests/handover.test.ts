@@ -136,6 +136,7 @@ function run(over: Partial<Parameters<typeof handoverState>[0]> = {}, now = NOW)
       walkthroughs: [],
       workstations: [],
       walkthroughMinutes: 10,
+      timezone: "UTC",
       ...over,
     },
     now,
@@ -330,4 +331,37 @@ test("a timestamp that will not parse becomes null rather than an Invalid Date",
   assert.equal(s.seated[0].onBreak, true);
   assert.equal(s.seated[0].breakSince, null);
   assert.equal(s.seated[0].endsAt, null);
+});
+
+test("yesterday's last walk is not today's", () => {
+  const s = run({
+    walkthroughs: [
+      walk({ id: "yesterday", walked_at: "2026-09-22T18:00:00Z" }),
+      walk({ id: "earlier", walked_at: "2026-09-22T17:00:00Z" }),
+    ],
+  });
+  assert.equal(s.lastWalk, null);
+  assert.equal(s.walkOverdueMinutes, null);
+});
+
+test("today's newest walk is the one reported, ahead of yesterday's", () => {
+  const s = run({
+    walkthroughs: [
+      walk({ id: "today", walked_at: "2026-09-23T04:52:00Z" }),
+      walk({ id: "yesterday", walked_at: "2026-09-22T18:00:00Z" }),
+    ],
+  });
+  assert.equal(s.lastWalk?.id, "today");
+  assert.equal(s.walkOverdueMinutes, -2);
+});
+
+test("the day is the centre's, not the server's", () => {
+  // 23:30 UTC on the 22nd is 05:00 on the 23rd in Calicut and 19:30 on the
+  // 22nd in New York, so the same walk is today's in one and yesterday's in
+  // the other. The clock is 09:30 and 00:00 respectively.
+  const w = [walk({ walked_at: "2026-09-22T23:30:00Z" })];
+  const now = new Date("2026-09-23T04:00:00Z").getTime();
+
+  assert.equal(run({ walkthroughs: w, timezone: "Asia/Kolkata" }, now).lastWalk?.id, "w1");
+  assert.equal(run({ walkthroughs: w, timezone: "America/New_York" }, now).lastWalk, null);
 });
