@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { DataGaps } from "@/components/console/DataGaps";
 import { Header } from "@/components/console/Header";
 import { NavRail } from "@/components/console/NavRail";
 import { Toasts } from "@/components/console/Toasts";
@@ -88,7 +89,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
           .eq("exam_session_id", session.id)
           .order("scheduled_at", { ascending: true, nullsFirst: false })
           .order("public_token", { ascending: true })
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve({ data: [], error: null }),
     supabase
       .from("incidents")
       .select("*")
@@ -107,7 +108,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
       .order("started_at", { ascending: false }),
     session
       ? supabase.from("candidate_materials").select("*").eq("exam_session_id", session.id)
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve({ data: [], error: null }),
     // Every kind, not only the active ones: something retired mid-day may
     // still be in somebody's hands, and it has to stay collectable.
     supabase.from("material_kinds").select("*").order("sort_order"),
@@ -122,7 +123,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
           .select("*")
           .eq("exam_session_id", session.id)
           .order("position")
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve({ data: [], error: null }),
     supabase.from("duty_posts").select("*").eq("center_id", center.id).order("position"),
     supabase
       .from("walkthroughs")
@@ -209,13 +210,19 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
     operators: Object.fromEntries((operators.data ?? []).map((o) => [o.id, o.display_name])),
     pinSetAt: Object.fromEntries((operators.data ?? []).map((o) => [o.id, o.pin_set_at])),
     staffDays: staffDays.data ?? [],
-    // Null when the fetch failed: an empty rota and an unread one look the
-    // same from here, and on the coverage screen they mean opposite things.
-    staffDaysWindow: staffDays.error ? null : rotaWindow,
-    // Any of the three unread and the coverage screen says so rather than
-    // guessing; nothing has been read twice yet, so nothing can be stale.
-    rotaUnread: Boolean(staffDays.error || dutyPosts.error || operators.error),
-    rotaStale: false,
+    staffDaysWindow: rotaWindow,
+    // What never arrived. Nothing has been read twice yet, so nothing can be
+    // stale; a first load either has the rows or does not.
+    unread: [
+      ...(candidates.error ? (["candidates"] as const) : []),
+      ...(incidents.error || openIncidents.error ? (["incidents"] as const) : []),
+      ...(materials.error ? (["candidate_materials"] as const) : []),
+      ...(openBreaks.error ? (["candidate_breaks"] as const) : []),
+      ...(staffDays.error ? (["staff_days"] as const) : []),
+      ...(dutyPosts.error ? (["duty_posts"] as const) : []),
+      ...(operators.error ? (["profiles"] as const) : []),
+    ],
+    stale: [],
   };
 
   return (
@@ -227,6 +234,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
         <NavRail />
         <main className="order-first flex min-h-0 min-w-0 flex-1 flex-col gap-[10px] md:order-none md:gap-[14px]">
           <Header />
+          <DataGaps />
           {children}
         </main>
         <Toasts />
