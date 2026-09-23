@@ -18,7 +18,7 @@ type Group = { key: string; title: string; items: Item[] };
  */
 export function NavRail() {
   const pathname = usePathname();
-  const { candidates, call, notice, openBreaks, incidents } = useConsole();
+  const { candidates, call, notice, openBreaks, incidents, canCall } = useConsole();
 
   const waiting = candidates.filter((c) => c.status === "waiting" && !c.called_at).length;
   const testing = candidates.filter((c) => c.exam_started_at && !c.exam_finished_at).length;
@@ -67,6 +67,11 @@ export function NavRail() {
       title: "Elsewhere",
       items: [
         { href: "/history", label: "Past days", short: "Past", badge: 0 },
+        // Only admins and TCAs may read a problem report, so only they are
+        // shown the way to one.
+        ...(canCall
+          ? [{ href: "/report", label: "Problem report", short: "Report", badge: 0 }]
+          : []),
         { href: "/tv", label: "TV screen", short: "TV", badge: 0 },
         { href: "/notices", label: "Messages", short: "Message", badge: notice ? 1 : 0 },
         { href: "/settings/center", label: "Setup", short: "Setup", badge: 0 },
