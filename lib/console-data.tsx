@@ -10,6 +10,7 @@ import type {
   DutyBlock,
   DutyPost,
   Walkthrough,
+  StaffDay,
   DisplayNotice,
   NoticeTemplate,
   CandidateEvent,
@@ -47,6 +48,8 @@ export type ConsoleSnapshot = {
   dutyBlocks: DutyBlock[];
   /** Walks of the floor, newest first. */
   walkthroughs: Walkthrough[];
+  /** Who is not fully in, on which day. No row means in. */
+  staffDays: StaffDay[];
   labs: Lab[];
   columnAliases: RosterColumnAlias[];
   workstations: Workstation[];
@@ -97,6 +100,19 @@ export function useConsole() {
 }
 
 let toastSeq = 0;
+
+/**
+ * How much of the rota travels in the snapshot: five weeks back, twelve on.
+ *
+ * Enough to page the grid a couple of months out without another round trip,
+ * and far short of the year the database will accept, so a full history never
+ * rides along on a refresh that happens every time anybody presses anything.
+ */
+export function weekWindow(now: Date = new Date()) {
+  const day = 86400000;
+  const iso = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+  return { from: iso(now.getTime() - 35 * day), to: iso(now.getTime() + 84 * day) };
+}
 
 /** Two overlapping fetches into one list, first occurrence winning. */
 function mergeById<T extends { id: string }>(...lists: T[][]) {
@@ -166,6 +182,7 @@ export function ConsoleProvider({
       noticeTemplates,
       notice,
       staff,
+      staffDays,
     ] = await Promise.all([
       candidatesQuery,
       supabase
@@ -239,6 +256,15 @@ export function ConsoleProvider({
         .limit(1)
         .maybeSingle(),
       supabase.from("profiles").select("id, display_name, pin_set_at").eq("center_id", centerId),
+      // A window around today, not the whole history: the grid can page a few
+      // weeks either way without another round trip, and a year of rota does
+      // not ride along on every refresh.
+      supabase
+        .from("staff_days")
+        .select("*")
+        .eq("center_id", centerId)
+        .gte("on_date", weekWindow().from)
+        .lte("on_date", weekWindow().to),
     ]);
 
     setSnapshot((prev) => ({
@@ -276,6 +302,7 @@ export function ConsoleProvider({
       pinSetAt: staff.data
         ? Object.fromEntries(staff.data.map((o) => [o.id, o.pin_set_at]))
         : prev.pinSetAt,
+      staffDays: staffDays.data ?? prev.staffDays,
     }));
   }, [centerId, supabase]);
 
@@ -299,6 +326,7 @@ export function ConsoleProvider({
       ["duty_posts", `center_id=eq.${centerId}`],
       ["walkthroughs", `center_id=eq.${centerId}`],
       ["profiles", `center_id=eq.${centerId}`],
+      ["staff_days", `center_id=eq.${centerId}`],
       ["labs", `center_id=eq.${centerId}`],
       ["workstations", `center_id=eq.${centerId}`],
       ["public_display_calls", `center_id=eq.${centerId}`],
