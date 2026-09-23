@@ -208,6 +208,52 @@ export type Incident = {
   created_at: string;
 };
 
+/** One line of a Center Problem Report timeline, as the database assembles it. */
+export type ReportEntry = {
+  at: string;
+  kind: "incident" | "override" | "correction";
+  category: string;
+  severity: IncidentSeverity;
+  title: string;
+  detail: string | null;
+  token: string | null;
+  seat: string | null;
+  minutes_lost: number | null;
+  resolved_at: string | null;
+  resolution: string | null;
+  reportable: boolean;
+};
+
+/** One exam part that ran late, gathered across everybody who sat it. */
+export type ReportDelay = {
+  name: string;
+  candidates: number;
+  worst_minutes: number;
+  median_minutes: number;
+};
+
+/**
+ * A day's report. The timeline and the counts are read out of what happened;
+ * only the narrative is typed. Once signed off the whole thing is served from
+ * a frozen snapshot, so it cannot drift from what was sent.
+ */
+export type ProblemReport = {
+  generated_at: string;
+  live: boolean;
+  session: { id: string; exam_name: string; exam_date: string; status: string };
+  center: { name: string; code: string; timezone: string };
+  counts: { rostered: number; sat: number; finished: number; signed_out: number; no_shows: number };
+  timeline: ReportEntry[];
+  delays: ReportDelay[];
+  narrative: {
+    summary: string | null;
+    actions_taken: string | null;
+    reported_to: string | null;
+    status: "draft" | "final";
+    finalised_at: string | null;
+  };
+};
+
 export type SectionKind = "section" | "tutorial" | "break";
 
 /** One part of an exam, as planned. The estimate the centre works to. */
@@ -529,6 +575,18 @@ export type Database = {
         Returns: CandidateSection;
       };
       fets_clear_section: { Args: { p_candidate: string; p_position: number }; Returns: void };
+      fets_problem_report: { Args: { p_session: string }; Returns: ProblemReport };
+      fets_save_problem_report: {
+        Args: {
+          p_session: string;
+          p_summary?: string | null;
+          p_actions?: string | null;
+          p_reported_to?: string | null;
+        };
+        Returns: unknown;
+      };
+      fets_finalise_problem_report: { Args: { p_session: string }; Returns: unknown };
+      fets_reopen_problem_report: { Args: { p_session: string }; Returns: unknown };
     };
     Enums: {
       staff_role: StaffRole;
