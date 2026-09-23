@@ -212,6 +212,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
     // Null when the fetch failed: an empty rota and an unread one look the
     // same from here, and on the coverage screen they mean opposite things.
     staffDaysWindow: staffDays.error ? null : rotaWindow,
+    staffDaysStale: false,
   };
 
   return (

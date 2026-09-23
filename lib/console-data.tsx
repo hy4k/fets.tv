@@ -66,6 +66,16 @@ export type ConsoleSnapshot = {
    * not be able to tell it by failing.
    */
   staffDaysWindow: { from: string; to: string } | null;
+  /**
+   * True when the last attempt to re-read the rota failed.
+   *
+   * Distinct from a null window, which means there is nothing to show at all.
+   * Here there *are* rows, they are simply the ones from before — possibly
+   * from before an edit that has already been written. The screen keeps
+   * drawing them, because a blank grid on a flaky connection helps nobody,
+   * but it stops presenting them as current.
+   */
+  staffDaysStale: boolean;
   labs: Lab[];
   columnAliases: RosterColumnAlias[];
   workstations: Workstation[];
@@ -311,6 +321,7 @@ export function ConsoleProvider({
         : prev.pinSetAt,
       staffDays: staffDays.data ?? prev.staffDays,
       staffDaysWindow: staffDays.error ? prev.staffDaysWindow : window,
+      staffDaysStale: Boolean(staffDays.error),
     }));
   }, [centerId, supabase]);
 
