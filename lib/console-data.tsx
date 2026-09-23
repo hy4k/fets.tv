@@ -51,6 +51,14 @@ export type ConsoleSnapshot = {
   walkthroughs: Walkthrough[];
   /** Who is not fully in, on which day. No row means in. */
   staffDays: StaffDay[];
+  /**
+   * The dates `staffDays` was actually fetched for.
+   *
+   * Carried rather than recomputed, because the screen's clock ticks every
+   * second while this list was fetched once: recomputing the bounds from a
+   * live `now` eventually claims a week the snapshot never loaded.
+   */
+  staffDaysWindow: { from: string; to: string };
   labs: Lab[];
   columnAliases: RosterColumnAlias[];
   workstations: Workstation[];
@@ -128,6 +136,10 @@ export function ConsoleProvider({
   }, []);
 
   const refresh = useCallback(async () => {
+    // Worked out once, so the rows and the bounds recorded beside them are
+    // the same pair even if this runs across midnight.
+    const window = weekWindow();
+
     const { data: session } = await supabase
       .from("exam_sessions")
       .select("*")
@@ -251,8 +263,8 @@ export function ConsoleProvider({
         .from("staff_days")
         .select("*")
         .eq("center_id", centerId)
-        .gte("on_date", weekWindow().from)
-        .lte("on_date", weekWindow().to),
+        .gte("on_date", window.from)
+        .lte("on_date", window.to),
     ]);
 
     setSnapshot((prev) => ({
@@ -291,6 +303,7 @@ export function ConsoleProvider({
         ? Object.fromEntries(staff.data.map((o) => [o.id, o.pin_set_at]))
         : prev.pinSetAt,
       staffDays: staffDays.data ?? prev.staffDays,
+      staffDaysWindow: staffDays.data ? window : prev.staffDaysWindow,
     }));
   }, [centerId, supabase]);
 

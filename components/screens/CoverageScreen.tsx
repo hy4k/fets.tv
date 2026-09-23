@@ -11,7 +11,6 @@ import {
   shortDays,
   thinDays,
   weekRange,
-  weekWindow,
 } from "@/lib/coverage";
 import type { DayState } from "@/lib/coverage";
 import { todayInZone } from "@/lib/format";
@@ -30,7 +29,8 @@ import { useNow } from "@/lib/use-clock";
  * console sees it.
  */
 export function CoverageScreen() {
-  const { center, dutyPosts, operators, staffDays, rpc, canCall } = useConsole();
+  const { center, dutyPosts, operators, staffDays, staffDaysWindow, rpc, canCall } =
+    useConsole();
   const now = useNow();
 
   // Before the clock starts on the client it reads zero, which would put the
@@ -46,11 +46,14 @@ export function CoverageScreen() {
   // covered that nobody has planned — and an edit out there would seem to do
   // nothing, because the refresh afterwards would not fetch it back.
   const range = useMemo(
-    () => (today ? weekRange(today, weekWindow(new Date(now))) : { min: 0, max: 0 }),
-    [today, now],
+    () => (today ? weekRange(today, staffDaysWindow) : { min: 0, max: 0 }),
+    [today, staffDaysWindow],
   );
-  const atStart = offset <= range.min;
-  const atEnd = offset >= range.max;
+  // A refresh can move the window under a console left open, so the offset is
+  // clamped where it is read rather than only where it is set.
+  const shown = Math.min(Math.max(offset, range.min), range.max);
+  const atStart = shown <= range.min;
+  const atEnd = shown >= range.max;
 
   const staff = useMemo(
     () =>
@@ -69,10 +72,10 @@ export function CoverageScreen() {
       staffDays,
       needs,
       timezone: center.timezone,
-      weekOf: shiftWeeks(mondayOf(today), offset),
+      weekOf: shiftWeeks(mondayOf(today), shown),
       now,
     });
-  }, [staff, staffDays, needs, center.timezone, today, offset, now]);
+  }, [staff, staffDays, needs, center.timezone, today, shown, now]);
 
   const short = shortDays(week);
   const thin = thinDays(week);
@@ -106,7 +109,7 @@ export function CoverageScreen() {
           Who is in
         </span>
         <span className="font-serif text-[17px]">{monthLabel}</span>
-        {offset !== 0 && (
+        {shown !== 0 && (
           <button
             type="button"
             onClick={() => setOffset(0)}
@@ -127,7 +130,7 @@ export function CoverageScreen() {
           <button
             type="button"
             disabled={atStart}
-            onClick={() => setOffset((o) => Math.max(o - 1, range.min))}
+            onClick={() => setOffset(Math.max(shown - 1, range.min))}
             aria-label="The week before"
             title={atStart ? "The rota does not go back further than this" : "The week before"}
             className="cursor-pointer rounded-[11px] border border-edge-warm px-[13px] py-[8px] text-[13px] font-semibold hover:bg-panel disabled:cursor-not-allowed disabled:opacity-35"
@@ -137,7 +140,7 @@ export function CoverageScreen() {
           <button
             type="button"
             disabled={atEnd}
-            onClick={() => setOffset((o) => Math.min(o + 1, range.max))}
+            onClick={() => setOffset(Math.min(shown + 1, range.max))}
             aria-label="The week after"
             title={atEnd ? "The rota does not go forward further than this" : "The week after"}
             className="cursor-pointer rounded-[11px] border border-edge-warm px-[13px] py-[8px] text-[13px] font-semibold hover:bg-panel disabled:cursor-not-allowed disabled:opacity-35"
@@ -174,7 +177,7 @@ export function CoverageScreen() {
             )}
             {short.length === 0 &&
               thin.length === 0 &&
-              (offset < 0 ? "Nothing outstanding in this week." : "Every day this week is covered.")}
+              (shown < 0 ? "Nothing outstanding in this week." : "Every day this week is covered.")}
           </>
         )}
       </div>
@@ -263,7 +266,7 @@ export function CoverageScreen() {
                     {d.inCount}
                     {d.halfCount > 0 && (
                       <span className="ml-[2px] text-[11px] font-normal">
-                        {d.halfCount > 1 && d.halfCount}+½
+                        {d.halfCount > 1 ? `+${d.halfCount}×½` : "+½"}
                       </span>
                     )}
                   </span>

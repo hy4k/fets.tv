@@ -53,6 +53,9 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
     );
   }
 
+  // Once, so the rows and the bounds recorded beside them are the same pair.
+  const rotaWindow = weekWindow();
+
   const [
     candidates,
     incidents,
@@ -175,8 +178,8 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
       .from("staff_days")
       .select("*")
       .eq("center_id", center.id)
-      .gte("on_date", weekWindow().from)
-      .lte("on_date", weekWindow().to),
+      .gte("on_date", rotaWindow.from)
+      .lte("on_date", rotaWindow.to),
   ]);
 
   const snapshot: ConsoleSnapshot = {
@@ -206,6 +209,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
     operators: Object.fromEntries((operators.data ?? []).map((o) => [o.id, o.display_name])),
     pinSetAt: Object.fromEntries((operators.data ?? []).map((o) => [o.id, o.pin_set_at])),
     staffDays: staffDays.data ?? [],
+    staffDaysWindow: rotaWindow,
   };
 
   return (
