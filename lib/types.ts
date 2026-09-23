@@ -31,6 +31,8 @@ export type Profile = {
   center_id: string;
   role: StaffRole;
   display_name: string;
+  /** When they last set a signing PIN. Null means they cannot sign for a post. */
+  pin_set_at: string | null;
   created_at: string;
 };
 
@@ -255,6 +257,12 @@ export type DutyBlock = {
   minutes: number;
   ended_at: string | null;
   note: string | null;
+  /** What the outgoing person said they were handing over. On *their* block. */
+  handover_note: string | null;
+  /** When the person coming on signed for the post. */
+  accepted_at: string | null;
+  /** Whether they typed their PIN, or an admin simply put them on. */
+  accepted_with_pin: boolean;
   started_by: string | null;
   created_at: string;
 };
@@ -669,6 +677,18 @@ export type Database = {
         Args: { p_center: string; p_minutes?: number | null; p_at?: string | null };
         Returns: DutyBlock[];
       };
+      fets_accept_handover: {
+        Args: {
+          p_post: string;
+          p_profile: string;
+          p_pin: string;
+          p_handover_note?: string | null;
+          p_minutes?: number | null;
+        };
+        Returns: DutyBlock;
+      };
+      fets_set_pin: { Args: { p_profile: string; p_pin: string }; Returns: void };
+      fets_clear_pin: { Args: { p_profile: string }; Returns: void };
       fets_record_walkthrough: {
         Args: { p_center: string; p_note?: string | null };
         Returns: Walkthrough;
