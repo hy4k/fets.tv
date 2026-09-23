@@ -19,8 +19,11 @@ export async function POST(request: NextRequest) {
     .select("role, center_id")
     .eq("id", user.id)
     .maybeSingle();
-  if (profile?.role !== "admin") {
-    return Response.json({ error: "Only an admin can import a roster" }, { status: 403 });
+  // Staff, not admins. This route reads the uploaded file and never writes, but
+  // it is the only way into the importer, so gating it on `admin` shut every
+  // TCA out of the roster entirely.
+  if (!profile || profile.role === "viewer") {
+    return Response.json({ error: "Only staff can import a roster" }, { status: 403 });
   }
 
   // Column headings this centre has taught the importer, on top of the built-in
