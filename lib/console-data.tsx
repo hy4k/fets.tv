@@ -46,6 +46,15 @@ export type ConsoleSnapshot = {
   candidateSections: CandidateSection[];
   /** The posts this centre staffs, and who is on them. */
   dutyPosts: DutyPost[];
+  /**
+   * True when the posts could not be read at all.
+   *
+   * An empty list and an unread one are the same shape and opposite facts: no
+   * posts means the centre has not set any up, while an unread list means we
+   * do not know how many people a day needs. The coverage screen has to tell
+   * those apart before it says anything about a day.
+   */
+  dutyPostsUnread: boolean;
   dutyBlocks: DutyBlock[];
   /** Walks of the floor, newest first. */
   walkthroughs: Walkthrough[];
@@ -296,6 +305,7 @@ export function ConsoleProvider({
       programmeSections: programmeSections.data ?? prev.programmeSections,
       candidateSections: candidateSections?.data ?? (session ? prev.candidateSections : []),
       dutyPosts: dutyPosts.data ?? prev.dutyPosts,
+      dutyPostsUnread: Boolean(dutyPosts.error) && prev.dutyPostsUnread,
       walkthroughs: walkthroughs.data ?? prev.walkthroughs,
       dutyBlocks:
         openDuty.data || servedDuty.data

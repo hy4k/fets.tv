@@ -194,6 +194,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
     programmeSections: programmeSections.data ?? [],
     candidateSections: candidateSections.data ?? [],
     dutyPosts: dutyPosts.data ?? [],
+    dutyPostsUnread: Boolean(dutyPosts.error),
     walkthroughs: walkthroughs.data ?? [],
     dutyBlocks: [...(openDuty.data ?? []), ...(servedDuty.data ?? [])],
     labs: labs.data ?? [],

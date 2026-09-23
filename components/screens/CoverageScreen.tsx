@@ -29,8 +29,17 @@ import { useNow } from "@/lib/use-clock";
  * console sees it.
  */
 export function CoverageScreen() {
-  const { center, dutyPosts, operators, staffDays, staffDaysWindow, staffDaysStale, rpc, canCall } =
-    useConsole();
+  const {
+    center,
+    dutyPosts,
+    dutyPostsUnread,
+    operators,
+    staffDays,
+    staffDaysWindow,
+    staffDaysStale,
+    rpc,
+    canCall,
+  } = useConsole();
   const now = useNow();
 
   // Before the clock starts on the client it reads zero, which would put the
@@ -97,12 +106,14 @@ export function CoverageScreen() {
   }
 
   // Saying nothing is the only honest answer here. Drawing the grid from rows
-  // that never arrived would show everybody in and every day covered.
-  if (!staffDaysWindow) {
+  // that never arrived would show everybody in and every day covered, and
+  // without the posts there is no number for a day to fall short of.
+  if (!staffDaysWindow || dutyPostsUnread) {
     return (
       <div className="rounded-[15px] border-2 border-rust bg-rust/12 px-[15px] py-[12px] text-[13.5px] font-semibold text-rust">
-        The rota could not be read, so this cannot say who is in. Reload the page; if it keeps
-        happening the database is refusing the request and an admin should look.
+        {dutyPostsUnread ? "The posts" : "The rota"} could not be read, so this cannot say who is
+        in. Reload the page; if it keeps happening the database is refusing the request and an
+        admin should look.
       </div>
     );
   }
