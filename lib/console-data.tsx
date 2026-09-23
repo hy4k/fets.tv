@@ -315,18 +315,26 @@ export function ConsoleProvider({
       ...(staff.error ? (["profiles"] as const) : []),
     ];
 
+    // Whether there is an exam on, as far as this refresh knows. A failed read
+    // is not an answer to that question, so it does not get to say no.
+    const stillADay = sessionError || session !== null;
+
     setSnapshot((prev) => ({
       ...prev,
-      // Keep the day we had rather than declaring there isn't one.
+      // Keep the day we had rather than declaring there isn't one, and clear
+      // what hangs off it only when there is genuinely no day — never because
+      // the read of it failed. `stillADay` is that distinction: a real absence
+      // empties the roster, an unread one leaves it exactly where it was.
       session: sessionError ? prev.session : (session ?? null),
-      candidates: candidates?.data ?? (session ? prev.candidates : []),
+      candidates: candidates?.data ?? (stillADay ? prev.candidates : []),
       incidents:
         incidents.data || openIncidents.data
           ? mergeById(openIncidents.data ?? [], incidents.data ?? [])
           : prev.incidents,
-      materials: materials?.data ?? (session ? prev.materials : []),
+      materials: materials?.data ?? (stillADay ? prev.materials : []),
       programmeSections: programmeSections.data ?? prev.programmeSections,
-      candidateSections: candidateSections?.data ?? (session ? prev.candidateSections : []),
+      candidateSections:
+        candidateSections?.data ?? (stillADay ? prev.candidateSections : []),
       dutyPosts: dutyPosts.data ?? prev.dutyPosts,
       walkthroughs: walkthroughs.data ?? prev.walkthroughs,
       dutyBlocks:
