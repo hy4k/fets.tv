@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useConsole } from "@/lib/console-data";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { clockAt } from "@/lib/format";
@@ -25,7 +25,13 @@ const TONE: Record<string, string> = {
  * not a report, so from then on the page serves the copy that was sent.
  */
 export function ReportScreen() {
-  const { center, session, notify, isAdmin } = useConsole();
+  const { center, session, notify, isAdmin, profile, incidents, candidates, candidateSections } =
+    useConsole();
+
+  // A report is a management document, and the function behind it says so. The
+  // rail hides the link from everybody else; this is the same rule for anybody
+  // who reaches the page by its address.
+  const allowed = profile.role === "admin" || profile.role === "tca";
 
   const [days, setDays] = useState<ExamSession[]>([]);
   const [dayId, setDayId] = useState<string | null>(session?.id ?? null);
@@ -60,28 +66,47 @@ export function ReportScreen() {
     };
   }, [center.id]);
 
+  // Answers can come back out of order, and the slow one must not win: only the
+  // reply to the most recent question is allowed to land.
+  const asked = useRef(0);
+
   const load = useCallback(
-    (id: string) =>
+    (id: string, keepNarrative = false) => {
+      const ticket = ++asked.current;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (supabaseBrowser().rpc as any)("fets_problem_report", { p_session: id }).then(
+      return (supabaseBrowser().rpc as any)("fets_problem_report", { p_session: id }).then(
         ({ data, error }: { data: ProblemReport | null; error: { message: string } | null }) => {
+          if (ticket !== asked.current) return;
           setLoadedId(id);
           if (error) {
+            setReport(null);
             notify(error.message, "error");
             return;
           }
           setReport(data);
+          // A reload triggered by the day moving on must not wipe out what
+          // somebody is halfway through typing.
+          if (keepNarrative) return;
           setSummary(data?.narrative.summary ?? "");
           setActions(data?.narrative.actions_taken ?? "");
           setReportedTo(data?.narrative.reported_to ?? "");
         },
-      ),
+      );
+    },
     [notify],
   );
 
   useEffect(() => {
-    if (dayId) void load(dayId);
-  }, [dayId, load]);
+    if (dayId && allowed) void load(dayId);
+  }, [dayId, load, allowed]);
+
+  // The draft of a day still running has to keep up with it. The console already
+  // hears about incidents, candidates and sections; this follows that rather
+  // than polling, and leaves the typed part alone.
+  const pulse = `${incidents.length}:${candidates.length}:${candidateSections.length}`;
+  useEffect(() => {
+    if (dayId && allowed && dayId === session?.id) void load(dayId, true);
+  }, [pulse, dayId, allowed, session?.id, load]);
 
   async function call(fn: string, args: Record<string, unknown>, ok: string) {
     setBusy(true);
@@ -125,7 +150,7 @@ export function ReportScreen() {
             Signed off {clockAt(report?.narrative.finalised_at ?? null, tz)}
           </span>
         )}
-        {report && (
+        {report && !loading && (
           <button
             type="button"
             onClick={() => {
@@ -141,19 +166,25 @@ export function ReportScreen() {
         )}
       </div>
 
-      {loading && (
+      {!allowed && (
+        <p className="rounded-[16px] border border-edge bg-panel-soft p-[16px] text-[13px] text-fg-muted">
+          The problem report is written by admins and TCAs. Ask one of them if you need a copy.
+        </p>
+      )}
+
+      {allowed && loading && (
         <p className="rounded-[16px] border border-edge bg-panel-soft p-[16px] text-[13px] text-fg-faint">
           Reading the day…
         </p>
       )}
 
-      {!loading && !report && (
+      {allowed && !loading && !report && (
         <p className="rounded-[16px] border border-edge bg-panel-soft p-[16px] text-[13px] text-fg-faint">
           There is no day to report on yet.
         </p>
       )}
 
-      {report && (
+      {report && !loading && (
         <ReportBody
           report={report}
           timezone={tz}
@@ -333,6 +364,7 @@ export function ReportBody({
               onChange={onReportedTo}
               disabled={frozen}
               rows={1}
+              max={200}
               placeholder="Prometric, by email"
             />
 
@@ -435,6 +467,7 @@ function Field({
   disabled,
   rows,
   placeholder,
+  max = 4000,
 }: {
   label: string;
   value: string;
@@ -442,6 +475,7 @@ function Field({
   disabled: boolean;
   rows: number;
   placeholder: string;
+  max?: number;
 }) {
   return (
     <label className="block">
@@ -451,7 +485,7 @@ function Field({
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
         rows={rows}
-        maxLength={4000}
+        maxLength={max}
         placeholder={placeholder}
         className="w-full resize-none rounded-[13px] border border-edge-strong bg-panel-soft px-[12px] py-[10px] text-[13.5px] outline-none placeholder:text-fg-faint focus:border-gold/50 disabled:text-fg-muted"
       />
