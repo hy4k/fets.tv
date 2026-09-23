@@ -6,6 +6,7 @@ import type {
   Candidate,
   CandidateBreak,
   CandidateMaterial,
+  CandidateSection,
   DisplayNotice,
   NoticeTemplate,
   CandidateEvent,
@@ -16,6 +17,7 @@ import type {
   Incident,
   Lab,
   MaterialKind,
+  ProgrammeSection,
   Profile,
   RosterColumnAlias,
   PublicDisplay,
@@ -33,6 +35,10 @@ export type ConsoleSnapshot = {
   /** Everything handed out today, one row per person per thing. */
   materials: CandidateMaterial[];
   materialKinds: MaterialKind[];
+  /** The plan: which parts each exam has, and how long each should take. */
+  programmeSections: ProgrammeSection[];
+  /** What actually happened, for today's candidates. */
+  candidateSections: CandidateSection[];
   labs: Lab[];
   columnAliases: RosterColumnAlias[];
   workstations: Workstation[];
@@ -110,6 +116,8 @@ export function ConsoleProvider({
       candidates,
       incidents,
       materials,
+      programmeSections,
+      candidateSections,
       labs,
       columnAliases,
       workstations,
@@ -132,6 +140,14 @@ export function ConsoleProvider({
         .limit(60),
       session
         ? supabase.from("candidate_materials").select("*").eq("exam_session_id", session.id)
+        : null,
+      supabase.from("programme_sections").select("*").order("programme_id").order("position"),
+      session
+        ? supabase
+            .from("candidate_sections")
+            .select("*")
+            .eq("exam_session_id", session.id)
+            .order("position")
         : null,
       supabase.from("labs").select("*").eq("center_id", centerId).order("position"),
       supabase.from("roster_column_aliases").select("*").eq("center_id", centerId).order("field"),
@@ -172,6 +188,8 @@ export function ConsoleProvider({
       candidates: candidates?.data ?? (session ? prev.candidates : []),
       incidents: incidents.data ?? prev.incidents,
       materials: materials?.data ?? (session ? prev.materials : []),
+      programmeSections: programmeSections.data ?? prev.programmeSections,
+      candidateSections: candidateSections?.data ?? (session ? prev.candidateSections : []),
       labs: labs.data ?? prev.labs,
       columnAliases: columnAliases.data ?? prev.columnAliases,
       workstations: workstations.data ?? prev.workstations,
@@ -202,6 +220,7 @@ export function ConsoleProvider({
       ["candidate_events", `center_id=eq.${centerId}`],
       ["incidents", `center_id=eq.${centerId}`],
       ["candidate_materials", `center_id=eq.${centerId}`],
+      ["candidate_sections", `center_id=eq.${centerId}`],
       ["labs", `center_id=eq.${centerId}`],
       ["workstations", `center_id=eq.${centerId}`],
       ["public_display_calls", `center_id=eq.${centerId}`],

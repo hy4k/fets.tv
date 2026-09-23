@@ -1,15 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import { Dialog } from "@/components/ui/Dialog";
 import { useConsole } from "@/lib/console-data";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { HEADER_ALIASES } from "@/lib/roster/parse";
-import type { Lab, ScheduleRules } from "@/lib/types";
+import type { ExamProgramme, Lab, ScheduleRules, SectionKind } from "@/lib/types";
 
 const SECTIONS = [
   { key: "centre", label: "Centre", blurb: "Name, timezone, and what the TV shows" },
   { key: "labs", label: "Labs and seats", blurb: "How many seats each lab has" },
-  { key: "exams", label: "Exams", blurb: "Which exams run here, and how long they last" },
+  { key: "exams", label: "Exams", blurb: "Which exams run here, how long, and their parts" },
   { key: "day", label: "The day", blurb: "Start, end, break and how candidates are spread out" },
   { key: "flow", label: "Check in and calling", blurb: "Which steps a candidate passes through" },
   { key: "roster", label: "Roster columns", blurb: "Which spreadsheet headings the importer reads" },
@@ -218,7 +219,10 @@ function LabsSection() {
 /* ----------------------------------------------------------------- exams -- */
 
 function ExamsSection() {
-  const { programmes, notify, refresh, isAdmin } = useConsole();
+  const { programmes, programmeSections, notify, refresh, isAdmin } = useConsole();
+  const [editing, setEditing] = useState<ExamProgramme | null>(null);
+
+  const partsCount = (id: string) => programmeSections.filter((s) => s.programme_id === id).length;
 
   async function save(id: string, minutes: number) {
     const { error } = await supabaseBrowser()
@@ -254,13 +258,198 @@ function ExamsSection() {
                 onCommit={(m) => save(p.id, m)}
               />
               <span className="text-[12px] text-fg-faint">min</span>
+              <button
+                type="button"
+                onClick={() => setEditing(p)}
+                className="shrink-0 cursor-pointer rounded-[11px] border border-edge-warm px-[12px] py-[8px] text-[12px] font-semibold hover:bg-panel"
+              >
+                {partsCount(p.id) > 0 ? `${partsCount(p.id)} parts` : "Add parts"}
+              </button>
             </div>
           ))}
         </div>
       )}
+
+      {editing && <SectionsEditor key={editing.id} programme={editing} onClose={() => setEditing(null)} />}
     </Panel>
   );
 }
+
+/**
+ * The parts of one exam, as a plan.
+ *
+ * Edited as a whole list and saved in one go, because that is how somebody
+ * thinks about it -- "CELPIP is these four things in this order" -- and a
+ * save-per-row would let a half-finished plan reach the floor.
+ */
+function SectionsEditor({ programme, onClose }: { programme: ExamProgramme; onClose: () => void }) {
+  const { programmeSections, rpc, isAdmin } = useConsole();
+  const [rows, setRows] = useState<Draft[]>(() =>
+    programmeSections
+      .filter((s) => s.programme_id === programme.id)
+      .sort((a, b) => a.position - b.position)
+      .map((s) => ({ key: String(s.id), name: s.name, minutes: String(s.minutes), kind: s.kind })),
+  );
+  const [saving, setSaving] = useState(false);
+
+  const planned = rows.reduce((n, r) => n + (Number(r.minutes) || 0), 0);
+  const gap = planned - programme.default_duration_minutes;
+
+  function add() {
+    setRows((list) => [
+      ...list,
+      { key: `new-${crypto.randomUUID()}`, name: "", minutes: "30", kind: "section" },
+    ]);
+  }
+
+  function patch(key: string, change: Partial<Draft>) {
+    setRows((list) => list.map((r) => (r.key === key ? { ...r, ...change } : r)));
+  }
+
+  function move(key: string, by: number) {
+    setRows((list) => {
+      const i = list.findIndex((r) => r.key === key);
+      const j = i + by;
+      if (i < 0 || j < 0 || j >= list.length) return list;
+      const next = [...list];
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
+  }
+
+  async function save() {
+    setSaving(true);
+    const ok = await rpc(
+      "fets_set_programme_sections",
+      {
+        p_programme: programme.id,
+        p_sections: rows.map((r) => ({
+          name: r.name.trim(),
+          minutes: Number(r.minutes) || 0,
+          kind: r.kind,
+        })),
+      },
+      `${programme.code} parts saved`,
+    );
+    setSaving(false);
+    if (ok) onClose();
+  }
+
+  return (
+    <Dialog
+      open
+      title={`${programme.code} — the parts`}
+      subtitle="In the order they are sat. The Live Floor works out when each one is due from these."
+      onClose={onClose}
+      width={620}
+      footer={
+        <>
+          <button
+            type="button"
+            disabled={!isAdmin || saving || rows.some((r) => !r.name.trim())}
+            onClick={save}
+            className="flex-1 cursor-pointer rounded-[14px] gold-bg px-[20px] py-[14px] text-[14px] font-bold text-[#1a1512] disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {saving ? "Saving…" : rows.length === 0 ? "Save with no parts" : `Save ${rows.length} parts`}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="cursor-pointer rounded-[14px] border border-edge px-[18px] py-[14px] text-[13.5px] font-semibold text-fg-muted"
+          >
+            Cancel
+          </button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-[8px]">
+        {rows.map((r, i) => (
+          <div
+            key={r.key}
+            className="flex flex-wrap items-center gap-[8px] rounded-[14px] border border-edge bg-panel-soft p-[10px]"
+          >
+            <span className="w-[22px] shrink-0 text-center font-mono text-[12px] text-fg-faint">
+              {i + 1}
+            </span>
+            <input
+              value={r.name}
+              onChange={(e) => patch(r.key, { name: e.target.value })}
+              placeholder="Listening"
+              maxLength={60}
+              className="min-w-[110px] flex-1 rounded-[11px] border border-edge-strong bg-panel px-[11px] py-[9px] text-[13.5px] outline-none placeholder:text-fg-faint focus:border-gold/50"
+            />
+            <input
+              value={r.minutes}
+              onChange={(e) => patch(r.key, { minutes: e.target.value.replace(/[^0-9]/g, "") })}
+              inputMode="numeric"
+              maxLength={3}
+              className="w-[62px] rounded-[11px] border border-edge-strong bg-panel px-[10px] py-[9px] text-center font-mono text-[13.5px] outline-none focus:border-gold/50"
+            />
+            <span className="text-[11.5px] text-fg-faint">min</span>
+            <select
+              value={r.kind}
+              onChange={(e) => patch(r.key, { kind: e.target.value as SectionKind })}
+              className="rounded-[11px] border border-edge-strong bg-panel px-[9px] py-[9px] text-[12.5px] outline-none focus:border-gold/50"
+            >
+              <option value="section">Scored</option>
+              <option value="tutorial">Tutorial</option>
+              <option value="break">Break</option>
+            </select>
+            <span className="flex gap-[4px]">
+              <button
+                type="button"
+                onClick={() => move(r.key, -1)}
+                disabled={i === 0}
+                aria-label="Move up"
+                className="h-[32px] w-[28px] cursor-pointer rounded-[9px] border border-edge text-[12px] text-fg-muted hover:bg-panel disabled:opacity-25"
+              >
+                ↑
+              </button>
+              <button
+                type="button"
+                onClick={() => move(r.key, 1)}
+                disabled={i === rows.length - 1}
+                aria-label="Move down"
+                className="h-[32px] w-[28px] cursor-pointer rounded-[9px] border border-edge text-[12px] text-fg-muted hover:bg-panel disabled:opacity-25"
+              >
+                ↓
+              </button>
+              <button
+                type="button"
+                onClick={() => setRows((list) => list.filter((x) => x.key !== r.key))}
+                aria-label="Remove"
+                className="h-[32px] w-[28px] cursor-pointer rounded-[9px] border border-edge text-[13px] text-fg-faint hover:border-rust/50 hover:text-rust"
+              >
+                ×
+              </button>
+            </span>
+          </div>
+        ))}
+
+        <button
+          type="button"
+          onClick={add}
+          className="cursor-pointer rounded-[13px] border border-dashed border-edge-warm px-[14px] py-[11px] text-[12.5px] font-semibold text-fg-muted hover:bg-panel-soft"
+        >
+          + Add a part
+        </button>
+
+        {rows.length > 0 && (
+          <p
+            className={`rounded-[12px] px-[12px] py-[10px] font-mono text-[11.5px] ${
+              gap === 0 ? "bg-panel-soft text-fg-faint" : "bg-gold/8 text-gold"
+            }`}
+          >
+            {planned} min of parts against {programme.default_duration_minutes} min for the exam
+            {gap === 0 ? " — they agree" : gap > 0 ? ` — ${gap} min over` : ` — ${-gap} min under`}
+          </p>
+        )}
+      </div>
+    </Dialog>
+  );
+}
+
+type Draft = { key: string; name: string; minutes: string; kind: SectionKind };
 
 /* ------------------------------------------------------------------- day -- */
 

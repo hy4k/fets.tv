@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { useConsole } from "@/lib/console-data";
 import { clockAt, fullName, instantFromZonedTime } from "@/lib/format";
+import { currentSection, sectionsFor, type SectionView } from "@/lib/sections";
 import { useNow } from "@/lib/use-clock";
 import type { Candidate, CandidateBreak, ExamProgramme, Workstation } from "@/lib/types";
 
@@ -39,6 +40,7 @@ type Seated = {
   programme: ExamProgramme | null;
   onBreak: CandidateBreak | null;
   remaining: number;
+  sections: SectionView[];
 };
 
 /**
@@ -48,10 +50,24 @@ type Seated = {
  * the top, where it cannot be scrolled past.
  */
 export function FloorScreen() {
-  const { candidates, workstations, programmes, openBreaks, center, rpc, canLab } = useConsole();
+  const {
+    candidates,
+    workstations,
+    programmes,
+    programmeSections,
+    candidateSections,
+    openBreaks,
+    center,
+    rpc,
+    canLab,
+  } = useConsole();
   const now = useNow();
   const [editing, setEditing] = useState<Seated | null>(null);
   const [moving, setMoving] = useState<Seated | null>(null);
+  // Held by id, not by value: rpc() refreshes and rebuilds these rows, and a
+  // dialog left holding the old object would keep offering an action that has
+  // already happened.
+  const [partsId, setPartsId] = useState<string | null>(null);
 
   const seatById = useMemo(() => new Map(workstations.map((w) => [w.id, w])), [workstations]);
 
@@ -65,10 +81,17 @@ export function FloorScreen() {
           programme: programmes.find((p) => p.id === c.programme_id) ?? null,
           onBreak: openBreaks.find((b) => b.candidate_id === c.id) ?? null,
           remaining: c.exam_expected_end ? new Date(c.exam_expected_end).getTime() - now : Infinity,
+          sections: sectionsFor(
+            c,
+            programmeSections.filter((s) => s.programme_id === c.programme_id),
+            candidateSections,
+          ),
         }))
         .sort((a, b) => a.remaining - b.remaining),
-    [candidates, seatById, programmes, openBreaks, now],
+    [candidates, seatById, programmes, programmeSections, candidateSections, openBreaks, now],
   );
+
+  const partsRow = seated.find((s) => s.candidate.id === partsId) ?? null;
 
   const overdue = seated.filter((s) => s.remaining <= 0);
   const soon = seated.filter((s) => s.remaining > 0 && s.remaining <= 5 * 60000);
@@ -150,6 +173,7 @@ export function FloorScreen() {
               rpc={rpc}
               onEdit={() => setEditing(s)}
               onMove={() => setMoving(s)}
+              onParts={() => setPartsId(s.candidate.id)}
             />
           ))}
 
@@ -173,6 +197,10 @@ export function FloorScreen() {
       {moving && (
         <TransferDialog key={moving.candidate.id} row={moving} onClose={() => setMoving(null)} />
       )}
+
+      {partsRow && (
+        <SectionsDialog key={partsRow.candidate.id} row={partsRow} onClose={() => setPartsId(null)} />
+      )}
     </div>
   );
 }
@@ -185,6 +213,7 @@ function FloorRow({
   rpc,
   onEdit,
   onMove,
+  onParts,
 }: {
   row: Seated;
   now: number;
@@ -193,9 +222,11 @@ function FloorRow({
   rpc: (fn: string, args: Record<string, unknown>, ok?: string) => Promise<boolean>;
   onEdit: () => void;
   onMove: () => void;
+  onParts: () => void;
 }) {
-  const { seat, candidate, programme, onBreak, remaining } = row;
+  const { seat, candidate, programme, onBreak, remaining, sections } = row;
   const tone = band(remaining);
+  const part = currentSection(sections, now);
 
   return (
     <div
@@ -214,10 +245,29 @@ function FloorRow({
             </span>
           )}
         </span>
-        <span className="block truncate font-mono text-[10px] text-fg-faint">
-          {[candidate.public_token, programme?.code, `${candidate.exam_duration_minutes ?? "?"} min`]
-            .filter(Boolean)
-            .join(" · ")}
+        <span className="flex min-w-0 items-center gap-[7px]">
+          <span className="truncate font-mono text-[10px] text-fg-faint">
+            {[candidate.public_token, programme?.code, `${candidate.exam_duration_minutes ?? "?"} min`]
+              .filter(Boolean)
+              .join(" · ")}
+          </span>
+
+          {/* Which part they are in. Gold once somebody has confirmed it,
+              outlined while it is only what the plan expects. */}
+          {sections.length > 0 && (
+            <button
+              type="button"
+              onClick={onParts}
+              title="The parts of this exam, planned against what happened"
+              className={`shrink-0 cursor-pointer rounded-[7px] px-[7px] py-[2px] font-mono text-[9.5px] font-semibold whitespace-nowrap ${
+                part?.confirmed
+                  ? "bg-gold/20 text-gold-bright"
+                  : "border border-edge-warm text-fg-dim hover:bg-panel-soft"
+              }`}
+            >
+              {part ? `${part.section.name}${part.confirmed ? "" : "?"}` : "parts"}
+            </button>
+          )}
         </span>
       </span>
 
@@ -287,6 +337,179 @@ function FloorRow({
         </button>
       </span>
     </div>
+  );
+}
+
+/**
+ * The parts of one exam, planned against what happened.
+ *
+ * Two columns, deliberately: what the plan expects, and what somebody saw. The
+ * second is only ever filled in by a person — the console will not quietly
+ * promote its own estimate into the record, because that record is what the
+ * board reads afterwards.
+ *
+ * "Now" is the common case and costs one tap. The time box is for the honest
+ * answer that arrives late: Writing really began at 10:42, not when somebody
+ * got back to the desk.
+ */
+function SectionsDialog({ row, onClose }: { row: Seated; onClose: () => void }) {
+  const { center, rpc, canLab } = useConsole();
+  const { candidate, sections } = row;
+  const [at, setAt] = useState("");
+
+  // "10:" and "1" are what a half-typed time looks like, and they turn into an
+  // invalid Date. Converting during render would throw and take the page down
+  // mid-keystroke, so nothing is converted until the value is a whole time and
+  // somebody presses a button.
+  const typed = at.trim();
+  const usable = /^([01]?\d|2[0-3]):[0-5]\d$/.test(typed);
+  const blocked = typed !== "" && !usable;
+
+  const confirm = (position: number) =>
+    rpc(
+      "fets_confirm_section",
+      {
+        p_candidate: candidate.id,
+        p_position: position,
+        p_at: usable ? instantFromZonedTime(typed, center.timezone).toISOString() : null,
+      },
+      "Noted",
+    );
+
+  return (
+    <Dialog
+      open
+      title={fullName(candidate)}
+      subtitle={`${candidate.public_token} \u00b7 started ${clockAt(candidate.exam_started_at, center.timezone)}`}
+      onClose={onClose}
+      width={620}
+      footer={
+        <>
+          <label className="flex flex-1 items-center gap-[10px] rounded-[14px] border border-edge-strong bg-panel-soft px-[13px] py-[11px]">
+            <span className="shrink-0 text-[11.5px] font-semibold text-fg-faint">Mark at</span>
+            <input
+              value={at}
+              onChange={(e) => setAt(e.target.value)}
+              placeholder="now"
+              aria-invalid={blocked}
+              className={`w-full min-w-0 border-0 bg-transparent font-mono text-[14px] outline-none placeholder:text-fg-faint ${
+                blocked ? "text-rust" : ""
+              }`}
+            />
+            {typed && (
+              <button
+                type="button"
+                onClick={() => setAt("")}
+                className="shrink-0 cursor-pointer text-[12px] text-fg-faint hover:text-fg"
+              >
+                clear
+              </button>
+            )}
+            {blocked && <span className="shrink-0 text-[11px] text-rust">HH:MM</span>}
+          </label>
+          <button
+            type="button"
+            onClick={onClose}
+            className="cursor-pointer rounded-[14px] border border-edge px-[18px] py-[14px] text-[13.5px] font-semibold text-fg-muted"
+          >
+            Close
+          </button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-[7px]">
+        {sections.map((v) => {
+          const done = v.actualStart !== null;
+          const late = v.driftMinutes !== null && Math.abs(v.driftMinutes) >= 2;
+
+          return (
+            <div
+              key={v.position}
+              className={`flex flex-wrap items-center gap-[10px] rounded-[14px] border px-[12px] py-[10px] ${
+                done ? "border-gold/40 bg-gold/8" : "border-edge bg-panel-soft"
+              }`}
+            >
+              <span className="w-[20px] shrink-0 text-center font-mono text-[11px] text-fg-faint">
+                {v.position}
+              </span>
+
+              <span className="min-w-[110px] flex-1">
+                <span className="block truncate text-[13.5px] font-semibold">
+                  {v.name}
+                  {v.kind !== "section" && (
+                    <span className="ml-[6px] text-[10.5px] font-normal text-fg-faint">
+                      {v.kind}
+                    </span>
+                  )}
+                  {!v.inPlan && (
+                    <span className="ml-[6px] text-[10.5px] font-normal text-rust">
+                      no longer in the plan
+                    </span>
+                  )}
+                </span>
+                <span className="block font-mono text-[10.5px] text-fg-faint">
+                  due {clockAt(new Date(v.estimatedStart).toISOString(), center.timezone)} · {v.minutes} min
+                </span>
+              </span>
+
+              <span className="w-[86px] shrink-0 text-right">
+                {done ? (
+                  <>
+                    <span className="block font-mono text-[13px] font-semibold text-gold-bright">
+                      {clockAt(new Date(v.actualStart!).toISOString(), center.timezone)}
+                    </span>
+                    <span
+                      className={`block font-mono text-[10px] ${late ? "text-rust" : "text-fg-faint"}`}
+                    >
+                      {v.driftMinutes === 0
+                        ? "on time"
+                        : v.driftMinutes! > 0
+                          ? `${v.driftMinutes} late`
+                          : `${-v.driftMinutes!} early`}
+                    </span>
+                  </>
+                ) : (
+                  <span className="block font-mono text-[11px] text-fg-faint">not seen</span>
+                )}
+              </span>
+
+              {done ? (
+                <button
+                  type="button"
+                  disabled={!canLab}
+                  onClick={() =>
+                    rpc(
+                      "fets_clear_section",
+                      { p_candidate: candidate.id, p_position: v.position },
+                      "Unconfirmed",
+                    )
+                  }
+                  className="shrink-0 cursor-pointer rounded-[10px] border border-edge px-[11px] py-[8px] text-[11.5px] font-semibold text-fg-faint hover:border-rust/50 hover:text-rust disabled:opacity-40"
+                >
+                  Undo
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={!canLab || blocked}
+                  onClick={() => confirm(v.position)}
+                  className="shrink-0 cursor-pointer rounded-[10px] gold-bg px-[13px] py-[8px] text-[11.5px] font-bold text-[#1a1512] disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {usable ? `Started ${typed}` : "Started now"}
+                </button>
+              )}
+            </div>
+          );
+        })}
+
+        {sections.length === 0 && (
+          <p className="rounded-[14px] border border-gold/35 bg-gold/8 p-[13px] text-[12.5px] text-gold">
+            This exam has no parts set up yet. Add them under Setup &rsaquo; Exams and they will appear
+            here for every candidate sitting it.
+          </p>
+        )}
+      </div>
+    </Dialog>
   );
 }
 
