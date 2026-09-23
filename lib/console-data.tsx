@@ -76,15 +76,18 @@ export type ConsoleSnapshot = {
    */
   staffDaysWindow: { from: string; to: string } | null;
   /**
-   * True when the last attempt to re-read the rota failed.
+   * True when the last attempt to re-read what the coverage screen needs —
+   * the rota rows or the posts that say how many a day takes — failed.
    *
-   * Distinct from a null window, which means there is nothing to show at all.
-   * Here there *are* rows, they are simply the ones from before — possibly
-   * from before an edit that has already been written. The screen keeps
-   * drawing them, because a blank grid on a flaky connection helps nobody,
-   * but it stops presenting them as current.
+   * Distinct from a null window or `dutyPostsUnread`, which mean there is
+   * nothing to show at all. Here there *is* data, it is simply from before —
+   * possibly from before an edit that has already been written. The screen
+   * keeps drawing it, because a blank grid on a flaky connection helps
+   * nobody, but it stops presenting it as current. Both inputs feed one flag
+   * because a day's coverage is a claim about the pair of them, and it is
+   * equally wrong whichever half is out of date.
    */
-  staffDaysStale: boolean;
+  rotaStale: boolean;
   labs: Lab[];
   columnAliases: RosterColumnAlias[];
   workstations: Workstation[];
@@ -331,7 +334,7 @@ export function ConsoleProvider({
         : prev.pinSetAt,
       staffDays: staffDays.data ?? prev.staffDays,
       staffDaysWindow: staffDays.error ? prev.staffDaysWindow : window,
-      staffDaysStale: Boolean(staffDays.error),
+      rotaStale: Boolean(staffDays.error || dutyPosts.error),
     }));
   }, [centerId, supabase]);
 

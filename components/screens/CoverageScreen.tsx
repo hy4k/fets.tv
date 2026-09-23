@@ -36,7 +36,7 @@ export function CoverageScreen() {
     operators,
     staffDays,
     staffDaysWindow,
-    staffDaysStale,
+    rotaStale,
     rpc,
     canCall,
   } = useConsole();
@@ -172,9 +172,10 @@ export function CoverageScreen() {
         </span>
       </div>
 
-      {/* An edit can be written and the read-back still fail, which would leave
-          the grid quietly claiming a coverage it no longer knows. */}
-      {staffDaysStale && (
+      {/* An edit can be written and the read-back still fail, for the rota or
+          for the posts, which would leave the grid quietly claiming a coverage
+          it no longer knows either half of. */}
+      {rotaStale && (
         <div className="shrink-0 rounded-[13px] border-2 border-gold/55 bg-gold/10 px-[13px] py-[9px] text-[12.5px] font-semibold text-gold-bright">
           This could not be re-read just now, so it may be out of date — including a change you
           have just made. It will catch up on the next change, or on a reload.
