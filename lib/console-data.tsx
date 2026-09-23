@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { weekWindow } from "@/lib/coverage";
+import { gapsAfterRefresh, type SnapshotTable } from "@/lib/snapshot-gaps";
 import type {
   Candidate,
   CandidateBreak,
@@ -30,6 +31,8 @@ import type {
   Workstation,
 } from "@/lib/types";
 
+export type { SnapshotTable } from "@/lib/snapshot-gaps";
+
 export type ConsoleSnapshot = {
   center: Center;
   profile: Profile;
@@ -53,38 +56,33 @@ export type ConsoleSnapshot = {
   /** Who is not fully in, on which day. No row means in. */
   staffDays: StaffDay[];
   /**
-   * The dates `staffDays` was actually fetched for, or null if the fetch
-   * failed.
+   * The dates `staffDays` was actually fetched for.
    *
    * Carried rather than recomputed, because the screen's clock ticks every
    * second while this list was fetched once: recomputing the bounds from a
-   * live `now` eventually claims a week the snapshot never loaded.
-   *
-   * Null rather than an empty list for the failure, because on this one
-   * screen an absent row means somebody is *in*. A fetch that quietly became
-   * `[]` would be read as a full week — the coverage screen announcing that
-   * every day is covered is the precise lie it exists to prevent, and it must
-   * not be able to tell it by failing.
+   * live `now` eventually claims a week the snapshot never loaded. Whether
+   * the rows arrived at all is `unread`'s business, not this field's.
    */
-  staffDaysWindow: { from: string; to: string } | null;
+  staffDaysWindow: { from: string; to: string };
   /**
-   * Whether a day is covered is a claim about three things together: who
-   * works here, how many posts a day has to fill, and who is not in. An
-   * empty answer to any of them is a fact; a failed read of any of them is
-   * not, and the two look identical once the rows are gone.
+   * The tables whose absence would be a lie, and which of them we do not have.
    *
-   * `rotaUnread` means one of the three has never been read, and the screen
-   * refuses to say anything at all. `rotaStale` means all three were read
-   * once and the last attempt to re-read one failed — so there is data, from
-   * before, possibly from before an edit that has already been written. That
-   * keeps its place on the screen, because a blank grid on a flaky
-   * connection helps nobody, but it stops being presented as current.
+   * A failed fetch and an empty table are the same shape — no rows — and for
+   * most of what the console loads they are also near enough the same fact: an
+   * empty list renders as a visibly empty screen and nobody is misled. But
+   * wherever the *absence* of a row asserts something — no incident row means
+   * nothing is wrong, no break row means nobody is on one, no staff_days row
+   * means somebody is in — a fetch that quietly became `[]` states that thing,
+   * falsely, in the calmest possible voice.
    *
-   * One flag each rather than one per table, because the claim is about the
-   * three of them at once and is equally wrong whichever is out of date.
+   * `unread` lists the ones never read at all: what they hold is unknown, not
+   * empty. `stale` lists the ones read once whose last re-read failed: there
+   * are rows, they are from before, possibly from before an edit that has
+   * already been written. The first is grounds to refuse to answer; the second
+   * is grounds to stop calling the answer current.
    */
-  rotaUnread: boolean;
-  rotaStale: boolean;
+  unread: SnapshotTable[];
+  stale: SnapshotTable[];
   labs: Lab[];
   columnAliases: RosterColumnAlias[];
   workstations: Workstation[];
@@ -120,6 +118,13 @@ type ConsoleValue = ConsoleSnapshot & {
    * Undefined means the call itself failed; the toast has already been shown.
    */
   rpcRead: (fn: string, args: Record<string, unknown>) => Promise<unknown>;
+  /**
+   * Whether any of these were never read. True means do not answer from them:
+   * what they hold is unknown, and for these tables "no rows" is a claim.
+   */
+  isUnread: (...tables: SnapshotTable[]) => boolean;
+  /** Whether any of these hold rows from before a failed re-read. */
+  isStale: (...tables: SnapshotTable[]) => boolean;
   isAdmin: boolean;
   canFrontOffice: boolean;
   canLab: boolean;
@@ -166,7 +171,7 @@ export function ConsoleProvider({
     // the same pair even if this runs across midnight.
     const window = weekWindow();
 
-    const { data: session } = await supabase
+    const { data: session, error: sessionError } = await supabase
       .from("exam_sessions")
       .select("*")
       .eq("center_id", centerId)
@@ -293,22 +298,43 @@ export function ConsoleProvider({
         .lte("on_date", window.to),
     ]);
 
-    // The staff list is as much a part of a coverage claim as the rota is:
-    // without it the screen would report that nobody works here and every day
-    // is short, or go on counting somebody who has left.
-    const rotaFailed = Boolean(staffDays.error || dutyPosts.error || staff.error);
+    // Which loads failed this time round; gapsAfterRefresh decides what that
+    // means for each of them.
+    // A failed read of the exam day is indistinguishable from a day with no
+    // exam on, and the loads that hang off it were skipped rather than
+    // attempted — so they have no error of their own to report and the day
+    // has to answer for them. Otherwise a blip mid-exam reads as "no roster".
+    const failed: SnapshotTable[] = [
+      ...(sessionError ? (["exam_sessions"] as const) : []),
+      ...(candidates?.error || sessionError ? (["candidates"] as const) : []),
+      ...(incidents.error || openIncidents.error ? (["incidents"] as const) : []),
+      ...(materials?.error || sessionError ? (["candidate_materials"] as const) : []),
+      ...(openBreaks.error ? (["candidate_breaks"] as const) : []),
+      ...(staffDays.error ? (["staff_days"] as const) : []),
+      ...(dutyPosts.error ? (["duty_posts"] as const) : []),
+      ...(staff.error ? (["profiles"] as const) : []),
+    ];
+
+    // Whether there is an exam on, as far as this refresh knows. A failed read
+    // is not an answer to that question, so it does not get to say no.
+    const stillADay = sessionError || session !== null;
 
     setSnapshot((prev) => ({
       ...prev,
-      session: session ?? null,
-      candidates: candidates?.data ?? (session ? prev.candidates : []),
+      // Keep the day we had rather than declaring there isn't one, and clear
+      // what hangs off it only when there is genuinely no day — never because
+      // the read of it failed. `stillADay` is that distinction: a real absence
+      // empties the roster, an unread one leaves it exactly where it was.
+      session: sessionError ? prev.session : (session ?? null),
+      candidates: candidates?.data ?? (stillADay ? prev.candidates : []),
       incidents:
         incidents.data || openIncidents.data
           ? mergeById(openIncidents.data ?? [], incidents.data ?? [])
           : prev.incidents,
-      materials: materials?.data ?? (session ? prev.materials : []),
+      materials: materials?.data ?? (stillADay ? prev.materials : []),
       programmeSections: programmeSections.data ?? prev.programmeSections,
-      candidateSections: candidateSections?.data ?? (session ? prev.candidateSections : []),
+      candidateSections:
+        candidateSections?.data ?? (stillADay ? prev.candidateSections : []),
       dutyPosts: dutyPosts.data ?? prev.dutyPosts,
       walkthroughs: walkthroughs.data ?? prev.walkthroughs,
       dutyBlocks:
@@ -335,8 +361,7 @@ export function ConsoleProvider({
         : prev.pinSetAt,
       staffDays: staffDays.data ?? prev.staffDays,
       staffDaysWindow: staffDays.error ? prev.staffDaysWindow : window,
-      rotaUnread: prev.rotaUnread && rotaFailed,
-      rotaStale: rotaFailed,
+      ...gapsAfterRefresh(prev, failed),
     }));
   }, [centerId, supabase]);
 
@@ -423,6 +448,15 @@ export function ConsoleProvider({
     [notify, refresh, supabase],
   );
 
+  const isUnread = useCallback(
+    (...tables: SnapshotTable[]) => tables.some((t) => snapshot.unread.includes(t)),
+    [snapshot.unread],
+  );
+  const isStale = useCallback(
+    (...tables: SnapshotTable[]) => tables.some((t) => snapshot.stale.includes(t)),
+    [snapshot.stale],
+  );
+
   const value = useMemo<ConsoleValue>(
     () => ({
       ...snapshot,
@@ -431,6 +465,8 @@ export function ConsoleProvider({
       refresh,
       rpc,
       rpcRead,
+      isUnread,
+      isStale,
       // A TCA works whichever desk the duty roster puts them on, so they hold
       // every operational capability. Configuration stays with admins.
       isAdmin: snapshot.profile.role === "admin",
@@ -438,7 +474,7 @@ export function ConsoleProvider({
       canLab: ["admin", "tca", "lab_staff"].includes(snapshot.profile.role),
       canCall: ["admin", "tca"].includes(snapshot.profile.role),
     }),
-    [snapshot, toasts, notify, refresh, rpc, rpcRead],
+    [snapshot, toasts, notify, refresh, rpc, rpcRead, isUnread, isStale],
   );
 
   return <ConsoleContext.Provider value={value}>{children}</ConsoleContext.Provider>;

@@ -32,11 +32,11 @@ export function CoverageScreen() {
   const {
     center,
     dutyPosts,
-    rotaUnread,
+    isUnread,
     operators,
     staffDays,
     staffDaysWindow,
-    rotaStale,
+    isStale,
     rpc,
     canCall,
   } = useConsole();
@@ -55,7 +55,7 @@ export function CoverageScreen() {
   // covered that nobody has planned — and an edit out there would seem to do
   // nothing, because the refresh afterwards would not fetch it back.
   const range = useMemo(
-    () => (today && staffDaysWindow ? weekRange(today, staffDaysWindow) : { min: 0, max: 0 }),
+    () => (today ? weekRange(today, staffDaysWindow) : { min: 0, max: 0 }),
     [today, staffDaysWindow],
   );
   // A refresh can move the window under a console left open, so the offset is
@@ -108,13 +108,13 @@ export function CoverageScreen() {
   // Saying nothing is the only honest answer here. Drawing the grid from rows
   // that never arrived would show everybody in and every day covered; without
   // the posts there is no number for a day to fall short of; and without the
-  // staff there is nobody to count.
-  if (rotaUnread || !staffDaysWindow) {
+  // staff there is nobody to count. The banner above the page already names
+  // which of the three is missing, so this only has to decline.
+  if (isUnread("staff_days", "duty_posts", "profiles")) {
     return (
       <div className="rounded-[15px] border-2 border-rust bg-rust/12 px-[15px] py-[12px] text-[13.5px] font-semibold text-rust">
-        This could not be read, so it cannot say who is in — and an empty answer here would look
-        exactly like a week nobody has planned. Reload the page; if it keeps happening the
-        database is refusing the request and an admin should look.
+        This cannot say who is in until it can read the rota — and an empty answer here would look
+        exactly like a week nobody has planned.
       </div>
     );
   }
@@ -173,28 +173,21 @@ export function CoverageScreen() {
         </span>
       </div>
 
-      {/* An edit can be written and the read-back still fail — of the rota, the
-          posts, or the staff list — which would leave the grid quietly making
-          a claim it no longer knows every part of. */}
-      {rotaStale && (
-        <div className="shrink-0 rounded-[13px] border-2 border-gold/55 bg-gold/10 px-[13px] py-[9px] text-[12.5px] font-semibold text-gold-bright">
-          This could not be re-read just now, so it may be out of date — including a change you
-          have just made, or somebody joining or leaving. It will catch up on the next change, or
-          on a reload.
-        </div>
-      )}
-
       {/* The sentence the screen exists to say, before the grid that proves it. */}
       <div
         className={`shrink-0 rounded-[15px] border-2 px-[15px] py-[11px] text-[13.5px] font-semibold ${
-          short.length > 0
-            ? "border-rust bg-rust/12 text-rust"
-            : thin.length > 0
-              ? "border-gold/55 bg-gold/10 text-gold-bright"
-              : "border-mint/35 bg-mint/6 text-mint"
+          isStale("staff_days", "duty_posts", "profiles")
+            ? "border-edge-warm bg-panel-soft text-fg-muted"
+            : short.length > 0
+              ? "border-rust bg-rust/12 text-rust"
+              : thin.length > 0
+                ? "border-gold/55 bg-gold/10 text-gold-bright"
+                : "border-mint/35 bg-mint/6 text-mint"
         }`}
       >
-        {needs === 0 ? (
+        {isStale("staff_days", "duty_posts", "profiles") ? (
+          "This may be out of date — see the notice above the page."
+        ) : needs === 0 ? (
           "Add the posts under Setup and this will tell you when a day is short."
         ) : (
           <>
