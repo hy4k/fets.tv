@@ -209,7 +209,9 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
     operators: Object.fromEntries((operators.data ?? []).map((o) => [o.id, o.display_name])),
     pinSetAt: Object.fromEntries((operators.data ?? []).map((o) => [o.id, o.pin_set_at])),
     staffDays: staffDays.data ?? [],
-    staffDaysWindow: rotaWindow,
+    // Null when the fetch failed: an empty rota and an unread one look the
+    // same from here, and on the coverage screen they mean opposite things.
+    staffDaysWindow: staffDays.error ? null : rotaWindow,
   };
 
   return (

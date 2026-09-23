@@ -46,7 +46,7 @@ export function CoverageScreen() {
   // covered that nobody has planned — and an edit out there would seem to do
   // nothing, because the refresh afterwards would not fetch it back.
   const range = useMemo(
-    () => (today ? weekRange(today, staffDaysWindow) : { min: 0, max: 0 }),
+    () => (today && staffDaysWindow ? weekRange(today, staffDaysWindow) : { min: 0, max: 0 }),
     [today, staffDaysWindow],
   );
   // A refresh can move the window under a console left open, so the offset is
@@ -94,6 +94,17 @@ export function CoverageScreen() {
 
   if (!today) {
     return <p className="p-[14px] text-[13px] text-fg-faint">Reading the week…</p>;
+  }
+
+  // Saying nothing is the only honest answer here. Drawing the grid from rows
+  // that never arrived would show everybody in and every day covered.
+  if (!staffDaysWindow) {
+    return (
+      <div className="rounded-[15px] border-2 border-rust bg-rust/12 px-[15px] py-[12px] text-[13.5px] font-semibold text-rust">
+        The rota could not be read, so this cannot say who is in. Reload the page; if it keeps
+        happening the database is refusing the request and an admin should look.
+      </div>
+    );
   }
 
   const monthLabel = new Intl.DateTimeFormat("en-GB", {

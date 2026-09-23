@@ -52,13 +52,20 @@ export type ConsoleSnapshot = {
   /** Who is not fully in, on which day. No row means in. */
   staffDays: StaffDay[];
   /**
-   * The dates `staffDays` was actually fetched for.
+   * The dates `staffDays` was actually fetched for, or null if the fetch
+   * failed.
    *
    * Carried rather than recomputed, because the screen's clock ticks every
    * second while this list was fetched once: recomputing the bounds from a
    * live `now` eventually claims a week the snapshot never loaded.
+   *
+   * Null rather than an empty list for the failure, because on this one
+   * screen an absent row means somebody is *in*. A fetch that quietly became
+   * `[]` would be read as a full week — the coverage screen announcing that
+   * every day is covered is the precise lie it exists to prevent, and it must
+   * not be able to tell it by failing.
    */
-  staffDaysWindow: { from: string; to: string };
+  staffDaysWindow: { from: string; to: string } | null;
   labs: Lab[];
   columnAliases: RosterColumnAlias[];
   workstations: Workstation[];
@@ -303,7 +310,7 @@ export function ConsoleProvider({
         ? Object.fromEntries(staff.data.map((o) => [o.id, o.pin_set_at]))
         : prev.pinSetAt,
       staffDays: staffDays.data ?? prev.staffDays,
-      staffDaysWindow: staffDays.data ? window : prev.staffDaysWindow,
+      staffDaysWindow: staffDays.error ? prev.staffDaysWindow : window,
     }));
   }, [centerId, supabase]);
 
