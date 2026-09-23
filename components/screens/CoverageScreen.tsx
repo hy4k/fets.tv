@@ -32,7 +32,7 @@ export function CoverageScreen() {
   const {
     center,
     dutyPosts,
-    dutyPostsUnread,
+    rotaUnread,
     operators,
     staffDays,
     staffDaysWindow,
@@ -106,14 +106,15 @@ export function CoverageScreen() {
   }
 
   // Saying nothing is the only honest answer here. Drawing the grid from rows
-  // that never arrived would show everybody in and every day covered, and
-  // without the posts there is no number for a day to fall short of.
-  if (!staffDaysWindow || dutyPostsUnread) {
+  // that never arrived would show everybody in and every day covered; without
+  // the posts there is no number for a day to fall short of; and without the
+  // staff there is nobody to count.
+  if (rotaUnread || !staffDaysWindow) {
     return (
       <div className="rounded-[15px] border-2 border-rust bg-rust/12 px-[15px] py-[12px] text-[13.5px] font-semibold text-rust">
-        {dutyPostsUnread ? "The posts" : "The rota"} could not be read, so this cannot say who is
-        in. Reload the page; if it keeps happening the database is refusing the request and an
-        admin should look.
+        This could not be read, so it cannot say who is in — and an empty answer here would look
+        exactly like a week nobody has planned. Reload the page; if it keeps happening the
+        database is refusing the request and an admin should look.
       </div>
     );
   }
@@ -172,13 +173,14 @@ export function CoverageScreen() {
         </span>
       </div>
 
-      {/* An edit can be written and the read-back still fail, for the rota or
-          for the posts, which would leave the grid quietly claiming a coverage
-          it no longer knows either half of. */}
+      {/* An edit can be written and the read-back still fail — of the rota, the
+          posts, or the staff list — which would leave the grid quietly making
+          a claim it no longer knows every part of. */}
       {rotaStale && (
         <div className="shrink-0 rounded-[13px] border-2 border-gold/55 bg-gold/10 px-[13px] py-[9px] text-[12.5px] font-semibold text-gold-bright">
           This could not be re-read just now, so it may be out of date — including a change you
-          have just made. It will catch up on the next change, or on a reload.
+          have just made, or somebody joining or leaving. It will catch up on the next change, or
+          on a reload.
         </div>
       )}
 

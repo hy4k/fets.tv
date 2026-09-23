@@ -46,15 +46,7 @@ export type ConsoleSnapshot = {
   candidateSections: CandidateSection[];
   /** The posts this centre staffs, and who is on them. */
   dutyPosts: DutyPost[];
-  /**
-   * True when the posts could not be read at all.
-   *
-   * An empty list and an unread one are the same shape and opposite facts: no
-   * posts means the centre has not set any up, while an unread list means we
-   * do not know how many people a day needs. The coverage screen has to tell
-   * those apart before it says anything about a day.
-   */
-  dutyPostsUnread: boolean;
+
   dutyBlocks: DutyBlock[];
   /** Walks of the floor, newest first. */
   walkthroughs: Walkthrough[];
@@ -76,17 +68,22 @@ export type ConsoleSnapshot = {
    */
   staffDaysWindow: { from: string; to: string } | null;
   /**
-   * True when the last attempt to re-read what the coverage screen needs —
-   * the rota rows or the posts that say how many a day takes — failed.
+   * Whether a day is covered is a claim about three things together: who
+   * works here, how many posts a day has to fill, and who is not in. An
+   * empty answer to any of them is a fact; a failed read of any of them is
+   * not, and the two look identical once the rows are gone.
    *
-   * Distinct from a null window or `dutyPostsUnread`, which mean there is
-   * nothing to show at all. Here there *is* data, it is simply from before —
-   * possibly from before an edit that has already been written. The screen
-   * keeps drawing it, because a blank grid on a flaky connection helps
-   * nobody, but it stops presenting it as current. Both inputs feed one flag
-   * because a day's coverage is a claim about the pair of them, and it is
-   * equally wrong whichever half is out of date.
+   * `rotaUnread` means one of the three has never been read, and the screen
+   * refuses to say anything at all. `rotaStale` means all three were read
+   * once and the last attempt to re-read one failed — so there is data, from
+   * before, possibly from before an edit that has already been written. That
+   * keeps its place on the screen, because a blank grid on a flaky
+   * connection helps nobody, but it stops being presented as current.
+   *
+   * One flag each rather than one per table, because the claim is about the
+   * three of them at once and is equally wrong whichever is out of date.
    */
+  rotaUnread: boolean;
   rotaStale: boolean;
   labs: Lab[];
   columnAliases: RosterColumnAlias[];
@@ -296,6 +293,11 @@ export function ConsoleProvider({
         .lte("on_date", window.to),
     ]);
 
+    // The staff list is as much a part of a coverage claim as the rota is:
+    // without it the screen would report that nobody works here and every day
+    // is short, or go on counting somebody who has left.
+    const rotaFailed = Boolean(staffDays.error || dutyPosts.error || staff.error);
+
     setSnapshot((prev) => ({
       ...prev,
       session: session ?? null,
@@ -308,7 +310,6 @@ export function ConsoleProvider({
       programmeSections: programmeSections.data ?? prev.programmeSections,
       candidateSections: candidateSections?.data ?? (session ? prev.candidateSections : []),
       dutyPosts: dutyPosts.data ?? prev.dutyPosts,
-      dutyPostsUnread: Boolean(dutyPosts.error) && prev.dutyPostsUnread,
       walkthroughs: walkthroughs.data ?? prev.walkthroughs,
       dutyBlocks:
         openDuty.data || servedDuty.data
@@ -334,7 +335,8 @@ export function ConsoleProvider({
         : prev.pinSetAt,
       staffDays: staffDays.data ?? prev.staffDays,
       staffDaysWindow: staffDays.error ? prev.staffDaysWindow : window,
-      rotaStale: Boolean(staffDays.error || dutyPosts.error),
+      rotaUnread: prev.rotaUnread && rotaFailed,
+      rotaStale: rotaFailed,
     }));
   }, [centerId, supabase]);
 
@@ -375,15 +377,14 @@ export function ConsoleProvider({
 
     // A deleted row arrives carrying only its primary key, so a center_id
     // filter can never match one and the event is dropped. Marking somebody
-    // back in deletes their staff_days row, so without this the other consoles
-    // would go on showing an absence that has been cancelled. The payload is
-    // ignored either way; all it does is prompt a refresh, which reads back
-    // through the usual policies.
-    channel.on(
-      "postgres_changes",
-      { event: "DELETE", schema: "public", table: "staff_days" },
-      scheduleRefresh,
-    );
+    // back in deletes their staff_days row, and somebody leaving deletes their
+    // profile; without these, the other consoles would go on showing an
+    // absence that has been cancelled, or counting on a person who has gone.
+    // The payload is ignored either way; all it does is prompt a refresh,
+    // which reads back through the usual policies.
+    for (const table of ["staff_days", "profiles"]) {
+      channel.on("postgres_changes", { event: "DELETE", schema: "public", table }, scheduleRefresh);
+    }
 
     channel.subscribe();
 

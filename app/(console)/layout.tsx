@@ -194,7 +194,6 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
     programmeSections: programmeSections.data ?? [],
     candidateSections: candidateSections.data ?? [],
     dutyPosts: dutyPosts.data ?? [],
-    dutyPostsUnread: Boolean(dutyPosts.error),
     walkthroughs: walkthroughs.data ?? [],
     dutyBlocks: [...(openDuty.data ?? []), ...(servedDuty.data ?? [])],
     labs: labs.data ?? [],
@@ -213,6 +212,9 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
     // Null when the fetch failed: an empty rota and an unread one look the
     // same from here, and on the coverage screen they mean opposite things.
     staffDaysWindow: staffDays.error ? null : rotaWindow,
+    // Any of the three unread and the coverage screen says so rather than
+    // guessing; nothing has been read twice yet, so nothing can be stale.
+    rotaUnread: Boolean(staffDays.error || dutyPosts.error || operators.error),
     rotaStale: false,
   };
 
