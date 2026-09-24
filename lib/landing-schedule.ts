@@ -43,11 +43,18 @@ export async function todaysSchedule(now = new Date()): Promise<CentreDay[] | nu
 
     const days: CentreDay[] = [];
     for (const centre of centres) {
+      // One day, one roster: re-importing closes the old session and keeps
+      // its rows, so reading every session for the date would show the day
+      // twice. The newest one is the day — whether it is still running or
+      // was closed at the end of it.
       const { data: sessions, error: sessionsError } = await supabase
         .from("exam_sessions")
         .select("id, exam_name")
         .eq("center_id", centre.id)
-        .eq("exam_date", todayInZone(centre.timezone, now));
+        .eq("exam_date", todayInZone(centre.timezone, now))
+        .neq("status", "draft")
+        .order("created_at", { ascending: false })
+        .limit(1);
       if (sessionsError) return null;
       if (!sessions?.length) continue;
 

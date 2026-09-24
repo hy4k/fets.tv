@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { LogoMark } from "@/components/brand/Logo";
 import { LandingClock } from "@/components/landing/LandingClock";
+import { StayCurrent } from "@/components/landing/StayCurrent";
 import { todaysSchedule, type ScheduleSlot } from "@/lib/landing-schedule";
 import { supabaseServer } from "@/lib/supabase/server";
 
@@ -36,6 +37,7 @@ export default async function Home() {
 
   return (
     <main className="relative min-h-dvh overflow-hidden shell-bg">
+      <StayCurrent />
       <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(760px_420px_at_50%_0%,oklch(0.32_0.06_82/0.35),transparent_68%)]" />
       </div>
