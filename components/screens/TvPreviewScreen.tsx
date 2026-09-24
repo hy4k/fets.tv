@@ -28,7 +28,8 @@ export function TvPreviewScreen() {
         timezone={center.timezone}
         nonce={call?.call_nonce ?? 0}
         notice={notice ? { body: notice.body, tone: notice.tone } : null}
-        siteLabel={`${center.site_code} · ${center.name.replace(/^FETS\s+/i, "").toUpperCase()}`}
+        centre={center.name}
+        siteLabel={center.site_code}
         call={
           called
             ? {

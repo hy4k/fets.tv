@@ -31,12 +31,17 @@ export function LogoMark({
   /** The unlit seats. Off on a busy screen, on where the mark has room. */
   showEmptySeats = true,
   className = "",
+  tone = ["oklch(0.9 0.14 82)", "oklch(0.7 0.15 58)"],
 }: {
   size?: number;
   showEmptySeats?: boolean;
   className?: string;
+  /** The two stops of the lit seats. Gold unless a centre says otherwise. */
+  tone?: [string, string];
 }) {
-  const id = showEmptySeats ? "fets-lit-full" : "fets-lit-plain";
+  // Gradient ids are document-wide, so the tone is part of the id: two marks
+  // in different metals on one page must not share a gradient.
+  const id = `fets-lit-${showEmptySeats ? "full" : "plain"}-${tone.join("").replace(/[^a-z0-9]/gi, "")}`;
 
   return (
     <svg
@@ -49,8 +54,8 @@ export function LogoMark({
     >
       <defs>
         <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="oklch(0.9 0.14 82)" />
-          <stop offset="100%" stopColor="oklch(0.7 0.15 58)" />
+          <stop offset="0%" stopColor={tone[0]} />
+          <stop offset="100%" stopColor={tone[1]} />
         </linearGradient>
       </defs>
 

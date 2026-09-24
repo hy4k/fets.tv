@@ -30,6 +30,7 @@ export function PublicDisplay({ displayKey, initial }: { displayKey: string; ini
       <DisplayBoard
         className="flex-1"
         hallLabel={state.hall_label}
+        centre={state.centre}
         timezone={state.timezone}
         nonce={state.call?.nonce ?? 0}
         notice={

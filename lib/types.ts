@@ -496,6 +496,8 @@ export type PublicDisplayCall = {
 export type DisplayState = {
   hall_label: string;
   label: string;
+  /** The centre this TV is in. */
+  centre?: string | null;
   timezone: string;
   call: {
     token: string;

@@ -1,8 +1,7 @@
-import Link from "next/link";
 import { LogoMark } from "@/components/brand/Logo";
+import { CentreChooser } from "@/components/landing/CentreChooser";
 import { LandingClock } from "@/components/landing/LandingClock";
-import { StayCurrent } from "@/components/landing/StayCurrent";
-import { todaysSchedule, type ScheduleSlot } from "@/lib/landing-schedule";
+import { frontDoorCentres } from "@/lib/landing-centres";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -11,17 +10,15 @@ export const metadata = {
   // The front door wants the plain name, not "FETS · Exam delivery · FETS", so
   // it opts out of the layout's template rather than feeding it.
   title: { absolute: "FETS · Exam delivery" },
-  description: "Forun Testing & Educational Services, Calicut.",
+  description: "Forun Testing & Educational Services — Calicut and Cochin.",
 };
 
-const HALL_ZONE = "Asia/Kolkata";
-
 /**
- * The front door: the mark, the time, today's exams, and the way in.
+ * The front door: the mark, the time, which centre, and the way in.
  *
- * Nothing else. It is the page left open on the desk screen in the morning, so
- * it answers the two questions asked at that desk — what time is it, and what
- * is on today — and offers the one action.
+ * Nothing else on purpose. It is the first thing on the desk screen in the
+ * morning, and the only question it has to settle before sign-in is where
+ * you are working today.
  */
 export default async function Home() {
   const supabase = await supabaseServer();
@@ -29,114 +26,30 @@ export default async function Home() {
     {
       data: { user },
     },
-    schedule,
-  ] = await Promise.all([supabase.auth.getUser(), todaysSchedule()]);
-
-  const zone = schedule?.[0]?.timezone ?? HALL_ZONE;
-  // Every active centre comes back, so the clock has a real zone even on a
-  // quiet day; only the ones with exams are listed.
-  const busy = schedule?.filter((d) => d.slots.length > 0) ?? null;
-  // With more than one centre, say whose exams these are, even if only one is busy.
-  const showCentreNames = (schedule?.length ?? 0) > 1;
+    centres,
+  ] = await Promise.all([supabase.auth.getUser(), frontDoorCentres()]);
 
   return (
     <main className="relative min-h-dvh overflow-hidden shell-bg">
-      <StayCurrent />
       <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(760px_420px_at_50%_0%,oklch(0.32_0.06_82/0.35),transparent_68%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(820px_460px_at_50%_-8%,oklch(0.34_0.06_82/0.32),transparent_70%)]" />
+        <div className="absolute inset-x-0 bottom-0 h-px bg-[linear-gradient(90deg,transparent,oklch(0.7_0.1_82/0.35),transparent)]" />
       </div>
 
-      <div className="relative mx-auto flex min-h-dvh max-w-[640px] flex-col items-center justify-center px-[16px] py-[36px] sm:py-[48px]">
-        <LogoMark size={84} className="text-fg" />
-        <span className="mt-[12px] font-serif text-[30px] leading-none tracking-[0.04em]">FETS</span>
-
-        <div className="mt-[36px]">
-          <LandingClock timezone={zone} />
+      <div className="relative mx-auto flex min-h-dvh max-w-[600px] flex-col items-center justify-center gap-[40px] px-[16px] py-[40px]">
+        <div className="flex flex-col items-center gap-[14px]">
+          <LogoMark size={76} className="text-fg" />
+          <span className="font-serif text-[32px] leading-none tracking-[0.06em]">FETS</span>
         </div>
 
-        <section className="mt-[36px] w-full" aria-label="Today's exams">
-          <h2 className="mb-[10px] text-center font-mono text-[10.5px] font-bold tracking-[0.16em] text-fg-dim uppercase">
-            Today&rsquo;s exams
-          </h2>
+        <LandingClock timezone={centres[0]?.timezone ?? "Asia/Kolkata"} />
 
-          {schedule === null ? (
-            <Empty>Today&rsquo;s schedule could not be read. Sign in to see it.</Empty>
-          ) : busy!.length === 0 ? (
-            <Empty>No exams scheduled today.</Empty>
-          ) : (
-            <div className="flex flex-col gap-[14px]">
-              {busy!.map((day) => (
-                <div key={day.centre}>
-                  {(showCentreNames || day.timezone !== zone) && (
-                    <span className="mb-[6px] block font-mono text-[10.5px] text-gold">
-                      {day.centre}
-                      {/* The big clock is the first centre's. A centre in
-                          another zone may be on another date, so it says so. */}
-                      {day.timezone !== zone && (
-                        <span className="text-fg-dim">
-                          {" "}· {day.date} ({day.timezone})
-                        </span>
-                      )}
-                    </span>
-                  )}
-                  <ul className="overflow-hidden rounded-[18px] border border-edge bg-panel-soft/70">
-                    {day.slots.map((slot) => (
-                      <Slot key={slot.key} slot={slot} />
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
+        <CentreChooser centres={centres} signedIn={!!user} />
 
-        <Link
-          href={user ? "/front-office" : "/login"}
-          className="mt-[32px] rounded-[15px] gold-bg px-[34px] py-[15px] text-[15px] font-bold text-[#1a1512]"
-        >
-          {user ? "Open the console" : "Sign in"}
-        </Link>
+        <span className="font-mono text-[10px] tracking-[0.16em] text-fg-faint uppercase">
+          Forun Testing &amp; Educational Services
+        </span>
       </div>
     </main>
-  );
-}
-
-const STATE: Record<ScheduleSlot["state"], { label: string; dot: string }> = {
-  upcoming: { label: "Upcoming", dot: "bg-fg-faint" },
-  running: { label: "In progress", dot: "bg-mint animate-pulse-dot" },
-  done: { label: "Done", dot: "bg-fg-dim" },
-};
-
-function Slot({ slot }: { slot: ScheduleSlot }) {
-  const state = STATE[slot.state];
-  return (
-    <li className="flex items-center gap-[14px] border-b border-edge-soft px-[16px] py-[12px] last:border-b-0">
-      <span className="w-[52px] shrink-0 font-mono text-[17px] font-semibold tabular-nums">
-        {slot.time}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[15px] font-semibold">{slot.exam}</span>
-        {slot.part && (
-          <span className="block truncate font-mono text-[11px] text-fg-dim">{slot.part}</span>
-        )}
-      </span>
-      <span className="shrink-0 text-right">
-        <span className="block font-mono text-[13px] tabular-nums">
-          {slot.seats} {slot.seats === 1 ? "seat" : "seats"}
-        </span>
-        <span className="mt-[2px] flex items-center justify-end gap-[6px] font-mono text-[10px] text-fg-dim">
-          <span className={`h-[6px] w-[6px] rounded-full ${state.dot}`} />
-          {state.label}
-        </span>
-      </span>
-    </li>
-  );
-}
-
-function Empty({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="rounded-[18px] border border-edge bg-panel-soft/70 px-[16px] py-[18px] text-center text-[14px] text-fg-muted">
-      {children}
-    </p>
   );
 }

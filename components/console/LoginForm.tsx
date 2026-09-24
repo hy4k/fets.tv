@@ -26,6 +26,14 @@ function Form() {
       return;
     }
 
+    // The centre chosen at the front door. If the move is refused — say they
+    // still hold a post at the other centre — they go in where they are and
+    // the header shows which; signing in must not fail over it.
+    const centre = params.get("centre");
+    if (centre) {
+      await supabaseBrowser().rpc("fets_switch_centre" as never, { p_center: centre } as never);
+    }
+
     router.replace(params.get("next") ?? "/front-office");
     router.refresh();
   }
