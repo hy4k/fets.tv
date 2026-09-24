@@ -34,6 +34,8 @@ export type Step = {
   sub: string;
   /** Numbered steps are the candidate's journey; the rest are not a sequence. */
   n?: number;
+  /** Hidden from viewer accounts, whose screen would only say "not allowed". */
+  staffOnly?: boolean;
 };
 
 export type PlaceKey = "arrivals" | "hall" | "duty" | "records";
@@ -82,7 +84,7 @@ export const PLACES: Place[] = [
     hint: "Past days · TV · setup",
     steps: [
       { key: "history", href: "/history", label: "Past days", sub: "Closed sessions" },
-      { key: "report", href: "/report", label: "Problem report", sub: "For the vendor" },
+      { key: "report", href: "/report", label: "Problem report", sub: "For the vendor", staffOnly: true },
       { key: "tv", href: "/tv", label: "TV screen", sub: "Hall display" },
       { key: "messages", href: "/notices", label: "Messages", sub: "On the TV" },
       { key: "setup", href: "/settings/center", label: "Setup", sub: "Centre, exams, staff" },

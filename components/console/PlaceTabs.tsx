@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useStepBadges } from "@/components/console/NavRail";
+import { useConsole } from "@/lib/console-data";
 import { locate } from "@/lib/nav";
 
 /**
@@ -15,11 +16,13 @@ import { locate } from "@/lib/nav";
 export function PlaceTabs() {
   const pathname = usePathname();
   const badges = useStepBadges();
+  const { profile } = useConsole();
   const { place, step: here } = locate(pathname);
   if (!place) return null;
+  const steps = place.steps.filter((s) => !s.staffOnly || profile.role !== "viewer");
   // Three steps share the width; five would be squeezed to "Problem r…", so
   // they keep their natural width and the bar scrolls instead.
-  const fill = place.steps.length <= 3;
+  const fill = steps.length <= 3;
 
   return (
     <div
@@ -27,7 +30,7 @@ export function PlaceTabs() {
       role="tablist"
       aria-label={place.title}
     >
-      {place.steps.map((step, i) => {
+      {steps.map((step, i) => {
         const active = step.key === here?.key;
         const badge = badges[step.key] ?? 0;
         return (
