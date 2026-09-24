@@ -1,7 +1,7 @@
 # FETS.TV — Operations Console
 
 Exam delivery console for Forun Testing & Educational Services, Site 4960 (Calicut).
-Served at `https://fets.online/tv` (Traefik + Docker on Hostinger), backed by the
+Served at `https://fets.online` (Traefik + Docker on Hostinger), backed by the
 Supabase project `ueufcqmdqtwvhjjyudeu` in `ap-south-1`.
 
 The console enforces one flow, in this order:
@@ -18,7 +18,7 @@ with a reason.
 
 ## Stack
 
-- Next.js 16 (App Router) + React 19 + Tailwind v4, `basePath: /tv`
+- Next.js 16 (App Router) + React 19 + Tailwind v4, served at the site root (old `/tv/...` links redirect)
 - Supabase: Postgres, Auth, Realtime, RLS
 - `exceljs` + `papaparse` for roster import
 
@@ -56,14 +56,14 @@ never have to go back up.
 | `/settings/center` | admin | Scheduling, workflow toggles, paired displays |
 | `/display/<key>` | nobody signed in | The hall TV |
 
-All paths are under the `/tv` base path in production (`fets.online/tv/front-office`).
+Paths are at the root in production (`fets.online/front-office`); old `/tv/...` links redirect there.
 
 ## Local setup
 
 ```bash
 cp .env.example .env.local   # project URL, anon key, service role key
 npm install
-npm run dev                  # http://localhost:3000/tv/front-office
+npm run dev                  # http://localhost:3000/front-office
 ```
 
 Operators need a row in `profiles` pointing at their center:
@@ -78,7 +78,7 @@ the TV, import a roster, change center settings or run an override.
 
 ## Public displays
 
-A TV opens `/tv/display/<display key>`. The key is a shared secret that lives only in that
+A TV opens `/display/<display key>`. The key is a shared secret that lives only in that
 TV's URL; `public_displays` stores its SHA-256 hash. Register one with:
 
 ```sql
