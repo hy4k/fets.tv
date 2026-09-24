@@ -157,3 +157,12 @@ test("finishing exactly on a boundary does not open one more window", () => {
   assert.equal(day(min(200), [], min(90)).floor.windows.length, 9);
   assert.equal(day(min(200), [], min(91)).floor.windows.length, 10);
 });
+
+test("a started candidate later marked no-show neither holds the day open nor ends it in 1970", () => {
+  const b = dayBounds([
+    { exam_started_at: iso(0), exam_finished_at: iso(60), status: "signed_out" },
+    { exam_started_at: iso(5), exam_finished_at: null, status: "no_show" },
+  ]);
+  assert.equal(b.anchor, T0);
+  assert.equal(b.finishedAt, min(60));
+});

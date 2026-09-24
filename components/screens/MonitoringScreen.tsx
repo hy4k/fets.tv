@@ -85,11 +85,15 @@ export function MonitoringScreen() {
     to: open[(i - 1 + open.length) % open.length].block!.profile_name,
   }));
 
-  const floorBlock = open.find((x) => x.post.kind === "lab")?.block ?? null;
+  // The newest open block on any staffed post: a rotation starts them all at
+  // once, and the floor post may be the one that is empty today.
+  const lastRotation = open.length
+    ? Math.max(...open.map((x) => new Date(x.block!.started_at).getTime()))
+    : null;
   const handover = handoverDue({
     day,
     now,
-    lastRotation: floorBlock ? new Date(floorBlock.started_at).getTime() : null,
+    lastRotation,
     shiftMinutes: rules.duty_block_minutes,
   });
 

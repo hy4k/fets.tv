@@ -60,9 +60,12 @@ export function dayBounds(candidates: Sitter[]) {
   const anchor = Math.min(...started.map((c) => new Date(c.exam_started_at!).getTime()));
   const expected = candidates.filter((c) => c.status !== "no_show");
   const allDone = expected.every((c) => c.exam_started_at && c.exam_finished_at);
-  const finishedAt = allDone
-    ? Math.max(...started.map((c) => new Date(c.exam_finished_at!).getTime()))
-    : null;
+  // Finish times come only from the expected sitters: a started candidate
+  // later marked no-show has no finish, and must not read as 1970.
+  const finishedAt =
+    allDone && expected.length > 0
+      ? Math.max(...expected.map((c) => new Date(c.exam_finished_at!).getTime()))
+      : null;
   return { anchor, finishedAt };
 }
 
