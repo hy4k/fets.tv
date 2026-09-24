@@ -116,7 +116,9 @@ function PlaceTile({
   return (
     <Link
       href={href}
-      aria-current={active ? "page" : undefined}
+      // "true", not "page": the tile marks the place you are in, but it
+      // links to that place's first step, which may not be this page.
+      aria-current={active ? "true" : undefined}
       className={`relative flex min-h-[52px] flex-col items-center justify-center gap-[4px] rounded-[14px] border px-[6px] py-[8px] transition-colors md:items-stretch md:gap-[8px] md:rounded-[16px] md:px-[12px] md:py-[12px] ${
         major ? "md:min-h-[104px]" : "md:min-h-0"
       } ${
