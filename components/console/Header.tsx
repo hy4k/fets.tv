@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { CentreSwitcher } from "@/components/console/CentreSwitcher";
 import { useConsole } from "@/lib/console-data";
 import { initials } from "@/lib/format";
 import { locate } from "@/lib/nav";
@@ -45,10 +46,9 @@ export function Header() {
               </span>
             )}
           </span>
-          <span className="mt-[4px] hidden items-center gap-[7px] font-mono text-[10.5px] text-fg-dim sm:flex">
-            <span className="h-[6px] w-[6px] animate-pulse-dot rounded-full bg-mint" />
-            {center.site_code} · {center.name.replace(/^FETS\s+/i, "")}
-            {step && <span className="text-fg-faint">· {step.sub}</span>}
+          <span className="mt-[5px] flex items-center gap-[8px] font-mono text-[10.5px] text-fg-dim">
+            <CentreSwitcher />
+            {step && <span className="hidden text-fg-faint sm:inline">{step.sub}</span>}
           </span>
         </span>
       </span>

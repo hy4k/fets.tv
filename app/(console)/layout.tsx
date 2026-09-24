@@ -232,8 +232,10 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
     stale: [],
   };
 
+  // Keyed by centre: switching centre remounts the provider, so its realtime
+  // channels and snapshot belong to the new centre.
   return (
-    <ConsoleProvider initial={snapshot}>
+    <ConsoleProvider key={center.id} initial={snapshot}>
       {/* Phone and tablet get the nav as a bar under the content; from md up it
           is the side rail. h-dvh, not h-screen, so a phone's address bar does
           not push the nav off the bottom. */}
