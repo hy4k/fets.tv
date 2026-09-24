@@ -36,7 +36,8 @@ export default async function Home() {
   // Every active centre comes back, so the clock has a real zone even on a
   // quiet day; only the ones with exams are listed.
   const busy = schedule?.filter((d) => d.slots.length > 0) ?? null;
-  const showCentreNames = (busy?.length ?? 0) > 1;
+  // With more than one centre, say whose exams these are, even if only one is busy.
+  const showCentreNames = (schedule?.length ?? 0) > 1;
 
   return (
     <main className="relative min-h-dvh overflow-hidden shell-bg">
