@@ -19,7 +19,7 @@ services:
       traefik.enable: "true"
       traefik.docker.network: "proxy"
       traefik.http.routers.fets-tv.entrypoints: "websecure"
-      traefik.http.routers.fets-tv.rule: "Host(`fets.online`) && PathPrefix(`/tv`)"
+      traefik.http.routers.fets-tv.rule: "Host(`fets.online`)"
       traefik.http.routers.fets-tv.priority: "100"
       traefik.http.routers.fets-tv.tls: "true"
       traefik.http.routers.fets-tv.tls.certresolver: "letsencrypt"
