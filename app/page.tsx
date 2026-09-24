@@ -1,129 +1,129 @@
 import Link from "next/link";
-import { Logo, LogoMark } from "@/components/brand/Logo";
+import { LogoMark } from "@/components/brand/Logo";
+import { LandingClock } from "@/components/landing/LandingClock";
+import { todaysSchedule, type ScheduleSlot } from "@/lib/landing-schedule";
 import { supabaseServer } from "@/lib/supabase/server";
+
+export const dynamic = "force-dynamic";
 
 export const metadata = {
   // The front door wants the plain name, not "FETS · Exam delivery · FETS", so
   // it opts out of the layout's template rather than feeding it.
   title: { absolute: "FETS · Exam delivery" },
-  description:
-    "The console that runs exam day at Forun Testing & Educational Services, Calicut.",
+  description: "Forun Testing & Educational Services, Calicut.",
 };
 
+const HALL_ZONE = "Asia/Kolkata";
+
 /**
- * The front door.
+ * The front door: the mark, the time, today's exams, and the way in.
  *
- * This used to redirect straight to the front office, which is right for
- * somebody already halfway through a shift and wrong for everyone else: a
- * staff member on their first morning, somebody opening the link on a phone,
- * or Mithun showing the centre to a partner. So the address now has something
- * at it.
- *
- * It is not a marketing page. It says what this is, who it is for, and gets
- * out of the way — and because the session is read on the server, the one
- * button on it is already the right button before the page is painted.
+ * Nothing else. It is the page left open on the desk screen in the morning, so
+ * it answers the two questions asked at that desk — what time is it, and what
+ * is on today — and offers the one action.
  */
 export default async function Home() {
   const supabase = await supabaseServer();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const [
+    {
+      data: { user },
+    },
+    schedule,
+  ] = await Promise.all([supabase.auth.getUser(), todaysSchedule()]);
+
+  const zone = schedule?.[0]?.timezone ?? HALL_ZONE;
+  const showCentreNames = (schedule?.length ?? 0) > 1;
 
   return (
     <main className="relative min-h-dvh overflow-hidden shell-bg">
-      {/* The hall behind everything: the same grid the mark is cut from, at a
-          whisper, so the page has depth without an image to download. */}
-      <HallBackdrop />
+      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(760px_420px_at_50%_0%,oklch(0.32_0.06_82/0.35),transparent_68%)]" />
+      </div>
 
-      <div className="relative mx-auto flex min-h-dvh max-w-[960px] flex-col px-[22px] py-[28px] sm:px-[32px]">
-        <header className="flex shrink-0 flex-wrap items-center gap-[14px]">
-          <Logo size={42} />
-          <span className="min-w-[12px] flex-1" />
-          <span className="hidden items-center gap-[8px] rounded-[12px] border border-edge-strong bg-panel-soft py-[7px] pr-[12px] pl-[10px] sm:flex">
-            <span className="h-[7px] w-[7px] animate-pulse-dot rounded-full bg-mint" />
-            <span className="font-mono text-[11px] font-semibold text-fg-muted">
-              CALICUT · SITE 4960
-            </span>
-          </span>
-        </header>
+      <div className="relative mx-auto flex min-h-dvh max-w-[640px] flex-col items-center justify-center px-[16px] py-[36px] sm:py-[48px]">
+        <LogoMark size={84} className="text-fg" />
+        <span className="mt-[12px] font-serif text-[30px] leading-none tracking-[0.04em]">FETS</span>
 
-        <div className="flex flex-1 flex-col justify-center gap-[44px] py-[40px]">
-          <div>
-            <h1 className="max-w-[16ch] font-serif text-[40px] leading-[1.04] sm:text-[62px]">
-              Every exam day, <span className="text-gold">accounted for.</span>
-            </h1>
-
-            <p className="mt-[18px] max-w-[54ch] text-[15px] leading-[1.6] text-fg-muted sm:text-[16.5px]">
-              The console that runs the room at FETS Calicut — candidates from
-              the door to the seat, the clock on every exam, the rota, the floor
-              walk, and the record of what happened when something went wrong.
-            </p>
-
-            <div className="mt-[30px] flex flex-wrap items-center gap-[12px]">
-              <Link
-                href={user ? "/front-office" : "/login"}
-                className="rounded-[15px] gold-bg px-[26px] py-[15px] text-[15px] font-bold text-[#1a1512]"
-              >
-                {user ? "Open the console" : "Sign in"}
-              </Link>
-              <span className="font-mono text-[11.5px] text-fg-faint">
-                {user ? "You are already signed in" : "For centre staff"}
-              </span>
-            </div>
-          </div>
-
-          <section className="grid gap-[10px] sm:grid-cols-3">
-            {[
-              ["The room", "Check-in, seating, and every clock on one screen."],
-              [
-                "The rota",
-                "Who holds which post, the ten-minute walk, the week ahead.",
-              ],
-              [
-                "The record",
-                "Incidents, materials, and a report written from what happened.",
-              ],
-            ].map(([title, line]) => (
-              <div
-                key={title}
-                className="rounded-[16px] border border-edge bg-panel-soft/60 p-[14px]"
-              >
-                <span className="block font-mono text-[10px] font-bold tracking-[0.13em] text-gold uppercase">
-                  {title}
-                </span>
-                <span className="mt-[6px] block text-[13px] leading-[1.5] text-fg-muted">
-                  {line}
-                </span>
-              </div>
-            ))}
-          </section>
+        <div className="mt-[36px]">
+          <LandingClock timezone={zone} />
         </div>
 
-        <footer className="mt-[26px] shrink-0 border-t border-edge-soft pt-[14px] font-mono text-[10.5px] text-fg-faint">
-          Forun Testing &amp; Educational Services · Calicut, Kerala
-        </footer>
+        <section className="mt-[36px] w-full" aria-label="Today's exams">
+          <h2 className="mb-[10px] text-center font-mono text-[10.5px] font-bold tracking-[0.16em] text-fg-dim uppercase">
+            Today&rsquo;s exams
+          </h2>
+
+          {schedule === null ? (
+            <Empty>Today&rsquo;s schedule could not be read. Sign in to see it.</Empty>
+          ) : schedule.length === 0 ? (
+            <Empty>No exams scheduled today.</Empty>
+          ) : (
+            <div className="flex flex-col gap-[14px]">
+              {schedule.map((day) => (
+                <div key={day.centre}>
+                  {showCentreNames && (
+                    <span className="mb-[6px] block font-mono text-[10.5px] text-gold">
+                      {day.centre}
+                    </span>
+                  )}
+                  <ul className="overflow-hidden rounded-[18px] border border-edge bg-panel-soft/70">
+                    {day.slots.map((slot) => (
+                      <Slot key={slot.key} slot={slot} />
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <Link
+          href={user ? "/front-office" : "/login"}
+          className="mt-[32px] rounded-[15px] gold-bg px-[34px] py-[15px] text-[15px] font-bold text-[#1a1512]"
+        >
+          {user ? "Open the console" : "Sign in"}
+        </Link>
       </div>
     </main>
   );
 }
 
-/**
- * The seating grid, very faint, bleeding off the top right.
- *
- * Decoration, so it is hidden from anybody listening to the page rather than
- * looking at it. Drawn once as an SVG pattern instead of shipped as an image.
- */
-function HallBackdrop() {
+const STATE: Record<ScheduleSlot["state"], { label: string; dot: string }> = {
+  upcoming: { label: "Upcoming", dot: "bg-fg-faint" },
+  running: { label: "In progress", dot: "bg-mint animate-pulse-dot" },
+  done: { label: "Done", dot: "bg-fg-dim" },
+};
+
+function Slot({ slot }: { slot: ScheduleSlot }) {
+  const state = STATE[slot.state];
   return (
-    <div
-      aria-hidden
-      className="pointer-events-none absolute inset-0 overflow-hidden"
-    >
-      <LogoMark
-        size={540}
-        className="absolute -top-[70px] -right-[90px] text-fg opacity-[0.05]"
-      />
-      <div className="absolute inset-0 bg-[radial-gradient(900px_420px_at_18%_8%,oklch(0.32_0.06_82/0.35),transparent_66%)]" />
-    </div>
+    <li className="flex items-center gap-[14px] border-b border-edge-soft px-[16px] py-[12px] last:border-b-0">
+      <span className="w-[52px] shrink-0 font-mono text-[17px] font-semibold tabular-nums">
+        {slot.time}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[15px] font-semibold">{slot.exam}</span>
+        {slot.part && (
+          <span className="block truncate font-mono text-[11px] text-fg-dim">{slot.part}</span>
+        )}
+      </span>
+      <span className="shrink-0 text-right">
+        <span className="block font-mono text-[13px] tabular-nums">
+          {slot.seats} {slot.seats === 1 ? "seat" : "seats"}
+        </span>
+        <span className="mt-[2px] flex items-center justify-end gap-[6px] font-mono text-[10px] text-fg-dim">
+          <span className={`h-[6px] w-[6px] rounded-full ${state.dot}`} />
+          {state.label}
+        </span>
+      </span>
+    </li>
+  );
+}
+
+function Empty({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="rounded-[18px] border border-edge bg-panel-soft/70 px-[16px] py-[18px] text-center text-[14px] text-fg-muted">
+      {children}
+    </p>
   );
 }
