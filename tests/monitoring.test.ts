@@ -108,7 +108,9 @@ test("nothing is due once the day has finished", () => {
 
 test("blocks started mid-shift end with the shift, within the database's limits", () => {
   assert.equal(minutesToShiftEnd(day(min(30)), min(30)), 60);
-  assert.equal(minutesToShiftEnd(day(min(85)), min(85)), 15);
+  assert.equal(minutesToShiftEnd(day(min(75)), min(75)), 15);
+  // Inside the last ten minutes, the new blocks run through the next shift.
+  assert.equal(minutesToShiftEnd(day(min(85)), min(85)), 95);
 });
 
 test("countdowns read as minutes and seconds, and past zero with a plus", () => {
@@ -172,4 +174,12 @@ test("a session of only no-shows never starts the clocks", () => {
     anchor: null,
     finishedAt: null,
   });
+});
+
+test("a candidate moved to completed by hand counts as done", () => {
+  const b = dayBounds([
+    { exam_started_at: iso(0), exam_finished_at: iso(60), status: "signed_out" },
+    { exam_started_at: null, exam_finished_at: null, status: "completed" },
+  ]);
+  assert.equal(b.finishedAt, min(60));
 });

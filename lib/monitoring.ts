@@ -61,10 +61,18 @@ export function dayBounds(candidates: Sitter[]) {
   const started = expected.filter((c) => c.exam_started_at);
   if (started.length === 0) return { anchor: null, finishedAt: null };
   const anchor = Math.min(...started.map((c) => new Date(c.exam_started_at!).getTime()));
-  const allDone = expected.every((c) => c.exam_started_at && c.exam_finished_at);
-  const finishedAt = allDone
-    ? Math.max(...expected.map((c) => new Date(c.exam_finished_at!).getTime()))
-    : null;
+  // Done means finished on the clock, or moved to completed / signed out by
+  // hand — an override changes the status and leaves the timestamps empty.
+  const allDone = expected.every(
+    (c) =>
+      (c.exam_started_at && c.exam_finished_at) ||
+      c.status === "completed" ||
+      c.status === "signed_out",
+  );
+  const finishes = expected
+    .filter((c) => c.exam_finished_at)
+    .map((c) => new Date(c.exam_finished_at!).getTime());
+  const finishedAt = allDone ? (finishes.length ? Math.max(...finishes) : anchor) : null;
   return { anchor, finishedAt };
 }
 
@@ -156,10 +164,16 @@ export function handoverDue(input: {
   return { due, boundary, minutes };
 }
 
-/** Minutes for blocks started now, so they end with the current shift. */
+/**
+ * Minutes for blocks started now, so they end with the current shift — or,
+ * in its last ten minutes, with the next one, since handoverDue counts a
+ * rotation that close to the boundary as that boundary's handover.
+ */
 export function minutesToShiftEnd(day: Day, now: number) {
   if (!day.shift) return null;
-  return Math.min(480, Math.max(15, Math.round((day.shift.end - now) / 60000)));
+  const S = day.shift.end - day.shift.start;
+  const end = day.shift.end - now <= 10 * 60000 ? day.shift.end + S : day.shift.end;
+  return Math.min(480, Math.max(15, Math.round((end - now) / 60000)));
 }
 
 export function countdown(ms: number) {
