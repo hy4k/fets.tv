@@ -56,6 +56,11 @@ export function WalkthroughBar() {
         : "border-edge-warm bg-panel-soft text-fg";
 
   async function record() {
+    // The day can end while the note is open; Enter must not log a walk then.
+    if (!w) {
+      setOpen(false);
+      return;
+    }
     const ok = await rpc(
       "fets_record_walkthrough",
       { p_center: center.id, p_note: note.trim() || null },
@@ -107,7 +112,7 @@ export function WalkthroughBar() {
         </button>
       </div>
 
-      {open && (
+      {open && w && (
         <input
           value={note}
           onChange={(e) => setNote(e.target.value)}
