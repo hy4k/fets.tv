@@ -85,10 +85,11 @@ export function MonitoringScreen() {
     to: open[(i - 1 + open.length) % open.length].block!.profile_name,
   }));
 
-  // The newest open block on any staffed post: a rotation starts them all at
-  // once, and the floor post may be the one that is empty today.
+  // A rotation restarts every staffed post at once, so the oldest open block
+  // says when everybody last moved. One post handed over on its own leaves
+  // the others old, and does not count as the shift's handover.
   const lastRotation = open.length
-    ? Math.max(...open.map((x) => new Date(x.block!.started_at).getTime()))
+    ? Math.min(...open.map((x) => new Date(x.block!.started_at).getTime()))
     : null;
   const handover = handoverDue({
     day,

@@ -55,17 +55,16 @@ type Sitter = { exam_started_at: string | null; exam_finished_at: string | null;
  * first sitters finished; only a no-show is left out.
  */
 export function dayBounds(candidates: Sitter[]) {
-  const started = candidates.filter((c) => c.exam_started_at);
+  // No-shows are out of it entirely, even one whose clock was started by
+  // mistake: they neither start the day nor hold it open.
+  const expected = candidates.filter((c) => c.status !== "no_show");
+  const started = expected.filter((c) => c.exam_started_at);
   if (started.length === 0) return { anchor: null, finishedAt: null };
   const anchor = Math.min(...started.map((c) => new Date(c.exam_started_at!).getTime()));
-  const expected = candidates.filter((c) => c.status !== "no_show");
   const allDone = expected.every((c) => c.exam_started_at && c.exam_finished_at);
-  // Finish times come only from the expected sitters: a started candidate
-  // later marked no-show has no finish, and must not read as 1970.
-  const finishedAt =
-    allDone && expected.length > 0
-      ? Math.max(...expected.map((c) => new Date(c.exam_finished_at!).getTime()))
-      : null;
+  const finishedAt = allDone
+    ? Math.max(...expected.map((c) => new Date(c.exam_finished_at!).getTime()))
+    : null;
   return { anchor, finishedAt };
 }
 

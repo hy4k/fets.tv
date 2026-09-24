@@ -166,3 +166,10 @@ test("a started candidate later marked no-show neither holds the day open nor en
   assert.equal(b.anchor, T0);
   assert.equal(b.finishedAt, min(60));
 });
+
+test("a session of only no-shows never starts the clocks", () => {
+  assert.deepEqual(dayBounds([{ exam_started_at: iso(0), exam_finished_at: null, status: "no_show" }]), {
+    anchor: null,
+    finishedAt: null,
+  });
+});
