@@ -3,24 +3,14 @@
 import { usePathname } from "next/navigation";
 import { useConsole } from "@/lib/console-data";
 import { initials } from "@/lib/format";
+import { locate } from "@/lib/nav";
 import { useClock } from "@/lib/use-clock";
-
-const TITLES: Record<string, string> = {
-  "/front-office": "Front Office",
-  "/admin": "Admin Room",
-  "/tv": "Public Display",
-  "/notices": "Hall Messages",
-  "/floor": "Live Floor",
-  "/roster": "Roster",
-  "/candidates": "Candidates",
-  "/lab": "Exam Lab",
-  "/settings/center": "Center Setup",
-};
 
 export function Header() {
   const pathname = usePathname();
   const { center, profile } = useConsole();
   const clock = useClock(center.timezone);
+  const { place } = locate(pathname);
 
   return (
     <header className="flex shrink-0 flex-wrap items-center gap-[10px] rounded-[18px] border border-edge-soft header-bg px-[12px] py-[10px] md:rounded-[20px] md:px-[14px] md:py-[11px]">
@@ -31,7 +21,7 @@ export function Header() {
         </span>
       </span>
 
-      <span className="font-serif text-[21px] leading-none md:text-[25px]">{TITLES[pathname] ?? "Console"}</span>
+      <span className="font-serif text-[21px] leading-none md:text-[25px]">{place?.title ?? "Console"}</span>
       <span className="min-w-[12px] flex-1" />
 
       <span className="font-mono text-[15px] font-semibold tabular-nums md:text-[18px]">{clock}</span>

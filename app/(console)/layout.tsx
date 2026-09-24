@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { DataGaps } from "@/components/console/DataGaps";
 import { Header } from "@/components/console/Header";
 import { NavRail } from "@/components/console/NavRail";
+import { PlaceTabs } from "@/components/console/PlaceTabs";
 import { Toasts } from "@/components/console/Toasts";
 import { ConsoleProvider, type ConsoleSnapshot } from "@/lib/console-data";
 import { weekWindow } from "@/lib/coverage";
@@ -239,6 +240,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
         <NavRail />
         <main className="order-first flex min-h-0 min-w-0 flex-1 flex-col gap-[10px] md:order-none md:gap-[14px]">
           <Header />
+          <PlaceTabs />
           <DataGaps />
           {children}
         </main>
