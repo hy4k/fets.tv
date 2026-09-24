@@ -58,7 +58,12 @@ export async function todaysSchedule(now = new Date()): Promise<CentreDay[] | nu
         .order("created_at", { ascending: false })
         .limit(1);
       if (sessionsError) return null;
-      if (!sessions?.length) continue;
+      // A centre with nothing on is still returned, empty, so the page can
+      // show its clock rather than guess a time zone.
+      if (!sessions?.length) {
+        days.push({ centre: centre.name, timezone: centre.timezone, date: todayInZone(centre.timezone, now), slots: [] });
+        continue;
+      }
 
       const { data: candidates, error: candidatesError } = await supabase
         .from("candidates")

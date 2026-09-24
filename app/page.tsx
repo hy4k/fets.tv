@@ -33,7 +33,10 @@ export default async function Home() {
   ] = await Promise.all([supabase.auth.getUser(), todaysSchedule()]);
 
   const zone = schedule?.[0]?.timezone ?? HALL_ZONE;
-  const showCentreNames = (schedule?.length ?? 0) > 1;
+  // Every active centre comes back, so the clock has a real zone even on a
+  // quiet day; only the ones with exams are listed.
+  const busy = schedule?.filter((d) => d.slots.length > 0) ?? null;
+  const showCentreNames = (busy?.length ?? 0) > 1;
 
   return (
     <main className="relative min-h-dvh overflow-hidden shell-bg">
@@ -57,11 +60,11 @@ export default async function Home() {
 
           {schedule === null ? (
             <Empty>Today&rsquo;s schedule could not be read. Sign in to see it.</Empty>
-          ) : schedule.length === 0 ? (
+          ) : busy!.length === 0 ? (
             <Empty>No exams scheduled today.</Empty>
           ) : (
             <div className="flex flex-col gap-[14px]">
-              {schedule.map((day) => (
+              {busy!.map((day) => (
                 <div key={day.centre}>
                   {(showCentreNames || day.timezone !== zone) && (
                     <span className="mb-[6px] block font-mono text-[10.5px] text-gold">
