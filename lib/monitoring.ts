@@ -46,7 +46,13 @@ export type Day = {
   dvr: Track;
 };
 
-type Sitter = { exam_started_at: string | null; exam_finished_at: string | null; status?: string };
+type Sitter = {
+  exam_started_at: string | null;
+  exam_finished_at: string | null;
+  status?: string;
+  completed_at?: string | null;
+  signed_out_at?: string | null;
+};
 
 /**
  * The first exam start among these candidates, and the last finish once the
@@ -69,9 +75,13 @@ export function dayBounds(candidates: Sitter[]) {
       c.status === "completed" ||
       c.status === "signed_out",
   );
+  // Each person's end: the exam clock's finish, or — when moved on by hand,
+  // which stamps these but not the clock — when they were completed or
+  // signed out, whichever came first.
   const finishes = expected
-    .filter((c) => c.exam_finished_at)
-    .map((c) => new Date(c.exam_finished_at!).getTime());
+    .map((c) => c.exam_finished_at ?? c.completed_at ?? c.signed_out_at ?? null)
+    .filter((x): x is string => x !== null)
+    .map((x) => new Date(x).getTime());
   const finishedAt = allDone ? (finishes.length ? Math.max(...finishes) : anchor) : null;
   return { anchor, finishedAt };
 }

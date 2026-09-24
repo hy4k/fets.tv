@@ -179,7 +179,7 @@ test("a session of only no-shows never starts the clocks", () => {
 test("a candidate moved to completed by hand counts as done", () => {
   const b = dayBounds([
     { exam_started_at: iso(0), exam_finished_at: iso(60), status: "signed_out" },
-    { exam_started_at: null, exam_finished_at: null, status: "completed" },
+    { exam_started_at: iso(5), exam_finished_at: null, status: "completed", completed_at: iso(140) },
   ]);
-  assert.equal(b.finishedAt, min(60));
+  assert.equal(b.finishedAt, min(140));
 });
