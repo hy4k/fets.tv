@@ -223,7 +223,7 @@ export function RosterUploadScreen() {
             <span className="text-[12.5px] text-gold">Choose the exam above first.</span>
           )}
 
-          {!isAdmin && <span className="text-[12.5px] text-gold">Only an admin can import a roster.</span>}
+          {!isAdmin && <span className="text-[12.5px] text-gold">Only staff can import a roster.</span>}
 
           <span className="flex items-center gap-[12px] pt-[6px] text-[12px] text-fg-faint">
             <span className="h-px w-[40px] bg-edge-soft" />

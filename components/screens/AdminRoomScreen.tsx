@@ -347,7 +347,7 @@ function AuditPanel() {
 }
 
 function NotAdmin() {
-  return <p className="text-[12.5px] text-gold">Only an admin can move somebody between stages.</p>;
+  return <p className="text-[12.5px] text-gold">Only staff can move somebody between stages.</p>;
 }
 
 function OverridePanel() {

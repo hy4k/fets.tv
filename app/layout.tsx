@@ -20,8 +20,10 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "FETS Console",
-  description: "Exam delivery console for Forun Testing & Educational Services",
+  // A template rather than a fixed string, so the tab says which screen you
+  // are on when six of them are open across the centre.
+  title: { default: "FETS · Exam delivery", template: "%s · FETS" },
+  description: "Exam delivery console for Forun Testing & Educational Services, Calicut.",
 };
 
 export const viewport: Viewport = {

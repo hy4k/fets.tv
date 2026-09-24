@@ -28,10 +28,10 @@ export function ReportScreen() {
   const { center, session, notify, isAdmin, profile, incidents, candidates, candidateSections } =
     useConsole();
 
-  // A report is a management document, and the function behind it says so. The
-  // rail hides the link from everybody else; this is the same rule for anybody
-  // who reaches the page by its address.
-  const allowed = profile.role === "admin" || profile.role === "tca";
+  // The rail hides the link from a viewer; this is the same rule for anybody
+  // who reaches the page by its address, and it matches what the function
+  // behind it will now allow.
+  const allowed = profile.role !== "viewer";
 
   const [days, setDays] = useState<ExamSession[]>([]);
   const [dayId, setDayId] = useState<string | null>(session?.id ?? null);

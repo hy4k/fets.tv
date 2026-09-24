@@ -1,8 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-// The hall TV and its event stream authenticate with the display key, not a session.
-const PUBLIC_PATHS = ["/login", "/display", "/api/display"];
+// The hall TV and its event stream authenticate with the display key, not a
+// session. "/" is the front door and has to be readable by somebody who has
+// not signed in yet — it is matched exactly, so nothing beneath it is opened.
+const PUBLIC_PATHS = ["/", "/login", "/display", "/api/display"];
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -27,7 +29,9 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
-  const isPublic = PUBLIC_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
+  const isPublic = PUBLIC_PATHS.some(
+    (p) => path === p || (p !== "/" && path.startsWith(`${p}/`)),
+  );
 
   if (!user && !isPublic) {
     if (path.startsWith("/api/")) {

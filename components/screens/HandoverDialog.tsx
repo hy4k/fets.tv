@@ -349,7 +349,7 @@ export function HandoverDialog({
           {taking !== null &&
             (pinSetAt[taking] === null ? (
               <p className="rounded-[12px] border border-gold/35 bg-gold/8 px-[11px] py-[9px] text-[12.5px] text-gold">
-                {operators[taking]} has not set a PIN. An admin can set one under Setup, or use
+                {operators[taking]} has not set a PIN. Anybody can set one under Setup, or use
                 Put somebody on to place them without a signature.
               </p>
             ) : (
@@ -396,7 +396,7 @@ export function HandoverDialog({
  */
 function refusal(v: Extract<HandoverVerdict, { ok: false }>, timezone: string) {
   if (v.reason === "no_pin") {
-    return `${v.name} has not set a PIN yet. An admin can set one under Setup.`;
+    return `${v.name} has not set a PIN yet. Anybody can set one under Setup.`;
   }
   if (v.reason === "locked") {
     return v.locked_until

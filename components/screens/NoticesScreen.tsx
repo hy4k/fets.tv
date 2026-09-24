@@ -477,7 +477,7 @@ export function NoticesScreen() {
 
               {!canCall && (
                 <p className="text-[12.5px] text-gold">
-                  Only an admin or a TCA can put a message on the TV.
+                  Only staff can put a message on the TV.
                 </p>
               )}
 

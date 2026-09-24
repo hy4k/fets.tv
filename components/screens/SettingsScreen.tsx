@@ -56,7 +56,7 @@ export function SettingsScreen() {
       <section className="flex min-h-0 flex-1 flex-col overflow-y-auto rounded-[20px] border border-edge-mid panel-bg p-[18px]">
         {!isAdmin && (
           <p className="mb-[14px] rounded-[14px] border border-gold/35 bg-gold/8 p-[13px] text-[12.5px] text-gold">
-            You can see these settings but not change them. Only an admin can.
+            You can see these settings but not change them. Anybody on staff can.
           </p>
         )}
 
@@ -771,7 +771,7 @@ function PinsPanel() {
 
         {!isAdmin && (
           <p className="font-mono text-[10.5px] text-fg-faint">
-            You can set your own. An admin sets or clears anybody else’s.
+            Anybody on staff can set or clear anybody’s. A viewer can set only their own.
           </p>
         )}
       </div>
