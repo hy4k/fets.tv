@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { RotationDialog } from "@/components/screens/DutyScreen";
 import { useConsole } from "@/lib/console-data";
+import { supabaseBrowser } from "@/lib/supabase/client";
 import { clockAt, todayInZone } from "@/lib/format";
 import {
   countdown,
@@ -36,7 +37,7 @@ const COPY: Record<CheckKind, { title: string; action: string; done: string; toa
  * starts the next shift's clocks.
  */
 export function MonitoringScreen() {
-  const { center, candidates, walkthroughs, dutyBlocks, dutyPosts, rules, rpc, canCall } =
+  const { center, candidates, walkthroughs, dutyBlocks, dutyPosts, rules, rpc, canCall, notify } =
     useConsole();
   const now = useNow();
   const live = now > 0;
@@ -100,15 +101,56 @@ export function MonitoringScreen() {
 
   const nobodyOn = !holder("floor") && !holder("dvr");
 
-  function exportLog() {
+  /**
+   * The export reads the whole day from the database, not the screen's
+   * snapshot: that holds the newest few hundred checks and a slice of past
+   * duties, which is plenty to draw the page and not a record of the day.
+   */
+  async function exportLog() {
+    if (day.anchor === null) return;
     // The exam day's date, not today's: a log exported the next morning is
     // still the log of the day the clocks ran.
-    const date = todayInZone(center.timezone, day.anchor !== null ? new Date(day.anchor) : new Date());
+    const date = todayInZone(center.timezone, new Date(day.anchor));
+    const from = new Date(day.anchor).toISOString();
+    const until = day.finishedAt ?? now;
+    const to = new Date(until).toISOString();
+
+    const supabase = supabaseBrowser();
+    const [walks, blocks] = await Promise.all([
+      supabase
+        .from("walkthroughs")
+        .select("kind, walked_at, walked_by_name, note")
+        .eq("center_id", center.id)
+        .gte("walked_at", from)
+        .lte("walked_at", to)
+        .order("walked_at")
+        .range(0, 9999),
+      supabase
+        .from("duty_blocks")
+        .select("post_id, profile_name, started_at, ended_at")
+        .eq("center_id", center.id)
+        .lte("started_at", to)
+        .or(`ended_at.is.null,ended_at.gte.${from}`)
+        .range(0, 9999),
+    ]);
+    if (walks.error || blocks.error) {
+      notify("Could not read the day's log. Nothing was exported.", "error");
+      return;
+    }
+
+    const fullDay = monitoringDay({
+      anchor: day.anchor,
+      finishedAt: day.finishedAt,
+      now: until,
+      checks: (walks.data ?? []).map((w) => ({ ...w, kind: w.kind ?? "floor" })),
+      walkMinutes: rules.walkthrough_minutes,
+      shiftMinutes: rules.duty_block_minutes,
+    });
     const csv = monitoringCsv({
-      day,
+      day: fullDay,
       date,
       timezone: center.timezone,
-      blocks: dutyBlocks.map((b) => ({
+      blocks: (blocks.data ?? []).map((b) => ({
         post_kind: kindOf.get(b.post_id) ?? "",
         profile_name: b.profile_name,
         started_at: b.started_at,
@@ -156,7 +198,7 @@ export function MonitoringScreen() {
         <button
           type="button"
           disabled={day.anchor === null}
-          onClick={exportLog}
+          onClick={() => void exportLog()}
           className="cursor-pointer rounded-[12px] gold-bg px-[14px] py-[9px] text-[12.5px] font-bold text-[#1a1512] disabled:cursor-not-allowed disabled:opacity-40"
         >
           Export log

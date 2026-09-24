@@ -183,3 +183,8 @@ test("a candidate moved to completed by hand counts as done", () => {
   ]);
   assert.equal(b.finishedAt, min(140));
 });
+
+test("a check logged after the last finish does not count", () => {
+  const d = day(min(200), [walk(123)], min(122));
+  assert.equal(d.floor.windows.at(-1)?.status, "missed");
+});

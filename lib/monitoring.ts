@@ -118,7 +118,9 @@ export function monitoringDay(input: {
     const mine = checks
       .filter((c) => c.kind === kind)
       .map((c) => ({ c, at: new Date(c.walked_at).getTime() }))
-      .filter((x) => x.at >= anchor)
+      // Nothing before the first exam, and nothing after the last finish —
+      // a stale tab pressing late is not a check of a running hall.
+      .filter((x) => x.at >= anchor && (finishedAt === null || x.at <= finishedAt))
       .sort((a, b) => a.at - b.at);
 
     const windows: Window[] = [];
