@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { DataGaps } from "@/components/console/DataGaps";
 import { Header } from "@/components/console/Header";
 import { NavRail } from "@/components/console/NavRail";
+import { PlaceShell } from "@/components/console/PlaceShell";
 import { PlaceTabs } from "@/components/console/PlaceTabs";
 import { Toasts } from "@/components/console/Toasts";
 import { ConsoleProvider, type ConsoleSnapshot } from "@/lib/console-data";
@@ -236,7 +237,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
       {/* Phone and tablet get the nav as a bar under the content; from md up it
           is the side rail. h-dvh, not h-screen, so a phone's address bar does
           not push the nav off the bottom. */}
-      <div className="flex h-dvh flex-col gap-[10px] overflow-hidden shell-bg p-[10px] md:flex-row md:gap-[14px] md:p-[14px]">
+      <PlaceShell>
         <NavRail />
         <main className="order-first flex min-h-0 min-w-0 flex-1 flex-col gap-[10px] md:order-none md:gap-[14px]">
           <Header />
@@ -245,7 +246,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
           {children}
         </main>
         <Toasts />
-      </div>
+      </PlaceShell>
     </ConsoleProvider>
   );
 }

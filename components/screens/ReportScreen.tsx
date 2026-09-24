@@ -135,7 +135,7 @@ export function ReportScreen() {
         <select
           value={dayId ?? ""}
           onChange={(e) => setDayId(e.target.value || null)}
-          className="min-w-0 max-w-full rounded-[12px] border border-edge-strong bg-panel-soft px-[11px] py-[9px] text-[12.5px] outline-none focus:border-gold/50"
+          className="min-w-0 max-w-full rounded-[12px] border border-edge-strong bg-panel-soft px-[11px] py-[9px] text-[12.5px] outline-none focus:border-accent/50"
         >
           {days.map((d) => (
             <option key={d.id} value={d.id}>
@@ -516,7 +516,7 @@ function Field({
         rows={rows}
         maxLength={max}
         placeholder={placeholder}
-        className="w-full resize-none rounded-[13px] border border-edge-strong bg-panel-soft px-[12px] py-[10px] text-[13.5px] outline-none placeholder:text-fg-faint focus:border-gold/50 disabled:text-fg-muted"
+        className="w-full resize-none rounded-[13px] border border-edge-strong bg-panel-soft px-[12px] py-[10px] text-[13.5px] outline-none placeholder:text-fg-faint focus:border-accent/50 disabled:text-fg-muted"
       />
     </label>
   );

@@ -21,9 +21,9 @@ export function DutyTabs() {
       <div className="flex shrink-0 gap-[6px] self-start rounded-[13px] border border-edge bg-panel-soft p-[4px]">
         {(
           [
-            ["watch", "Floor walk & DVR"],
-            ["posts", "Posts"],
-            ["week", "The week"],
+            ["watch", "Today\u2019s clocks"],
+            ["posts", "Who is on which post"],
+            ["week", "Week rota"],
           ] as const
         ).map(([key, label]) => (
           <button

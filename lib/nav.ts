@@ -38,13 +38,20 @@ export type Step = {
   staffOnly?: boolean;
 };
 
-export type PlaceKey = "arrivals" | "hall" | "duty" | "records";
+export type PlaceKey = "arrivals" | "hall" | "duty" | "screen" | "office";
 
 export type Place = {
   key: PlaceKey;
   title: string;
   /** One line under the title on the rail. */
   hint: string;
+  /**
+   * The place's colour, as two stops of a gradient. Each place has its own so
+   * that a glance at the screen says where you are before any word is read:
+   * the rail tile, the step bar, the primary buttons and the light behind the
+   * page all take it.
+   */
+  tone: [string, string];
   steps: Step[];
 };
 
@@ -53,16 +60,18 @@ export const PLACES: Place[] = [
     key: "arrivals",
     title: "Arrivals",
     hint: "Roster · list · check-in",
+    tone: ["oklch(0.82 0.12 190)", "oklch(0.68 0.13 215)"],
     steps: [
       { key: "roster", href: "/roster", label: "Roster", sub: "Upload the day", n: 1 },
       { key: "candidates", href: "/candidates", label: "Candidates", sub: "Everyone booked", n: 2 },
-      { key: "checkin", href: "/front-office", label: "Check-in", sub: "Front office", n: 3 },
+      { key: "checkin", href: "/front-office", label: "Check-in", sub: "Front desk", n: 3 },
     ],
   },
   {
     key: "hall",
     title: "Exam hall",
     hint: "ID · seats · live",
+    tone: ["oklch(0.78 0.14 290)", "oklch(0.62 0.17 275)"],
     steps: [
       { key: "security", href: "/admin", label: "Security & ID", sub: "Admin room", n: 4 },
       { key: "seating", href: "/lab", label: "Seating", sub: "Lab", n: 5 },
@@ -73,24 +82,41 @@ export const PLACES: Place[] = [
     key: "duty",
     title: "Duty",
     hint: "Floor walk · incidents",
+    tone: ["oklch(0.85 0.15 80)", "oklch(0.72 0.15 58)"],
     steps: [
       { key: "duty", href: "/duty", label: "Floor walk & DVR", sub: "Who is on, the log" },
       { key: "incidents", href: "/incidents", label: "Incidents", sub: "What went wrong" },
     ],
   },
   {
-    key: "records",
-    title: "Records",
-    hint: "Past days · TV · setup",
+    // The hall TV is used all day, so it is not filed under records any more.
+    key: "screen",
+    title: "Hall TV",
+    hint: "Screen · messages",
+    tone: ["oklch(0.78 0.15 355)", "oklch(0.64 0.18 10)"],
+    steps: [
+      { key: "tv", href: "/tv", label: "TV screen", sub: "What the hall sees" },
+      { key: "messages", href: "/notices", label: "Messages", sub: "Put on the TV" },
+    ],
+  },
+  {
+    key: "office",
+    title: "Office",
+    hint: "Past days · report · setup",
+    tone: ["oklch(0.82 0.11 155)", "oklch(0.66 0.12 170)"],
     steps: [
       { key: "history", href: "/history", label: "Past days", sub: "Closed sessions" },
       { key: "report", href: "/report", label: "Problem report", sub: "For the vendor", staffOnly: true },
-      { key: "tv", href: "/tv", label: "TV screen", sub: "Hall display" },
-      { key: "messages", href: "/notices", label: "Messages", sub: "On the TV" },
       { key: "setup", href: "/settings/center", label: "Setup", sub: "Centre, exams, staff" },
     ],
   },
 ];
+
+/** CSS custom properties that paint the console in a place's colour. */
+export function toneVars(place: Place | null): Record<string, string> {
+  const [a, b] = place?.tone ?? ["oklch(0.85 0.15 80)", "oklch(0.72 0.15 58)"];
+  return { "--place-accent": a, "--place-accent-2": b };
+}
 
 function matches(step: Step, pathname: string) {
   // "/tv" must not swallow some future "/tvx"; everything else owns its subtree.

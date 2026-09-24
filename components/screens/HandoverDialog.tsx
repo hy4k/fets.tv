@@ -301,7 +301,7 @@ export function HandoverDialog({
           maxLength={2000}
           rows={2}
           placeholder={`Anything else ${current.profile_name} is handing over (optional)`}
-          className="resize-none rounded-[13px] border border-edge-strong bg-panel-soft px-[12px] py-[10px] text-[13.5px] outline-none placeholder:text-fg-faint focus:border-gold/50"
+          className="resize-none rounded-[13px] border border-edge-strong bg-panel-soft px-[12px] py-[10px] text-[13.5px] outline-none placeholder:text-fg-faint focus:border-accent/50"
         />
 
         {/* 3. The incoming person's signature. */}
@@ -371,7 +371,7 @@ export function HandoverDialog({
                   onKeyDown={(e) => {
                     if (e.key === "Enter") void accept();
                   }}
-                  className="w-[110px] rounded-[10px] border border-edge-strong bg-panel px-[11px] py-[8px] text-center font-mono text-[18px] tracking-[0.3em] outline-none focus:border-gold/60"
+                  className="w-[110px] rounded-[10px] border border-edge-strong bg-panel px-[11px] py-[8px] text-center font-mono text-[18px] tracking-[0.3em] outline-none focus:border-accent/60"
                 />
               </label>
             ))}

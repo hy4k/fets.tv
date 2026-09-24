@@ -441,7 +441,7 @@ function AssignDialog({
           onChange={(e) => setNote(e.target.value)}
           maxLength={2000}
           placeholder="Anything they should know (optional)"
-          className="rounded-[13px] border border-edge-strong bg-panel-soft px-[12px] py-[10px] text-[13.5px] outline-none placeholder:text-fg-faint focus:border-gold/50"
+          className="rounded-[13px] border border-edge-strong bg-panel-soft px-[12px] py-[10px] text-[13.5px] outline-none placeholder:text-fg-faint focus:border-accent/50"
         />
 
         <div className="flex flex-col gap-[7px]">

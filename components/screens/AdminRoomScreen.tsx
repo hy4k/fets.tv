@@ -106,7 +106,7 @@ export function AdminRoomScreen() {
             className={`w-full rounded-[15px] px-[22px] py-[17px] text-[16px] font-bold ${
               canCall && next
                 ? "cursor-pointer gold-bg text-[#1a1512]"
-                : "cursor-not-allowed bg-[#221d19] text-fg-dim"
+                : "cursor-not-allowed bg-[#1d1d25] text-fg-dim"
             }`}
           >
             {next ? `Call ${next.public_token} · ${fullName(next)}` : "Nobody is waiting to be called"}
@@ -199,7 +199,7 @@ export function AdminRoomScreen() {
               aria-current={tab === t.key ? "true" : undefined}
               className={`min-w-0 flex-1 cursor-pointer truncate rounded-[12px] px-[9px] py-[11px] text-[12px] font-semibold transition-colors ${
                 tab === t.key
-                  ? "bg-gold/12 text-gold-bright"
+                  ? "bg-accent/12 text-accent"
                   : "text-fg-dim hover:bg-panel-soft hover:text-fg"
               }`}
             >

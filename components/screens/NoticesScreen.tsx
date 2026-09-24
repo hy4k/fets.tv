@@ -238,7 +238,7 @@ export function NoticesScreen() {
             }}
             className={`cursor-pointer rounded-[13px] border px-[16px] py-[11px] text-[13.5px] font-semibold transition-colors ${
               mode === key
-                ? "border-gold/55 bg-gold/10 text-fg"
+                ? "border-accent/50 bg-accent/10 text-fg"
                 : "border-edge bg-panel-soft text-fg-muted hover:border-edge-warm"
             }`}
           >
@@ -290,7 +290,7 @@ export function NoticesScreen() {
                       placeholder={slot.type === "time" ? "14:30" : ""}
                       value={values[slot.key] ?? ""}
                       onChange={(e) => setValues((v) => ({ ...v, [slot.key]: e.target.value }))}
-                      className="rounded-[12px] border border-edge-strong bg-panel-soft px-[14px] py-[13px] font-mono text-[16px] outline-none focus:border-gold/50"
+                      className="rounded-[12px] border border-edge-strong bg-panel-soft px-[14px] py-[13px] font-mono text-[16px] outline-none focus:border-accent/50"
                     />
                   </label>
                 ))}
@@ -315,7 +315,7 @@ export function NoticesScreen() {
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
                 placeholder={mode === "custom" ? "The lift is out of order today." : ""}
-                className="resize-y rounded-[12px] border border-edge-strong bg-panel-soft px-[14px] py-[13px] text-[15px] leading-[1.45] outline-none placeholder:text-fg-faint focus:border-gold/50"
+                className="resize-y rounded-[12px] border border-edge-strong bg-panel-soft px-[14px] py-[13px] text-[15px] leading-[1.45] outline-none placeholder:text-fg-faint focus:border-accent/50"
               />
             </label>
 
