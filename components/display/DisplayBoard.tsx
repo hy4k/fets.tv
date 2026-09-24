@@ -1,6 +1,8 @@
 "use client";
 
 import { useClock } from "@/lib/use-clock";
+import { LogoMark } from "@/components/brand/Logo";
+import { centreLook, shortName } from "@/lib/centres";
 
 export type BoardCall = {
   token: string;
@@ -42,6 +44,7 @@ export function DisplayBoard({
   notice = null,
   nonce = 0,
   siteLabel,
+  centre,
   className = "",
 }: {
   hallLabel: string;
@@ -51,20 +54,36 @@ export function DisplayBoard({
   notice?: BoardNotice;
   nonce?: number;
   siteLabel?: string;
+  /** Which centre this board is in; sets the mark's metal and the name. */
+  centre?: string | null;
   className?: string;
 }) {
   const tone = notice ? NOTICE_TONE[notice.tone] : null;
   const clock = useClock(timezone);
+  const look = centreLook(centre);
 
   return (
     <div
-      className={`@container flex min-h-0 flex-col gap-[2cqh] overflow-hidden rounded-[24px] border border-edge-mid [container-type:size] bg-[radial-gradient(900px_420px_at_50%_-8%,oklch(0.32_0.06_82/0.38),transparent_68%),linear-gradient(170deg,#17130f,#100e0c)] p-[clamp(9px,2.2cqw,34px)] ${className}`}
+      // The light behind the board is the centre's metal: a warm gold glow
+      // in Calicut, a cool harbour blue in Cochin.
+      style={{
+        background: `radial-gradient(900px 420px at 50% -8%, color-mix(in oklab, ${look.tone[1]} 30%, transparent), transparent 68%), linear-gradient(170deg, #15151a, #0e0e12)`,
+      }}
+      className={`@container flex min-h-0 flex-col gap-[2cqh] overflow-hidden rounded-[24px] border border-edge-mid [container-type:size] p-[clamp(9px,2.2cqw,34px)] ${className}`}
     >
       <header className="flex shrink-0 flex-wrap items-center gap-[12px]">
-        <span className="flex h-[clamp(18px,3.4cqw,48px)] w-[clamp(18px,3.4cqw,48px)] items-center justify-center rounded-[13px] gold-bg font-serif text-[clamp(11px,2cqw,27px)] text-[#1a1512]">
-          F
+        <span className="h-[clamp(18px,3.4cqw,48px)] w-[clamp(18px,3.4cqw,48px)] shrink-0">
+          <LogoMark size={48} tone={look.tone} className="h-full w-full text-fg" />
         </span>
         <span className="font-mono text-[clamp(7px,1.25cqw,18px)] tracking-[0.16em] text-fg-muted">
+          {centre && (
+            <span
+              className="bg-clip-text font-semibold text-transparent"
+              style={{ backgroundImage: `linear-gradient(90deg, ${look.tone[0]}, ${look.tone[1]})` }}
+            >
+              {shortName(centre).toUpperCase()} ·{" "}
+            </span>
+          )}
           {siteLabel ? `${siteLabel} · ${hallLabel}` : hallLabel}
         </span>
         <span className="min-w-[12px] flex-1" />

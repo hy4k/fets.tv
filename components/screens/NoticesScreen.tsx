@@ -412,7 +412,8 @@ export function NoticesScreen() {
               <DisplayBoard
                 className="h-full"
                 hallLabel={displays[0]?.hall_label ?? "HALL 1"}
-                siteLabel={`${center.site_code} · ${center.name.replace(/^FETS\s+/i, "").toUpperCase()}`}
+                centre={center.name}
+        siteLabel={center.site_code}
                 timezone={center.timezone}
                 nonce={call?.call_nonce ?? 0}
                 call={

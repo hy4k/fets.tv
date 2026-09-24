@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogoMark } from "@/components/brand/Logo";
+import { centreLook, shortName } from "@/lib/centres";
 import { useConsole } from "@/lib/console-data";
 import { locate, PLACES, toneVars, type Place, type PlaceKey, type StepKey } from "@/lib/nav";
 import { useNow } from "@/lib/use-clock";
@@ -53,18 +54,25 @@ export function NavRail() {
   const badges = useStepBadges();
   const { place: herePlace, step: hereStep } = locate(pathname);
   const here = herePlace?.key;
+  const { center } = useConsole();
+  const look = centreLook(center.name);
 
   return (
     <nav
       className="grid shrink-0 grid-cols-5 gap-[4px] rounded-[18px] border border-edge-soft rail-bg p-[5px] md:flex md:w-[204px] md:flex-col md:gap-[6px] md:self-stretch md:rounded-[24px] md:p-[12px]"
       aria-label="Console places"
     >
+      {/* The mark in the centre's own metal, and the centre under the name:
+          gold for Calicut, pearl and harbour blue for Cochin. */}
       <Link href="/" className="mb-[10px] hidden items-center gap-[11px] px-[6px] pt-[4px] md:flex" aria-label="FETS home">
-        <LogoMark size={34} className="text-fg" />
+        <LogoMark size={34} tone={look.tone} className="text-fg" />
         <span className="leading-none">
           <span className="block font-serif text-[21px] tracking-[0.04em]">FETS</span>
-          <span className="mt-[3px] block font-mono text-[9px] tracking-[0.18em] text-fg-faint uppercase">
-            Exam console
+          <span
+            className="mt-[4px] block bg-clip-text font-mono text-[9.5px] font-semibold tracking-[0.2em] text-transparent uppercase"
+            style={{ backgroundImage: `linear-gradient(90deg, ${look.tone[0]}, ${look.tone[1]})` }}
+          >
+            {shortName(center.name)}
           </span>
         </span>
       </Link>

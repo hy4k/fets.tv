@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
+import { LogoMark } from "@/components/brand/Logo";
+import { centreLook, shortName } from "@/lib/centres";
 import { useConsole } from "@/lib/console-data";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
@@ -66,7 +68,8 @@ export function CentreSwitcher() {
     startTransition(() => router.refresh());
   }
 
-  const label = center.name.replace(/^FETS\s+/i, "");
+  const label = shortName(center.name);
+  const look = centreLook(center.name);
 
   return (
     <div ref={box} className="relative">
@@ -78,8 +81,17 @@ export function CentreSwitcher() {
         aria-expanded={open}
         className="flex cursor-pointer items-center gap-[7px] rounded-[9px] border border-edge-strong bg-panel-soft/70 py-[3px] pr-[8px] pl-[7px] font-mono text-[10.5px] text-fg-muted transition-colors hover:border-accent/50 hover:text-fg disabled:cursor-default disabled:hover:border-edge-strong"
       >
-        <span className={`h-[6px] w-[6px] rounded-full bg-mint ${pending || busy ? "animate-ping" : "animate-pulse-dot"}`} />
-        {center.site_code} · {label}
+        <span
+          className={`h-[7px] w-[7px] rounded-full ${pending || busy ? "animate-ping" : ""}`}
+          style={{ background: `linear-gradient(140deg, ${look.tone[0]}, ${look.tone[1]})` }}
+        />
+        <span
+          className="bg-clip-text font-semibold text-transparent"
+          style={{ backgroundImage: `linear-gradient(90deg, ${look.tone[0]}, ${look.tone[1]})` }}
+        >
+          {label}
+        </span>
+        <span className="text-fg-faint">{center.site_code}</span>
         {may && <span aria-hidden className="text-fg-faint">▾</span>}
       </button>
 
@@ -107,13 +119,7 @@ export function CentreSwitcher() {
                     here ? "bg-accent/12" : "hover:bg-panel-soft"
                   }`}
                 >
-                  <span
-                    className={`flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px] font-mono text-[10px] font-bold ${
-                      here ? "gold-bg text-[#141418]" : "bg-panel-soft text-fg-muted"
-                    }`}
-                  >
-                    {c.name.replace(/^FETS\s+/i, "").slice(0, 3).toUpperCase()}
-                  </span>
+                  <LogoMark size={30} tone={centreLook(c.name).tone} showEmptySeats={here} className="shrink-0 text-fg" />
                   <span className="min-w-0 flex-1">
                     <span className="block text-[13.5px] font-semibold">{c.name}</span>
                     <span className="block font-mono text-[10.5px] text-fg-faint">Site {c.site_code}</span>

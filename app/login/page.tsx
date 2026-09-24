@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { LogoMark } from "@/components/brand/Logo";
 import { LoginForm } from "@/components/console/LoginForm";
-import { Logo, LogoMark } from "@/components/brand/Logo";
+import { centreLook, shortName } from "@/lib/centres";
+import { frontDoorCentres } from "@/lib/landing-centres";
 
 // The root layout appends " · FETS"; saying it here too gives it twice.
 export const metadata = {
@@ -8,70 +10,68 @@ export const metadata = {
 };
 
 /**
- * Signing in.
+ * Signing in, to the centre chosen at the front door.
  *
- * Two panels from the small screens up: the mark and what this is on the left,
- * the form on the right. On a phone the form comes first, because somebody
- * opening this at the door on their phone wants the password field, not the
- * poetry.
- *
- * The line about who can sign in is there deliberately. Everybody on staff has
- * the same access, and saying so on the way in saves the question being asked.
+ * One card: the centre's mark in its own metal, its name, the form. The way
+ * back to change centre is under it, so somebody at the Cochin desk who
+ * landed on Calicut does not have to guess.
  */
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ centre?: string }>;
+}) {
+  const { centre: centreId } = await searchParams;
+  const centres = await frontDoorCentres();
+  const centre = centres.find((c) => c.id === centreId) ?? null;
+  const look = centreLook(centre?.name);
+
   return (
-    <main className="relative min-h-dvh overflow-hidden shell-bg">
-      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-        <LogoMark
-          size={620}
-          className="absolute -bottom-[180px] -left-[170px] text-fg opacity-[0.05]"
+    <main className="relative flex min-h-dvh items-center justify-center overflow-hidden shell-bg px-[16px] py-[40px]">
+      <div aria-hidden className="pointer-events-none absolute inset-0">
+        <div
+          className="absolute inset-0"
+          style={{
+            background: `radial-gradient(700px 420px at 50% -6%, color-mix(in oklab, ${look.tone[1]} 26%, transparent), transparent 70%)`,
+          }}
         />
       </div>
 
-      <div className="relative mx-auto flex min-h-dvh max-w-[920px] items-center px-[20px] py-[30px]">
-        <div className="grid w-full items-center gap-[28px] md:grid-cols-[1fr_380px] md:gap-[44px]">
-          {/* Second on a phone: the form is what somebody came for. */}
-          <div className="order-2 md:order-1">
-            <Logo size={44} subtitle={null} />
+      <div className="relative w-full max-w-[400px]">
+        <div className="flex flex-col items-center gap-[12px] text-center">
+          <LogoMark size={60} tone={look.tone} className="text-fg" />
+          {centre ? (
+            <>
+              <span
+                className="bg-clip-text font-serif text-[34px] leading-none text-transparent"
+                style={{ backgroundImage: `linear-gradient(120deg, ${look.tone[0]}, ${look.tone[1]})` }}
+              >
+                {shortName(centre.name)}
+              </span>
+              <span className="font-mono text-[10.5px] tracking-[0.16em] text-fg-faint uppercase">
+                FETS · Site {centre.site_code}
+              </span>
+            </>
+          ) : (
+            <span className="font-serif text-[32px] leading-none tracking-[0.06em]">FETS</span>
+          )}
+        </div>
 
-            <h1 className="mt-[22px] font-serif text-[32px] leading-[1.1] sm:text-[40px]">
-              The console for
-              <br />
-              <span className="text-gold">FETS Calicut.</span>
-            </h1>
+        <div className="mt-[26px] rounded-[24px] border border-edge-mid panel-bg p-[22px] sm:p-[26px]">
+          <span className="block font-serif text-[23px] leading-none">Sign in</span>
+          <span className="mt-[6px] block font-mono text-[10.5px] text-fg-dim">
+            With the email your staff account uses
+          </span>
+          <LoginForm />
+        </div>
 
-            <p className="mt-[14px] max-w-[42ch] text-[14px] leading-[1.6] text-fg-muted">
-              Forun Testing &amp; Educational Services — CELPIP, ACCA, CMA US, MRCS, MRCP, AWS
-              and Microsoft certifications, delivered at Site 4960.
-            </p>
-
-            <p className="mt-[18px] max-w-[42ch] rounded-[14px] border border-edge bg-panel-soft/60 px-[13px] py-[11px] text-[12.5px] leading-[1.55] text-fg-muted">
-              <span className="font-semibold text-fg">Everybody on staff has the same access.</span>{" "}
-              Whoever is at the desk can run the day, change the setup, and sign a post over.
-            </p>
-          </div>
-
-          <div className="order-1 rounded-[24px] border border-edge-mid panel-bg p-[22px] md:order-2 md:p-[26px]">
-            <span className="block font-serif text-[23px] leading-none">Sign in</span>
-            <span className="mt-[6px] block font-mono text-[10.5px] text-fg-dim">
-              With the email your centre account uses
-            </span>
-
-            <LoginForm />
-
-            <p className="mt-[16px] border-t border-edge-soft pt-[13px] font-mono text-[10.5px] leading-[1.6] text-fg-faint">
-              Forgotten it, or no account yet? Ask Mithun or Niyas — they can set you up.
-            </p>
-          </div>
+        <div className="mt-[18px] flex items-center justify-between font-mono text-[11px] text-fg-faint">
+          <Link href="/" className="hover:text-fg-muted">
+            ← {centre ? "Change centre" : "Choose a centre"}
+          </Link>
+          <span>Forgotten it? Ask Mithun or Niyas.</span>
         </div>
       </div>
-
-      <Link
-        href="/"
-        className="absolute top-[18px] left-[20px] font-mono text-[11px] text-fg-faint hover:text-fg-muted"
-      >
-        ← fets.online
-      </Link>
     </main>
   );
 }
