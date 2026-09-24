@@ -14,6 +14,8 @@ export type ScheduleSlot = {
 export type CentreDay = {
   centre: string;
   timezone: string;
+  /** Its own local date, which is not necessarily the clock's. */
+  date: string;
   slots: ScheduleSlot[];
 };
 
@@ -95,6 +97,7 @@ export async function todaysSchedule(now = new Date()): Promise<CentreDay[] | nu
       days.push({
         centre: centre.name,
         timezone: centre.timezone,
+        date: todayInZone(centre.timezone, now),
         slots: [...slots.values()]
           .sort((a, b) => a.at - b.at || a.exam.localeCompare(b.exam))
           .map(({ key, time, exam, part, seats, started, finished }) => ({

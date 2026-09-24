@@ -63,9 +63,16 @@ export default async function Home() {
             <div className="flex flex-col gap-[14px]">
               {schedule.map((day) => (
                 <div key={day.centre}>
-                  {showCentreNames && (
+                  {(showCentreNames || day.timezone !== zone) && (
                     <span className="mb-[6px] block font-mono text-[10.5px] text-gold">
                       {day.centre}
+                      {/* The big clock is the first centre's. A centre in
+                          another zone may be on another date, so it says so. */}
+                      {day.timezone !== zone && (
+                        <span className="text-fg-dim">
+                          {" "}· {day.date} ({day.timezone})
+                        </span>
+                      )}
                     </span>
                   )}
                   <ul className="overflow-hidden rounded-[18px] border border-edge bg-panel-soft/70">
