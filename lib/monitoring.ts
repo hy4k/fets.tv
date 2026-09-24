@@ -255,13 +255,23 @@ export function monitoringCsv(input: {
         label,
         w.n,
         `${time(w.start)}-${time(w.end)}`,
-        holderAt(blocks, postKind, w.start),
       ];
+      // A missed window belongs to whoever held the post when it opened; a
+      // check to whoever held it at that minute, since a handover can fall
+      // inside a window.
       if (w.checks.length === 0) {
-        rows.push([...base, w.status === "open" ? "Open" : "Missed", "", "", ""]);
+        rows.push([
+          ...base,
+          holderAt(blocks, postKind, w.start),
+          w.status === "open" ? "Open" : "Missed",
+          "",
+          "",
+          "",
+        ]);
       } else {
         for (const c of w.checks) {
-          rows.push([...base, "Done", time(new Date(c.walked_at).getTime()), c.walked_by_name, c.note ?? ""]);
+          const at = new Date(c.walked_at).getTime();
+          rows.push([...base, holderAt(blocks, postKind, at), "Done", time(at), c.walked_by_name, c.note ?? ""]);
         }
       }
     }

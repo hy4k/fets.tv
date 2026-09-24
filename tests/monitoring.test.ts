@@ -184,6 +184,19 @@ test("a candidate moved to completed by hand counts as done", () => {
   assert.equal(b.finishedAt, min(140));
 });
 
+test("a check after a mid-window handover names the new holder", () => {
+  const csv = monitoringCsv({
+    day: day(min(15), [walk(7, "floor", "Niyas")]),
+    date: "2026-09-24",
+    timezone: "Asia/Kolkata",
+    blocks: [
+      { post_kind: "lab", profile_name: "Aysha", started_at: iso(-30), ended_at: iso(5) },
+      { post_kind: "lab", profile_name: "Niyas", started_at: iso(5), ended_at: null },
+    ],
+  });
+  assert.match(csv.split("\r\n")[1], /"09:00-09:10","Niyas","Done","09:07","Niyas"/);
+});
+
 test("a check logged after the last finish does not count", () => {
   const d = day(min(200), [walk(123)], min(122));
   assert.equal(d.floor.windows.at(-1)?.status, "missed");
