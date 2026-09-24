@@ -308,7 +308,7 @@ function FlowPanel() {
 }
 
 function AuditPanel() {
-  const { candidates, events, operators } = useConsole();
+  const { candidates, events, names } = useConsole();
   const now = useNow();
 
   if (events.length === 0) {
@@ -334,7 +334,7 @@ function AuditPanel() {
             <span className="min-w-0 flex-1 truncate text-[11.5px] text-fg-muted">
               {describeEvent(e.event_type, e.to_status)}
               {e.note ? ` · ${e.note}` : ""}
-              {e.operator_id ? ` · ${operators[e.operator_id] ?? "operator"}` : ""}
+              {e.operator_id ? ` · ${names[e.operator_id] ?? "operator"}` : ""}
             </span>
             <span className="shrink-0 font-mono text-[10px] text-fg-faint">
               {now ? sinceLabel(e.occurred_at, now) : "—"}

@@ -79,6 +79,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
     call,
     displays,
     operators,
+    staffNames,
     programmes,
     openBreaks,
     noticeTemplates,
@@ -164,6 +165,9 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
       .maybeSingle(),
     supabase.from("public_displays").select("*").eq("center_id", center.id).order("label"),
     supabase.from("profiles").select("id, display_name, pin_set_at").eq("center_id", center.id),
+    // Everybody's name, for the record; see fets_staff_names.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase.rpc as any)("fets_staff_names") as Promise<{ data: { id: string; display_name: string }[] | null }>,
     supabase.from("exam_programmes").select("*").eq("center_id", center.id).eq("active", true).order("code"),
     supabase.from("candidate_breaks").select("*").eq("center_id", center.id).is("ended_at", null),
     supabase.from("notice_templates").select("*").eq("active", true).order("sort_order"),
@@ -212,6 +216,9 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
     notice: notice.data ?? null,
     operators: Object.fromEntries((operators.data ?? []).map((o) => [o.id, o.display_name])),
     pinSetAt: Object.fromEntries((operators.data ?? []).map((o) => [o.id, o.pin_set_at])),
+    names: Object.fromEntries(
+      [...(staffNames.data ?? []), ...(operators.data ?? [])].map((o) => [o.id, o.display_name]),
+    ),
     staffDays: staffDays.data ?? [],
     staffDaysWindow: rotaWindow,
     // What never arrived. Nothing has been read twice yet, so nothing can be
