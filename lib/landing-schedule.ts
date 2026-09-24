@@ -51,7 +51,7 @@ export async function todaysSchedule(now = new Date()): Promise<CentreDay[] | nu
       // was closed at the end of it.
       const { data: sessions, error: sessionsError } = await supabase
         .from("exam_sessions")
-        .select("id, exam_name")
+        .select("id, exam_name, status")
         .eq("center_id", centre.id)
         .eq("exam_date", todayInZone(centre.timezone, now))
         .neq("status", "draft")
@@ -74,6 +74,7 @@ export async function todaysSchedule(now = new Date()): Promise<CentreDay[] | nu
         );
       if (candidatesError) return null;
 
+      const closed = sessions[0].status === "closed";
       const examOf = new Map(sessions.map((s) => [s.id, s.exam_name]));
       const slots = new Map<string, ScheduleSlot & { at: number; started: number; finished: number }>();
 
@@ -81,7 +82,9 @@ export async function todaysSchedule(now = new Date()): Promise<CentreDay[] | nu
         if (c.status === "no_show") continue;
         const exam = examOf.get(c.exam_session_id) ?? "Exam";
         const time = c.scheduled_at ? clockAt(c.scheduled_at, centre.timezone) : "—";
-        const key = `${c.exam_session_id}|${time}|${c.part ?? ""}`;
+        // Keyed by the instant, not the printed time, so two slots that print
+        // alike (a repeated hour at a clock change) stay two slots.
+        const key = `${c.exam_session_id}|${c.scheduled_at ?? ""}|${c.part ?? ""}`;
         const slot = slots.get(key) ?? {
           key,
           time,
@@ -111,7 +114,8 @@ export async function todaysSchedule(now = new Date()): Promise<CentreDay[] | nu
             exam,
             part,
             seats,
-            state: finished >= seats ? "done" : started > 0 ? "running" : "upcoming",
+            // A closed day is over, whoever never sat.
+            state: closed || finished >= seats ? "done" : started > 0 ? "running" : "upcoming",
           })),
       });
     }
