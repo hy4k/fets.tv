@@ -43,7 +43,7 @@ export function SettingsScreen() {
             aria-current={section === s.key ? "page" : undefined}
             className={`shrink-0 cursor-pointer rounded-[13px] px-[13px] py-[11px] text-left transition-colors ${
               section === s.key
-                ? "bg-gold/12 text-fg"
+                ? "bg-accent/12 text-fg shadow-[inset_3px_0_0_var(--place-accent)]"
                 : "text-fg-dim hover:bg-panel hover:text-fg"
             }`}
           >
@@ -154,7 +154,7 @@ function LabsSection() {
                   value={row.name}
                   disabled={!isAdmin}
                   onChange={(e) => edit(i, { name: e.target.value })}
-                  className="rounded-[11px] border border-edge-strong bg-panel px-[12px] py-[10px] text-[14px] outline-none focus:border-gold/50 disabled:opacity-60"
+                  className="rounded-[11px] border border-edge-strong bg-panel px-[12px] py-[10px] text-[14px] outline-none focus:border-accent/50 disabled:opacity-60"
                 />
               </label>
               <label className="flex w-[110px] flex-col gap-[6px]">
@@ -164,7 +164,7 @@ function LabsSection() {
                   value={row.capacity}
                   disabled={!isAdmin}
                   onChange={(e) => edit(i, { capacity: e.target.value })}
-                  className="rounded-[11px] border border-edge-strong bg-panel px-[12px] py-[10px] font-mono text-[14px] outline-none focus:border-gold/50 disabled:opacity-60"
+                  className="rounded-[11px] border border-edge-strong bg-panel px-[12px] py-[10px] font-mono text-[14px] outline-none focus:border-accent/50 disabled:opacity-60"
                 />
               </label>
               <span className="pb-[10px] text-[12px] text-fg-faint">
@@ -378,20 +378,20 @@ function SectionsEditor({ programme, onClose }: { programme: ExamProgramme; onCl
               onChange={(e) => patch(r.key, { name: e.target.value })}
               placeholder="Listening"
               maxLength={60}
-              className="min-w-[110px] flex-1 rounded-[11px] border border-edge-strong bg-panel px-[11px] py-[9px] text-[13.5px] outline-none placeholder:text-fg-faint focus:border-gold/50"
+              className="min-w-[110px] flex-1 rounded-[11px] border border-edge-strong bg-panel px-[11px] py-[9px] text-[13.5px] outline-none placeholder:text-fg-faint focus:border-accent/50"
             />
             <input
               value={r.minutes}
               onChange={(e) => patch(r.key, { minutes: e.target.value.replace(/[^0-9]/g, "") })}
               inputMode="numeric"
               maxLength={3}
-              className="w-[62px] rounded-[11px] border border-edge-strong bg-panel px-[10px] py-[9px] text-center font-mono text-[13.5px] outline-none focus:border-gold/50"
+              className="w-[62px] rounded-[11px] border border-edge-strong bg-panel px-[10px] py-[9px] text-center font-mono text-[13.5px] outline-none focus:border-accent/50"
             />
             <span className="text-[11.5px] text-fg-faint">min</span>
             <select
               value={r.kind}
               onChange={(e) => patch(r.key, { kind: e.target.value as SectionKind })}
-              className="rounded-[11px] border border-edge-strong bg-panel px-[9px] py-[9px] text-[12.5px] outline-none focus:border-gold/50"
+              className="rounded-[11px] border border-edge-strong bg-panel px-[9px] py-[9px] text-[12.5px] outline-none focus:border-accent/50"
             >
               <option value="section">Scored</option>
               <option value="tutorial">Tutorial</option>
@@ -553,7 +553,7 @@ function DutySection() {
                 }
                 placeholder="Front desk"
                 maxLength={60}
-                className="min-w-[120px] flex-1 rounded-[11px] border border-edge-strong bg-panel px-[11px] py-[9px] text-[13.5px] outline-none placeholder:text-fg-faint focus:border-gold/50"
+                className="min-w-[120px] flex-1 rounded-[11px] border border-edge-strong bg-panel px-[11px] py-[9px] text-[13.5px] outline-none placeholder:text-fg-faint focus:border-accent/50"
               />
               <select
                 value={r.kind}
@@ -564,7 +564,7 @@ function DutySection() {
                     ),
                   )
                 }
-                className="rounded-[11px] border border-edge-strong bg-panel px-[9px] py-[9px] text-[12.5px] outline-none focus:border-gold/50"
+                className="rounded-[11px] border border-edge-strong bg-panel px-[9px] py-[9px] text-[12.5px] outline-none focus:border-accent/50"
               >
                 <option value="front">Front of house</option>
                 <option value="admin">Admin room</option>
@@ -579,7 +579,7 @@ function DutySection() {
                       list.map((x) => (x.key === r.key ? { ...x, lab_id: e.target.value } : x)),
                     )
                   }
-                  className="rounded-[11px] border border-edge-strong bg-panel px-[9px] py-[9px] text-[12.5px] outline-none focus:border-gold/50"
+                  className="rounded-[11px] border border-edge-strong bg-panel px-[9px] py-[9px] text-[12.5px] outline-none focus:border-accent/50"
                 >
                   <option value="">which lab?</option>
                   {labs.map((l) => (
@@ -734,7 +734,7 @@ function PinsPanel() {
                     autoComplete="new-password"
                     autoFocus
                     placeholder="New PIN"
-                    className="w-[120px] rounded-[10px] border border-edge-strong bg-panel px-[10px] py-[8px] text-center font-mono text-[15px] tracking-[0.25em] outline-none focus:border-gold/60"
+                    className="w-[120px] rounded-[10px] border border-edge-strong bg-panel px-[10px] py-[8px] text-center font-mono text-[15px] tracking-[0.25em] outline-none focus:border-accent/60"
                   />
                   <input
                     value={again}
@@ -746,7 +746,7 @@ function PinsPanel() {
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && matches) void save(id);
                     }}
-                    className="w-[120px] rounded-[10px] border border-edge-strong bg-panel px-[10px] py-[8px] text-center font-mono text-[15px] tracking-[0.25em] outline-none focus:border-gold/60"
+                    className="w-[120px] rounded-[10px] border border-edge-strong bg-panel px-[10px] py-[8px] text-center font-mono text-[15px] tracking-[0.25em] outline-none focus:border-accent/60"
                   />
                   <button
                     type="button"
@@ -962,7 +962,7 @@ function RosterSection() {
               value={alias}
               onChange={(e) => setAlias(e.target.value)}
               placeholder="Examinee"
-              className="rounded-[11px] border border-edge-strong bg-panel px-[12px] py-[10px] text-[13px] outline-none focus:border-gold/50"
+              className="rounded-[11px] border border-edge-strong bg-panel px-[12px] py-[10px] text-[13px] outline-none focus:border-accent/50"
             />
           </label>
           <button
@@ -1122,11 +1122,11 @@ function Toggle({
       </span>
       <span
         className={`flex h-[26px] w-[46px] shrink-0 items-center rounded-full p-[3px] transition-colors ${
-          on ? "bg-mint/70" : "bg-[#30291f]"
+          on ? "bg-mint/70" : "bg-[#2a2a34]"
         }`}
       >
         <span
-          className={`h-[20px] w-[20px] rounded-full bg-[#141110] transition-transform ${
+          className={`h-[20px] w-[20px] rounded-full bg-[#111116] transition-transform ${
             on ? "translate-x-[20px]" : ""
           }`}
         />

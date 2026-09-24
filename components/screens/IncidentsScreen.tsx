@@ -254,7 +254,7 @@ function LogDialog({ onClose }: { onClose: () => void }) {
             value={summary}
             onChange={(e) => setSummary(e.target.value)}
             placeholder="Lab 1-03 froze during the listening section"
-            className="w-full rounded-[12px] border border-edge-strong bg-panel-soft px-[14px] py-[13px] text-[15px] outline-none placeholder:text-fg-faint focus:border-gold/50"
+            className="w-full rounded-[12px] border border-edge-strong bg-panel-soft px-[14px] py-[13px] text-[15px] outline-none placeholder:text-fg-faint focus:border-accent/50"
           />
         </label>
 
@@ -345,7 +345,7 @@ function LogDialog({ onClose }: { onClose: () => void }) {
             maxLength={4000}
             value={detail}
             onChange={(e) => setDetail(e.target.value)}
-            className="resize-y rounded-[12px] border border-edge-strong bg-panel-soft px-[14px] py-[12px] text-[14px] leading-[1.5] outline-none focus:border-gold/50"
+            className="resize-y rounded-[12px] border border-edge-strong bg-panel-soft px-[14px] py-[12px] text-[14px] leading-[1.5] outline-none focus:border-accent/50"
           />
         </label>
 
@@ -364,11 +364,11 @@ function LogDialog({ onClose }: { onClose: () => void }) {
           </span>
           <span
             className={`flex h-[26px] w-[46px] shrink-0 items-center rounded-full p-[3px] transition-colors ${
-              reportable ? "bg-iris/70" : "bg-[#30291f]"
+              reportable ? "bg-iris/70" : "bg-[#2a2a34]"
             }`}
           >
             <span
-              className={`h-[20px] w-[20px] rounded-full bg-[#141110] transition-transform ${
+              className={`h-[20px] w-[20px] rounded-full bg-[#111116] transition-transform ${
                 reportable ? "translate-x-[20px]" : ""
               }`}
             />
@@ -436,7 +436,7 @@ function ResolveDialog({ incident, onClose }: { incident: Incident; onClose: () 
             value={resolution}
             onChange={(e) => setResolution(e.target.value)}
             placeholder="Moved to Lab 1-04, machine taken out of service."
-            className="resize-y rounded-[12px] border border-edge-strong bg-panel-soft px-[14px] py-[12px] text-[14px] leading-[1.5] outline-none placeholder:text-fg-faint focus:border-gold/50"
+            className="resize-y rounded-[12px] border border-edge-strong bg-panel-soft px-[14px] py-[12px] text-[14px] leading-[1.5] outline-none placeholder:text-fg-faint focus:border-accent/50"
           />
         </label>
 
@@ -447,7 +447,7 @@ function ResolveDialog({ incident, onClose }: { incident: Incident; onClose: () 
             value={minutes}
             onChange={(e) => setMinutes(e.target.value)}
             placeholder="0"
-            className="rounded-[12px] border border-edge-strong bg-panel-soft px-[13px] py-[12px] font-mono text-[16px] outline-none placeholder:text-fg-faint focus:border-gold/50"
+            className="rounded-[12px] border border-edge-strong bg-panel-soft px-[13px] py-[12px] font-mono text-[16px] outline-none placeholder:text-fg-faint focus:border-accent/50"
           />
         </label>
 

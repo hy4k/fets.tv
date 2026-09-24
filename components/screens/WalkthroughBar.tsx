@@ -122,7 +122,7 @@ export function WalkthroughBar() {
           onKeyDown={(e) => {
             if (e.key === "Enter") void record();
           }}
-          className="mt-[9px] w-full rounded-[11px] border border-edge-strong bg-panel-soft px-[11px] py-[9px] text-[13px] text-fg outline-none placeholder:text-fg-faint focus:border-gold/50"
+          className="mt-[9px] w-full rounded-[11px] border border-edge-strong bg-panel-soft px-[11px] py-[9px] text-[13px] text-fg outline-none placeholder:text-fg-faint focus:border-accent/50"
         />
       )}
     </div>

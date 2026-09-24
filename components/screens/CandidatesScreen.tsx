@@ -33,7 +33,9 @@ function matches(c: Candidate, filter: FilterKey) {
 }
 
 /** The report's own columns, in the report's own order. */
-const COLUMNS = "104px 1fr 92px 130px 128px 118px";
+// Name and Part share the spare width: a long part name ("Financial
+// Reporting (FR)") used to spill into Place.
+const COLUMNS = "92px minmax(0,1.3fr) minmax(0,1.1fr) 120px 128px 118px";
 
 /**
  * Step two: the roster that was just imported, as a plain list — token, name,
@@ -70,7 +72,7 @@ export function CandidatesScreen() {
 
   if (!session) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-[16px] rounded-[24px] border border-dashed border-[#3a322b] p-[40px] text-center">
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-[16px] rounded-[24px] border border-dashed border-[#3d3d4a] p-[40px] text-center">
         <span className="font-serif text-[28px]">No roster yet</span>
         <span className="max-w-[40ch] text-[14px] text-fg-muted">
           Import today&rsquo;s roster and everyone will appear here.
@@ -99,7 +101,7 @@ export function CandidatesScreen() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search name, token or number"
-          className="w-full min-w-0 rounded-[14px] border border-edge-strong bg-panel-soft px-[15px] py-[12px] text-[14px] outline-none placeholder:text-fg-faint focus:border-gold/50 md:w-auto md:min-w-[230px]"
+          className="w-full min-w-0 rounded-[14px] border border-edge-strong bg-panel-soft px-[15px] py-[12px] text-[14px] outline-none placeholder:text-fg-faint focus:border-accent/50 md:w-auto md:min-w-[230px]"
         />
         <button
           type="button"
@@ -119,7 +121,7 @@ export function CandidatesScreen() {
             onClick={() => setFilter(f.key)}
             className={`cursor-pointer rounded-[12px] border px-[14px] py-[10px] text-[13px] font-semibold transition-colors ${
               filter === f.key
-                ? "border-gold/55 bg-gold/10 text-fg"
+                ? "border-accent/50 bg-accent/10 text-fg"
                 : "border-edge bg-panel-soft text-fg-muted hover:border-edge-warm"
             }`}
           >
@@ -163,7 +165,7 @@ export function CandidatesScreen() {
                   </span>
                 </span>
 
-                <span className="order-first mb-[7px] block min-w-0 md:mb-0">
+                <span className="order-first mb-[7px] block min-w-0 md:order-none md:mb-0">
                   <span className="block truncate text-[15px] md:text-[14px]">{fullName(c)}</span>
                   <span className="hidden truncate font-mono text-[11px] text-fg-faint md:block">
                     {c.roster_number}
@@ -228,10 +230,10 @@ function Cell({
   mono?: boolean;
 }) {
   return (
-    <span className="flex min-w-0 items-baseline gap-[5px] rounded-[8px] bg-panel-soft px-[8px] py-[4px] md:block md:bg-transparent md:px-0 md:py-0">
+    <span className="flex min-w-0 items-baseline gap-[5px] rounded-[8px] bg-panel-soft px-[8px] py-[4px] md:block md:overflow-hidden md:bg-transparent md:px-0 md:py-0">
       <span className="shrink-0 text-[10.5px] font-semibold text-fg-dim md:hidden">{label}</span>
       {value ? (
-        <span className={`truncate text-[12.5px] text-fg-muted md:text-[13px] ${mono ? "font-mono" : ""}`}>
+        <span className={`truncate text-[12.5px] text-fg-muted md:block md:text-[13px] ${mono ? "font-mono" : ""}`}>
           {value}
         </span>
       ) : (

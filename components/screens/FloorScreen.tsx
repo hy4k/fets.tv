@@ -606,7 +606,7 @@ function AdjustDialog({ row, onClose }: { row: Seated; onClose: () => void }) {
               maxLength={5}
               value={startTime}
               onChange={(e) => setStartTime(e.target.value)}
-              className="rounded-[12px] border border-edge-strong bg-panel-soft px-[13px] py-[12px] font-mono text-[16px] outline-none focus:border-gold/50"
+              className="rounded-[12px] border border-edge-strong bg-panel-soft px-[13px] py-[12px] font-mono text-[16px] outline-none focus:border-accent/50"
             />
           </label>
           <label className="flex w-[120px] flex-col gap-[7px]">
@@ -615,7 +615,7 @@ function AdjustDialog({ row, onClose }: { row: Seated; onClose: () => void }) {
               inputMode="numeric"
               value={duration}
               onChange={(e) => setDuration(e.target.value)}
-              className="rounded-[12px] border border-edge-strong bg-panel-soft px-[13px] py-[12px] font-mono text-[16px] outline-none focus:border-gold/50"
+              className="rounded-[12px] border border-edge-strong bg-panel-soft px-[13px] py-[12px] font-mono text-[16px] outline-none focus:border-accent/50"
             />
           </label>
         </div>
@@ -628,7 +628,7 @@ function AdjustDialog({ row, onClose }: { row: Seated; onClose: () => void }) {
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             placeholder="Started 10 minutes late"
-            className="rounded-[12px] border border-edge-strong bg-panel-soft px-[13px] py-[12px] text-[15px] outline-none placeholder:text-fg-faint focus:border-gold/50"
+            className="rounded-[12px] border border-edge-strong bg-panel-soft px-[13px] py-[12px] text-[15px] outline-none placeholder:text-fg-faint focus:border-accent/50"
           />
         </label>
       </div>
@@ -709,7 +709,7 @@ function TransferDialog({ row, onClose }: { row: Seated; onClose: () => void }) 
             className={`flex-1 rounded-[14px] px-[22px] py-[15px] text-[14.5px] font-bold ${
               chosen && reason.trim() && canLab
                 ? "cursor-pointer gold-bg text-[#1a1512]"
-                : "cursor-not-allowed bg-[#221d19] text-fg-dim"
+                : "cursor-not-allowed bg-[#1d1d25] text-fg-dim"
             }`}
           >
             {busy
@@ -774,7 +774,7 @@ function TransferDialog({ row, onClose }: { row: Seated; onClose: () => void }) 
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             placeholder="Machine froze on the reading section"
-            className="w-full rounded-[12px] border border-edge-strong bg-panel-soft px-[14px] py-[13px] text-[15px] outline-none placeholder:text-fg-faint focus:border-gold/50"
+            className="w-full rounded-[12px] border border-edge-strong bg-panel-soft px-[14px] py-[13px] text-[15px] outline-none placeholder:text-fg-faint focus:border-accent/50"
           />
         </label>
 
@@ -784,7 +784,7 @@ function TransferDialog({ row, onClose }: { row: Seated; onClose: () => void }) 
             inputMode="numeric"
             value={minutes}
             onChange={(e) => setMinutes(e.target.value)}
-            className="rounded-[12px] border border-edge-strong bg-panel-soft px-[13px] py-[12px] font-mono text-[16px] outline-none focus:border-gold/50"
+            className="rounded-[12px] border border-edge-strong bg-panel-soft px-[13px] py-[12px] font-mono text-[16px] outline-none focus:border-accent/50"
           />
         </label>
 
@@ -806,11 +806,11 @@ function TransferDialog({ row, onClose }: { row: Seated; onClose: () => void }) 
           </span>
           <span
             className={`flex h-[26px] w-[46px] shrink-0 items-center rounded-full p-[3px] transition-colors ${
-              faultOld ? "bg-rust/70" : "bg-[#30291f]"
+              faultOld ? "bg-rust/70" : "bg-[#2a2a34]"
             }`}
           >
             <span
-              className={`h-[20px] w-[20px] rounded-full bg-[#141110] transition-transform ${
+              className={`h-[20px] w-[20px] rounded-full bg-[#111116] transition-transform ${
                 faultOld ? "translate-x-[20px]" : ""
               }`}
             />

@@ -83,7 +83,7 @@ export function FrontOfficeScreen() {
 
       <div className="flex shrink-0 flex-wrap items-center gap-[12px]">
         <span className="min-w-0">
-          <span className="block text-[15px] font-semibold">Roster</span>
+          <span className="block text-[15px] font-semibold">Check-in &amp; sign-out</span>
           <span className="block text-[12px] text-fg-faint">
             {toCheckIn} still to check in
             {toSignOut > 0 && ` · ${toSignOut} waiting to sign out`}
@@ -181,7 +181,7 @@ function RosterRow({
 
   return (
     <div className="flex items-center gap-[12px] border-b border-edge-soft/60 px-[14px] py-[11px] md:px-[18px] md:py-[12px]">
-      <span className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-[12px] border border-edge-strong bg-[#251f1b] font-mono text-[11px] font-semibold">
+      <span className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-[12px] border border-edge-strong bg-[#1f1f27] font-mono text-[11px] font-semibold">
         {initials(fullName(candidate))}
       </span>
 
@@ -279,7 +279,7 @@ function CheckInDialog({ candidate, onClose }: { candidate: Candidate; onClose: 
               className={`flex-1 rounded-[14px] px-[22px] py-[15px] text-[14.5px] font-bold ${
                 ready && canFrontOffice
                   ? "cursor-pointer bg-[linear-gradient(145deg,oklch(0.83_0.16_158),oklch(0.72_0.15_165))] text-[#0c1711]"
-                  : "cursor-not-allowed bg-[#221d19] text-fg-dim"
+                  : "cursor-not-allowed bg-[#1d1d25] text-fg-dim"
               }`}
             >
               {ready
@@ -456,7 +456,7 @@ function SignOutDialog({ candidate, onClose }: { candidate: Candidate; onClose: 
             className={`flex-1 rounded-[14px] px-[22px] py-[15px] text-[14.5px] font-bold ${
               ready && canFrontOffice
                 ? "cursor-pointer bg-[linear-gradient(145deg,oklch(0.83_0.16_158),oklch(0.72_0.15_165))] text-[#0c1711]"
-                : "cursor-not-allowed bg-[#221d19] text-fg-dim"
+                : "cursor-not-allowed bg-[#1d1d25] text-fg-dim"
             }`}
           >
             {ready ? `Sign out ${candidate.public_token}` : "Take everything back first"}

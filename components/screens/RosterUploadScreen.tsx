@@ -184,7 +184,7 @@ export function RosterUploadScreen() {
             if (file) void onFile(file);
           }}
           className={`flex min-h-[280px] flex-1 flex-col items-center justify-center gap-[16px] rounded-[24px] border-2 border-dashed p-[40px] text-center transition-colors ${
-            dragging ? "border-gold bg-gold/8" : "border-[#3a322b] bg-panel-soft"
+            dragging ? "border-gold bg-gold/8" : "border-[#3d3d4a] bg-panel-soft"
           }`}
         >
           <span className="flex h-[26px] w-[26px] items-center justify-center rounded-[8px] bg-panel-soft font-mono text-[13px] font-semibold text-fg-dim">
@@ -276,7 +276,7 @@ export function RosterUploadScreen() {
             <input
               value={handName}
               onChange={(e) => setHandName(e.target.value)}
-              className="w-full rounded-[12px] border border-edge-strong bg-panel-soft px-[14px] py-[13px] text-[16px] outline-none focus:border-gold/50"
+              className="w-full rounded-[12px] border border-edge-strong bg-panel-soft px-[14px] py-[13px] text-[16px] outline-none focus:border-accent/50"
             />
           </label>
           <label className="flex flex-col gap-[8px]">
@@ -285,7 +285,7 @@ export function RosterUploadScreen() {
               type="date"
               value={examDate}
               onChange={(e) => setExamDate(e.target.value)}
-              className="w-full rounded-[12px] border border-edge-strong bg-panel-soft px-[14px] py-[13px] font-mono text-[16px] outline-none focus:border-gold/50"
+              className="w-full rounded-[12px] border border-edge-strong bg-panel-soft px-[14px] py-[13px] font-mono text-[16px] outline-none focus:border-accent/50"
             />
           </label>
           {session && (
@@ -350,7 +350,7 @@ export function RosterUploadScreen() {
                 <input
                   value={examName}
                   onChange={(e) => setExamName(e.target.value)}
-                  className="rounded-[12px] border border-edge-strong bg-panel-soft px-[13px] py-[12px] text-[14px] outline-none focus:border-gold/50"
+                  className="rounded-[12px] border border-edge-strong bg-panel-soft px-[13px] py-[12px] text-[14px] outline-none focus:border-accent/50"
                 />
               </label>
               <label className="flex flex-col gap-[7px]">
@@ -359,7 +359,7 @@ export function RosterUploadScreen() {
                   type="date"
                   value={examDate}
                   onChange={(e) => setExamDate(e.target.value)}
-                  className="rounded-[12px] border border-edge-strong bg-panel-soft px-[13px] py-[12px] font-mono text-[14px] outline-none focus:border-gold/50"
+                  className="rounded-[12px] border border-edge-strong bg-panel-soft px-[13px] py-[12px] font-mono text-[14px] outline-none focus:border-accent/50"
                 />
               </label>
             </div>

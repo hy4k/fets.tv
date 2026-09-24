@@ -39,7 +39,7 @@ function Form() {
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="rounded-[14px] border border-edge-strong bg-panel-soft px-[13px] py-[12px] text-[14px] outline-none focus:border-gold/60"
+          className="rounded-[14px] border border-edge-strong bg-panel-soft px-[13px] py-[12px] text-[14px] outline-none focus:border-accent/60"
         />
       </label>
 
@@ -50,7 +50,7 @@ function Form() {
           required
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="rounded-[14px] border border-edge-strong bg-panel-soft px-[13px] py-[12px] text-[14px] outline-none focus:border-gold/60"
+          className="rounded-[14px] border border-edge-strong bg-panel-soft px-[13px] py-[12px] text-[14px] outline-none focus:border-accent/60"
         />
       </label>
 

@@ -255,7 +255,7 @@ function WriteOffDialog({
           rows={3}
           maxLength={500}
           placeholder="Candidate left with it before the desk noticed"
-          className="w-full resize-none rounded-[13px] border border-edge-strong bg-panel-soft px-[13px] py-[11px] text-[14px] outline-none placeholder:text-fg-faint focus:border-gold/50"
+          className="w-full resize-none rounded-[13px] border border-edge-strong bg-panel-soft px-[13px] py-[11px] text-[14px] outline-none placeholder:text-fg-faint focus:border-accent/50"
         />
       </label>
     </Dialog>

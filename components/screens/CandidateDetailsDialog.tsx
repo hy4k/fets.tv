@@ -113,7 +113,7 @@ export function CandidateDetailsDialog({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Fatima Noor"
-            className="w-full rounded-[12px] border border-edge-strong bg-panel-soft px-[14px] py-[13px] text-[16px] outline-none placeholder:text-fg-faint focus:border-gold/50"
+            className="w-full rounded-[12px] border border-edge-strong bg-panel-soft px-[14px] py-[13px] text-[16px] outline-none placeholder:text-fg-faint focus:border-accent/50"
           />
         </Field>
 
@@ -147,7 +147,7 @@ export function CandidateDetailsDialog({
             inputMode="tel"
             onChange={(e) => setPhone(e.target.value)}
             placeholder="98470 00000"
-            className="w-full rounded-[12px] border border-edge-strong bg-panel-soft px-[14px] py-[13px] font-mono text-[16px] outline-none placeholder:text-fg-faint focus:border-gold/50"
+            className="w-full rounded-[12px] border border-edge-strong bg-panel-soft px-[14px] py-[13px] font-mono text-[16px] outline-none placeholder:text-fg-faint focus:border-accent/50"
           />
         </Field>
 
@@ -156,7 +156,7 @@ export function CandidateDetailsDialog({
             value={place}
             onChange={(e) => setPlace(e.target.value)}
             placeholder="Calicut"
-            className="w-full rounded-[12px] border border-edge-strong bg-panel-soft px-[14px] py-[13px] text-[16px] outline-none placeholder:text-fg-faint focus:border-gold/50"
+            className="w-full rounded-[12px] border border-edge-strong bg-panel-soft px-[14px] py-[13px] text-[16px] outline-none placeholder:text-fg-faint focus:border-accent/50"
           />
         </Field>
 

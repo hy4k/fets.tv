@@ -109,7 +109,7 @@ export function LabScreen() {
               onClick={() => setSeatingId(c.id)}
               className="flex w-full items-center gap-[12px] border-b border-edge-soft/60 px-[14px] py-[12px] text-left hover:bg-panel-soft disabled:cursor-not-allowed md:px-[18px]"
             >
-              <span className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-[12px] border border-edge-strong bg-[#251f1b] font-mono text-[11px] font-semibold">
+              <span className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-[12px] border border-edge-strong bg-[#1f1f27] font-mono text-[11px] font-semibold">
                 {initials(fullName(c))}
               </span>
               <span className="block min-w-0 flex-1">
@@ -197,7 +197,7 @@ function SeatPicker({
             className={`flex-1 rounded-[14px] px-[22px] py-[15px] text-[15px] font-bold ${
               chosen && canLab
                 ? "cursor-pointer bg-[linear-gradient(145deg,oklch(0.83_0.16_158),oklch(0.72_0.15_165))] text-[#0c1711]"
-                : "cursor-not-allowed bg-[#221d19] text-fg-dim"
+                : "cursor-not-allowed bg-[#1d1d25] text-fg-dim"
             }`}
           >
             {busy ? "Seating…" : chosen ? `Confirm ${chosen.seat_code}` : "Pick a seat above"}
