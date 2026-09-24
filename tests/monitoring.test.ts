@@ -138,3 +138,22 @@ test("the export has a row per window per track, names the holder, and cannot ca
   assert.match(lines[3], /"DVR","1","09:00-09:10","Lazeem","Done","09:06","Lazeem"/);
   assert.match(lines[1], /^"2026-09-24","1","09:00-10:30"/);
 });
+
+test("somebody still to start keeps the day open, however early the first finish", () => {
+  const b = dayBounds([
+    { exam_started_at: iso(0), exam_finished_at: iso(60), status: "signed_out" },
+    { exam_started_at: null, exam_finished_at: null, status: "waiting" },
+    { exam_started_at: null, exam_finished_at: null, status: "no_show" },
+  ]);
+  assert.equal(b.finishedAt, null);
+  const over = dayBounds([
+    { exam_started_at: iso(0), exam_finished_at: iso(60), status: "signed_out" },
+    { exam_started_at: null, exam_finished_at: null, status: "no_show" },
+  ]);
+  assert.equal(over.finishedAt, min(60));
+});
+
+test("finishing exactly on a boundary does not open one more window", () => {
+  assert.equal(day(min(200), [], min(90)).floor.windows.length, 9);
+  assert.equal(day(min(200), [], min(91)).floor.windows.length, 10);
+});

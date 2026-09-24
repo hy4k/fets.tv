@@ -213,6 +213,7 @@ export function MonitoringScreen() {
             now={now}
             timezone={center.timezone}
             walkMinutes={rules.walkthrough_minutes}
+            may={canCall}
             onCheck={(note) =>
               rpc(
                 "fets_record_walkthrough",
@@ -280,6 +281,7 @@ function TrackCard({
   now,
   timezone,
   walkMinutes,
+  may,
   onCheck,
 }: {
   kind: CheckKind;
@@ -288,6 +290,7 @@ function TrackCard({
   now: number;
   timezone: string;
   walkMinutes: number;
+  may: boolean;
   onCheck: (note: string) => Promise<boolean>;
 }) {
   const [note, setNote] = useState("");
@@ -364,12 +367,12 @@ function TrackCard({
           onChange={(e) => setNote(e.target.value)}
           maxLength={500}
           placeholder="Anything seen (optional)"
-          disabled={!w}
+          disabled={!w || !may}
           className="min-w-0 flex-1 rounded-[12px] border border-edge bg-panel-soft px-[12px] py-[10px] text-[13px] placeholder:text-fg-faint disabled:opacity-40"
         />
         <button
           type="button"
-          disabled={!w || busy}
+          disabled={!w || busy || !may}
           onClick={async () => {
             setBusy(true);
             const ok = await onCheck(note.trim());

@@ -90,7 +90,7 @@ export function WalkthroughBar() {
 
         <button
           type="button"
-          disabled={!may}
+          disabled={!may || !w}
           onClick={() => setOpen((v) => !v)}
           className="shrink-0 cursor-pointer rounded-[11px] border border-current/40 px-[11px] py-[8px] text-[11.5px] font-semibold disabled:opacity-40"
         >
@@ -99,7 +99,7 @@ export function WalkthroughBar() {
 
         <button
           type="button"
-          disabled={!may}
+          disabled={!may || !w}
           onClick={record}
           className="shrink-0 cursor-pointer rounded-[12px] gold-bg px-[16px] py-[9px] text-[13px] font-bold text-[#1a1512] disabled:cursor-not-allowed disabled:opacity-40"
         >

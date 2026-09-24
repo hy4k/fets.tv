@@ -46,14 +46,20 @@ export type Day = {
   dvr: Track;
 };
 
-type Sitter = { exam_started_at: string | null; exam_finished_at: string | null };
+type Sitter = { exam_started_at: string | null; exam_finished_at: string | null; status?: string };
 
-/** The first exam start among these candidates, and the last finish once all are done. */
+/**
+ * The first exam start among these candidates, and the last finish once the
+ * day is really over: everyone who is going to sit has sat and finished.
+ * Somebody still waiting to start keeps the day open, however early the
+ * first sitters finished; only a no-show is left out.
+ */
 export function dayBounds(candidates: Sitter[]) {
   const started = candidates.filter((c) => c.exam_started_at);
   if (started.length === 0) return { anchor: null, finishedAt: null };
   const anchor = Math.min(...started.map((c) => new Date(c.exam_started_at!).getTime()));
-  const allDone = started.every((c) => c.exam_finished_at);
+  const expected = candidates.filter((c) => c.status !== "no_show");
+  const allDone = expected.every((c) => c.exam_started_at && c.exam_finished_at);
   const finishedAt = allDone
     ? Math.max(...started.map((c) => new Date(c.exam_finished_at!).getTime()))
     : null;
@@ -78,7 +84,12 @@ export function monitoringDay(input: {
   const S = shiftMinutes * 60000;
   // The last window is the one the day's end falls in, or the one now falls in.
   const stop = finishedAt !== null ? Math.min(finishedAt, now) : now;
-  const count = Math.floor((stop - anchor) / W) + 1;
+  // A running day includes the window now falls in. A finished day ends at
+  // the finish: finishing exactly on a boundary does not open one more.
+  const count =
+    finishedAt !== null && stop === finishedAt
+      ? Math.max(1, Math.ceil((stop - anchor) / W))
+      : Math.floor((stop - anchor) / W) + 1;
 
   const k = Math.floor((stop - anchor) / S);
   const shift = { n: k + 1, start: anchor + k * S, end: anchor + (k + 1) * S };
