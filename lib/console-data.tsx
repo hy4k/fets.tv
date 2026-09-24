@@ -93,7 +93,13 @@ export type ConsoleSnapshot = {
   openBreaks: CandidateBreak[];
   noticeTemplates: NoticeTemplate[];
   notice: DisplayNotice | null;
+  /** Staff working at this centre now: who can be picked for a post or rota. */
   operators: Record<string, string>;
+  /**
+   * Everybody's name, whichever centre they are at now. For showing who did
+   * something on the record, which must not blank out when they switch.
+   */
+  names: Record<string, string>;
   /**
    * When each person last set a signing PIN, or null if they have none.
    * Separate from `operators` because whether somebody can sign for a post is
@@ -213,6 +219,7 @@ export function ConsoleProvider({
       noticeTemplates,
       notice,
       staff,
+      staffNames,
       staffDays,
     ] = await Promise.all([
       candidatesQuery,
@@ -287,6 +294,8 @@ export function ConsoleProvider({
         .limit(1)
         .maybeSingle(),
       supabase.from("profiles").select("id, display_name, pin_set_at").eq("center_id", centerId),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase.rpc as any)("fets_staff_names") as Promise<{ data: { id: string; display_name: string }[] | null }>,
       // A window around today, not the whole history: the grid can page a few
       // weeks either way without another round trip, and a year of rota does
       // not ride along on every refresh.
@@ -359,6 +368,14 @@ export function ConsoleProvider({
       pinSetAt: staff.data
         ? Object.fromEntries(staff.data.map((o) => [o.id, o.pin_set_at]))
         : prev.pinSetAt,
+      // Only ever added to. A name on the record stays right after its owner
+      // moves centre, and a viewer — handed no names by fets_staff_names —
+      // must not lose the ones it already had.
+      names: {
+        ...prev.names,
+        ...Object.fromEntries((staffNames.data ?? []).map((o) => [o.id, o.display_name])),
+        ...Object.fromEntries((staff.data ?? []).map((o) => [o.id, o.display_name])),
+      },
       staffDays: staffDays.data ?? prev.staffDays,
       staffDaysWindow: staffDays.error ? prev.staffDaysWindow : window,
       ...gapsAfterRefresh(prev, failed),
@@ -410,6 +427,12 @@ export function ConsoleProvider({
     for (const table of ["staff_days", "profiles"]) {
       channel.on("postgres_changes", { event: "DELETE", schema: "public", table }, scheduleRefresh);
     }
+
+    // Somebody switching centre is an UPDATE whose new row carries the new
+    // centre, so the centre they left never matches its own filter and would
+    // go on listing them. Profiles are a handful of rows; hearing every change
+    // is cheap.
+    channel.on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles" }, scheduleRefresh);
 
     channel.subscribe();
 

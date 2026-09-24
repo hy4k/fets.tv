@@ -45,7 +45,7 @@ function runningFor(startedAt: string, now: number) {
  * line before anything else. Detail can follow; the timestamp cannot.
  */
 export function IncidentsScreen() {
-  const { incidents, candidates, workstations, operators, center } = useConsole();
+  const { incidents, candidates, workstations, names, center } = useConsole();
   const now = useNow();
 
   const [logging, setLogging] = useState(false);
@@ -81,7 +81,7 @@ export function IncidentsScreen() {
             {KINDS.find((k) => k.key === incident.kind)?.label ?? incident.kind}
             {touches.length > 0 && ` · ${touches.join(" · ")}`}
             {` · started ${clockAt(incident.started_at, center.timezone)}`}
-            {incident.logged_by && ` · ${operators[incident.logged_by] ?? "operator"}`}
+            {incident.logged_by && ` · ${names[incident.logged_by] ?? "operator"}`}
           </span>
           {incident.detail && (
             <span className="mt-[5px] block text-[12.5px] leading-[1.5] text-fg-muted">

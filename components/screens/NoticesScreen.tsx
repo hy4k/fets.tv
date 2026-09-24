@@ -37,7 +37,7 @@ function kindOf(type: string): NoticeMediaKind {
  * does not fit one, and can carry a picture or a clip.
  */
 export function NoticesScreen() {
-  const { center, call, candidates, notice, noticeTemplates, displays, operators, rpc, notify, canCall } =
+  const { center, call, candidates, notice, noticeTemplates, displays, names, rpc, notify, canCall } =
     useConsole();
   const now = useNow();
 
@@ -203,7 +203,7 @@ export function NoticesScreen() {
               )}
             </span>
             <span className="text-[12px] text-fg-faint">
-              {operators[notice.created_by ?? ""] ?? "—"} · {clockAt(notice.created_at, center.timezone)}
+              {names[notice.created_by ?? ""] ?? "—"} · {clockAt(notice.created_at, center.timezone)}
               {expiresIn !== null && ` · ${expiresIn} min left`}
             </span>
             <button
