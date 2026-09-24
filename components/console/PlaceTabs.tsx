@@ -25,10 +25,9 @@ export function PlaceTabs() {
   const fill = steps.length <= 3;
 
   return (
-    <div
+    <nav
       className="relative flex shrink-0 items-stretch gap-[4px] overflow-x-auto rounded-[18px] border border-edge-soft header-bg p-[6px] md:rounded-[20px] md:border-l-[3px] md:border-l-gold/70"
-      role="tablist"
-      aria-label={place.title}
+      aria-label={`${place.title} steps`}
     >
       {steps.map((step, i) => {
         const active = step.key === here?.key;
@@ -40,8 +39,7 @@ export function PlaceTabs() {
             )}
             <Link
               href={step.href}
-              role="tab"
-              aria-selected={active}
+              aria-current={active ? "page" : undefined}
               className={`flex min-w-0 flex-1 items-center gap-[10px] rounded-[13px] border px-[11px] py-[8px] transition-colors md:px-[13px] md:py-[9px] ${
                 active
                   ? "border-gold/55 bg-gold/10 text-fg"
@@ -70,6 +68,6 @@ export function PlaceTabs() {
           </div>
         );
       })}
-    </div>
+    </nav>
   );
 }
