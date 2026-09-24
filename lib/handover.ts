@@ -129,7 +129,9 @@ export function handoverState(
   // yesterday's final walk as the last one, hours overdue, instead of saying
   // plainly that nobody has walked the floor yet.
   const lastWalk =
-    walkthroughs.find((w) => isToday(w.walked_at, input.timezone, now)) ?? null;
+    // A DVR check is not a walk of the floor, however recent.
+    walkthroughs.find((w) => w.kind !== "dvr" && isToday(w.walked_at, input.timezone, now)) ??
+    null;
   const walkOverdueMinutes = lastWalk
     ? Math.floor((now - new Date(lastWalk.walked_at).getTime()) / 60000) - input.walkthroughMinutes
     : null;

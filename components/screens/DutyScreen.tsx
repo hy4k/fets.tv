@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { HandoverDialog } from "@/components/screens/HandoverDialog";
-import { WalkthroughBar } from "@/components/screens/WalkthroughBar";
 import { useConsole } from "@/lib/console-data";
 import { clockAt } from "@/lib/format";
 import { useNow } from "@/lib/use-clock";
@@ -87,8 +86,6 @@ export function DutyScreen() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-[11px]">
-      <WalkthroughBar />
-
       {overdue.length > 0 && (
         <div className="shrink-0 rounded-[15px] border-2 border-rust bg-rust/12 px-[15px] py-[12px] text-[14px] font-bold text-rust">
           {overdue.length === 1
@@ -188,14 +185,18 @@ export function DutyScreen() {
                   )}
 
                   <div className="flex gap-[7px]">
-                    <button
-                      type="button"
-                      disabled={!canCall}
-                      onClick={() => setHanding(post)}
-                      className="flex-1 cursor-pointer rounded-[12px] gold-bg px-[13px] py-[10px] text-[12.5px] font-bold text-[#1a1512] disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      Hand over
-                    </button>
+                    {/* Only near the end of the block. A hand-over button on
+                        every post all day invites handing over for nothing. */}
+                    {live && endsAt(block) - now <= 10 * 60000 && (
+                      <button
+                        type="button"
+                        disabled={!canCall}
+                        onClick={() => setHanding(post)}
+                        className="flex-1 cursor-pointer rounded-[12px] gold-bg px-[13px] py-[10px] text-[12.5px] font-bold text-[#1a1512] disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        Hand over
+                      </button>
+                    )}
                     <button
                       type="button"
                       disabled={!canCall}
@@ -280,7 +281,14 @@ export function DutyScreen() {
  * "Rotate everybody" moves each of them one post along, so the order chosen
  * here is the order they will cycle in for the rest of the day.
  */
-function RotationDialog({ onClose }: { onClose: () => void }) {
+export function RotationDialog({
+  onClose,
+  minutes = null,
+}: {
+  onClose: () => void;
+  /** Block length for this start, so blocks end with the monitoring shift. */
+  minutes?: number | null;
+}) {
   const { center, dutyPosts, operators, rules, rpc } = useConsole();
   const [chosen, setChosen] = useState<string[]>([]);
 
@@ -307,7 +315,7 @@ function RotationDialog({ onClose }: { onClose: () => void }) {
             onClick={async () => {
               const ok = await rpc(
                 "fets_start_rotation",
-                { p_center: center.id, p_profiles: chosen },
+                { p_center: center.id, p_profiles: chosen, p_minutes: minutes },
                 "Rotation started",
               );
               if (ok) onClose();

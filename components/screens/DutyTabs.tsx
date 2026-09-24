@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CoverageScreen } from "@/components/screens/CoverageScreen";
 import { DutyScreen } from "@/components/screens/DutyScreen";
+import { MonitoringScreen } from "@/components/screens/MonitoringScreen";
 
 /**
  * Two questions about the same three people, kept on one page.
@@ -13,14 +14,15 @@ import { DutyScreen } from "@/components/screens/DutyScreen";
  * countdown has no business on a week grid.
  */
 export function DutyTabs() {
-  const [view, setView] = useState<"now" | "week">("now");
+  const [view, setView] = useState<"watch" | "posts" | "week">("watch");
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-[11px]">
       <div className="flex shrink-0 gap-[6px] self-start rounded-[13px] border border-edge bg-panel-soft p-[4px]">
         {(
           [
-            ["now", "On duty now"],
+            ["watch", "Floor walk & DVR"],
+            ["posts", "Posts"],
             ["week", "The week"],
           ] as const
         ).map(([key, label]) => (
@@ -37,7 +39,7 @@ export function DutyTabs() {
         ))}
       </div>
 
-      {view === "now" ? <DutyScreen /> : <CoverageScreen />}
+      {view === "watch" ? <MonitoringScreen /> : view === "posts" ? <DutyScreen /> : <CoverageScreen />}
     </div>
   );
 }

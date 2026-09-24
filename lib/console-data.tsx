@@ -246,7 +246,7 @@ export function ConsoleProvider({
         .select("*")
         .eq("center_id", centerId)
         .order("walked_at", { ascending: false })
-        .limit(80),
+        .limit(400),
       supabase.from("duty_blocks").select("*").eq("center_id", centerId).is("ended_at", null),
       supabase
         .from("duty_blocks")

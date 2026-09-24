@@ -107,6 +107,7 @@ function walk(over: Partial<Walkthrough> = {}): Walkthrough {
     walked_by_name: "Aysha",
     walked_at: "2026-09-23T04:55:00Z",
     note: null,
+    kind: "floor",
     created_at: "2026-09-23T04:55:00Z",
     ...over,
   };
@@ -364,4 +365,14 @@ test("the day is the centre's, not the server's", () => {
 
   assert.equal(run({ walkthroughs: w, timezone: "Asia/Kolkata" }, now).lastWalk?.id, "w1");
   assert.equal(run({ walkthroughs: w, timezone: "America/New_York" }, now).lastWalk, null);
+});
+
+test("a DVR check is not a walk of the floor, however recent", () => {
+  const s = run({
+    walkthroughs: [
+      walk({ id: "dvr", kind: "dvr", walked_at: "2026-09-23T04:58:00Z" }),
+      walk({ id: "floor", walked_at: "2026-09-23T04:52:00Z" }),
+    ],
+  });
+  assert.equal(s.lastWalk?.id, "floor");
 });

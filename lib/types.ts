@@ -240,6 +240,8 @@ export type Walkthrough = {
   walked_by_name: string;
   walked_at: string;
   note: string | null;
+  /** A walk of the floor, or a check of the DVR. */
+  kind: "floor" | "dvr";
   created_at: string;
 };
 
@@ -734,7 +736,7 @@ export type Database = {
       };
       fets_clear_pin: { Args: { p_profile: string }; Returns: void };
       fets_record_walkthrough: {
-        Args: { p_center: string; p_note?: string | null };
+        Args: { p_center: string; p_note?: string | null; p_kind?: "floor" | "dvr" };
         Returns: Walkthrough;
       };
       fets_problem_report: { Args: { p_session: string }; Returns: ProblemReport };
