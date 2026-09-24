@@ -1,58 +1,59 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useConsole } from "@/lib/console-data";
-import { clockAt, isToday } from "@/lib/format";
+import { clockAt } from "@/lib/format";
+import { countdown, dayBounds, monitoringDay } from "@/lib/monitoring";
 import { useNow } from "@/lib/use-clock";
 
 /**
- * The ten-minute walk.
+ * The ten-minute walk, on the Live exams page.
  *
- * The board's question after a bad day is not whether there was a policy but
- * when the hall was last walked, so this is a countdown and one button. It
- * reads green while there is time, gold in the last two minutes and rust once
- * the interval has passed — and it never hides, because a walk that is quietly
- * overdue is the failure it exists to prevent.
+ * Same clock as Duty → Floor walk & DVR: it starts with the first exam clock,
+ * and counts down to the end of the current ten-minute window rather than
+ * from the last walk, so the two pages always say the same thing. Green once
+ * this window has a walk, gold in its last two minutes without one.
  *
  * Anybody can press it. Tying the button to whoever formally holds the Floor
  * post would mean a walk that really happened going unrecorded because the rota
  * was out of date, which is the worse of the two wrongs.
  */
 export function WalkthroughBar() {
-  const { center, rules, walkthroughs, rpc, canLab, canFrontOffice } = useConsole();
+  const { center, rules, walkthroughs, candidates, rpc, canLab, canFrontOffice } = useConsole();
   const now = useNow();
   const [note, setNote] = useState("");
   const [open, setOpen] = useState(false);
 
   const may = canLab || canFrontOffice;
-  const every = rules.walkthrough_minutes * 60000;
-
-  // Today's walks only. Yesterday's last walk is not this morning's answer,
-  // and counting down from it would open the day fourteen hours overdue.
-  const last = walkthroughs.find((w) => isToday(w.walked_at, center.timezone, now)) ?? null;
-  const lastAt = last ? new Date(last.walked_at).getTime() : null;
-  const due = lastAt === null ? null : lastAt + every;
   const live = now > 0;
 
-  const over = live && due !== null && now >= due;
-  const soon = live && due !== null && !over && due - now <= 2 * 60000;
+  const { anchor, finishedAt } = useMemo(() => dayBounds(candidates), [candidates]);
+  const day = monitoringDay({
+    anchor,
+    finishedAt,
+    now: live ? now : (anchor ?? 0),
+    checks: walkthroughs.map((w) => ({
+      kind: w.kind ?? "floor",
+      walked_at: w.walked_at,
+      walked_by_name: w.walked_by_name,
+      note: w.note,
+    })),
+    walkMinutes: rules.walkthrough_minutes,
+    shiftMinutes: rules.duty_block_minutes,
+  });
 
-  const tone = over
-    ? "border-rust bg-rust/12 text-rust"
-    : soon
-      ? "border-gold/60 bg-gold/12 text-gold-bright"
-      : lastAt === null
-        ? "border-edge-warm bg-panel-soft text-fg-muted"
-        : "border-mint/35 bg-mint/6 text-mint";
+  const w = day.floor.current;
+  const done = w?.status === "done";
+  const soon = live && !!w && !done && w.end - now <= 2 * 60000;
+  const missedLast = day.floor.windows.length > 1 && day.floor.windows.at(-2)!.status === "missed";
 
-  const countdown = () => {
-    if (!live || due === null) return "—";
-    const ms = due - now;
-    const mins = Math.floor(Math.abs(ms) / 60000);
-    const secs = Math.floor((Math.abs(ms) % 60000) / 1000);
-    const body = `${mins}:${String(secs).padStart(2, "0")}`;
-    return ms <= 0 ? `+${body}` : body;
-  };
+  const tone = !w
+    ? "border-edge-warm bg-panel-soft text-fg-muted"
+    : done
+      ? "border-mint/35 bg-mint/6 text-mint"
+      : soon || missedLast
+        ? "border-gold/60 bg-gold/12 text-gold-bright"
+        : "border-edge-warm bg-panel-soft text-fg";
 
   async function record() {
     const ok = await rpc(
@@ -71,14 +72,20 @@ export function WalkthroughBar() {
       <div className="flex flex-wrap items-center gap-x-[12px] gap-y-[8px]">
         <span className="text-[11px] font-bold tracking-[0.13em] uppercase">Floor walk</span>
 
-        <span className="font-mono text-[20px] leading-none font-semibold">{countdown()}</span>
+        <span className="font-mono text-[20px] leading-none font-semibold tabular-nums">
+          {w && live ? countdown(w.end - now) : "—"}
+        </span>
 
         <span className="min-w-0 flex-1 text-[12.5px]">
-          {lastAt === null
-            ? `Nobody has walked the floor yet today. Every ${rules.walkthrough_minutes} minutes.`
-            : over
-              ? `Overdue — last walked ${clockAt(last!.walked_at, center.timezone)} by ${last!.walked_by_name}`
-              : `Last ${clockAt(last!.walked_at, center.timezone)} by ${last!.walked_by_name}`}
+          {!w
+            ? day.finishedAt !== null
+              ? "The day's exams have finished."
+              : `Starts with the first exam clock. Every ${rules.walkthrough_minutes} minutes.`
+            : done
+              ? `Walked ${clockAt(w.checks[0].walked_at, center.timezone)} by ${w.checks[0].walked_by_name}`
+              : missedLast
+                ? "The last window was missed — walk now"
+                : `Due by ${clockAt(new Date(w.end).toISOString(), center.timezone)}`}
         </span>
 
         <button

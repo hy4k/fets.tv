@@ -131,7 +131,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
       .select("*")
       .eq("center_id", center.id)
       .order("walked_at", { ascending: false })
-      .limit(80),
+      .limit(400),
     // Everything still open, plus a bounded slice of what has been served, which
     // is what a handover needs. The open ones are fetched without a limit: a
     // busy week of history must never push a live duty out of the answer.
