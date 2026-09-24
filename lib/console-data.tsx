@@ -368,10 +368,11 @@ export function ConsoleProvider({
       pinSetAt: staff.data
         ? Object.fromEntries(staff.data.map((o) => [o.id, o.pin_set_at]))
         : prev.pinSetAt,
-      // The current centre's staff are always in it — a viewer is handed no
-      // names by fets_staff_names, and must not lose the ones it can read.
+      // Only ever added to. A name on the record stays right after its owner
+      // moves centre, and a viewer — handed no names by fets_staff_names —
+      // must not lose the ones it already had.
       names: {
-        ...(staffNames.data ? {} : prev.names),
+        ...prev.names,
         ...Object.fromEntries((staffNames.data ?? []).map((o) => [o.id, o.display_name])),
         ...Object.fromEntries((staff.data ?? []).map((o) => [o.id, o.display_name])),
       },
