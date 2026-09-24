@@ -101,9 +101,12 @@ export function MonitoringScreen() {
   const nobodyOn = !holder("floor") && !holder("dvr");
 
   function exportLog() {
+    // The exam day's date, not today's: a log exported the next morning is
+    // still the log of the day the clocks ran.
+    const date = todayInZone(center.timezone, day.anchor !== null ? new Date(day.anchor) : new Date());
     const csv = monitoringCsv({
       day,
-      date: todayInZone(center.timezone),
+      date,
       timezone: center.timezone,
       blocks: dutyBlocks.map((b) => ({
         post_kind: kindOf.get(b.post_id) ?? "",
@@ -115,7 +118,7 @@ export function MonitoringScreen() {
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const a = document.createElement("a");
     a.href = url;
-    a.download = `fets-monitoring-${todayInZone(center.timezone)}.csv`;
+    a.download = `fets-monitoring-${date}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
