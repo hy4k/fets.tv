@@ -27,7 +27,6 @@ export function CentreChooser({
   const router = useRouter();
   const [chosen, setChosen] = useState<string | null>(centres[0]?.id ?? null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -39,7 +38,6 @@ export function CentreChooser({
 
   function choose(id: string) {
     setChosen(id);
-    setError(null);
     try {
       localStorage.setItem(REMEMBER, id);
     } catch {}
@@ -47,14 +45,13 @@ export function CentreChooser({
 
   const picked = centres.find((c) => c.id === chosen) ?? null;
 
+  // Always gets you in. The move is tried first; if it is refused — a viewer
+  // account, or a post still held at the other centre — you go in where you
+  // already are, and the header says which centre that is. Same as sign-in.
   async function enter() {
-    if (!picked) return;
     setBusy(true);
-    const { error } = await supabaseBrowser().rpc("fets_switch_centre" as never, { p_center: picked.id } as never);
-    setBusy(false);
-    if (error) {
-      setError(error.message);
-      return;
+    if (picked) {
+      await supabaseBrowser().rpc("fets_switch_centre" as never, { p_center: picked.id } as never);
     }
     router.push("/front-office");
     router.refresh();
@@ -107,7 +104,7 @@ export function CentreChooser({
       {signedIn ? (
         <button
           type="button"
-          disabled={!picked || busy}
+          disabled={busy}
           onClick={() => void enter()}
           className="cursor-pointer rounded-[15px] brand-bg px-[34px] py-[15px] text-[15px] font-bold text-[#141418] shadow-[0_14px_34px_-16px_oklch(0.72_0.15_58)] disabled:opacity-50"
         >
@@ -122,7 +119,6 @@ export function CentreChooser({
         </Link>
       )}
 
-      {error && <p className="max-w-[44ch] text-center text-[12.5px] text-rust">{error}</p>}
     </div>
   );
 }
