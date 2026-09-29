@@ -66,8 +66,10 @@ export function ExamsScreen() {
 
   // The same three numbers, from the roster already in fets.tv.
   const fromRoster = useMemo(() => {
+    // Only today's roster: one uploaded ahead for tomorrow is not today's day.
+    if (!session || session.exam_date !== date) return null;
     const booked = candidates.filter((c) => c.status !== "no_show");
-    if (!session || booked.length === 0) return null;
+    if (booked.length === 0) return null;
     const minutes =
       programmes.find((p) => p.id === session.programme_id)?.default_duration_minutes ?? null;
     const starts = booked.map((c) => (c.scheduled_at ? Date.parse(c.scheduled_at) : NaN)).filter((n) => !Number.isNaN(n));
@@ -84,7 +86,7 @@ export function ExamsScreen() {
       end,
       hours: first !== null && end !== null ? (end - first) / 3600000 : null,
     };
-  }, [candidates, session, programmes]);
+  }, [candidates, session, programmes, date]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-[14px] overflow-y-auto">

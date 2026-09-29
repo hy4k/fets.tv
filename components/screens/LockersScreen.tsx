@@ -48,7 +48,11 @@ export function LockersScreen() {
       </div>
 
       <section className="shrink-0 overflow-hidden rounded-[20px] border border-edge-mid panel-bg">
-        <Head label="Needs a key" count={needKey.length} tone={needKey.length ? "text-rust" : "text-mint"} />
+        <Head
+          label={rules.locker_key_required ? "Needs a key" : "No key yet · optional today"}
+          count={needKey.length}
+          tone={needKey.length && rules.locker_key_required ? "text-rust" : "text-fg-dim"}
+        />
         {needKey.map((c) => (
           <Row key={c.id} c={c}>
             <button

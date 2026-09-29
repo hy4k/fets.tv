@@ -860,7 +860,7 @@ function FlowSection() {
   const toggles: { label: string; note: string; field: keyof ScheduleRules }[] = [
     {
       label: "Locker key required",
-      note: "The front desk cannot finish a check-in until a key is issued.",
+      note: "Nobody is called forward from the admin room until they have a locker key or Nil.",
       field: "locker_key_required",
     },
     {

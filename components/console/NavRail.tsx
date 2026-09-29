@@ -14,7 +14,7 @@ import { useNow } from "@/lib/use-clock";
  */
 export function useStepBadges(): Partial<Record<StepKey, number>> {
   const now = useNow();
-  const { candidates, call, notice, openBreaks, incidents, dutyBlocks } = useConsole();
+  const { candidates, call, notice, openBreaks, incidents, dutyBlocks, rules } = useConsole();
 
   const waiting = candidates.filter((c) => c.status === "waiting" && !c.called_at).length;
   const testing = candidates.filter((c) => c.exam_started_at && !c.exam_finished_at).length;
@@ -23,9 +23,12 @@ export function useStepBadges(): Partial<Record<StepKey, number>> {
     (b) => !b.ended_at && now > 0 && new Date(b.started_at).getTime() + b.minutes * 60000 <= now,
   ).length;
 
-  const keyless = candidates.filter(
-    (c) => c.check_in_at && !c.locker_key && !["completed", "signed_out", "no_show"].includes(c.status),
-  ).length;
+  // Only a count to act on when keys are required; optional keys raise no alarm.
+  const keyless = rules.locker_key_required
+    ? candidates.filter(
+        (c) => c.check_in_at && !c.locker_key && !["completed", "signed_out", "no_show"].includes(c.status),
+      ).length
+    : 0;
 
   return {
     candidates: candidates.length,
