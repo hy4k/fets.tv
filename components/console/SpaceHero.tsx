@@ -6,7 +6,7 @@ import { basePath } from "@/lib/base-path";
 import { shortName } from "@/lib/centres";
 import { useConsole } from "@/lib/console-data";
 import type { DayTotals } from "@/lib/fets-live";
-import { clockAt, todayInZone } from "@/lib/format";
+import { clockAt, isTesting, todayInZone } from "@/lib/format";
 import { locate, type Place } from "@/lib/nav";
 import { useClock, useNow } from "@/lib/use-clock";
 
@@ -57,9 +57,15 @@ function LobbyHero() {
   useEffect(() => {
     let stale = false;
     fetch(`${basePath}/api/fets-live/day?provider=all&date=${date}`)
-      .then(async (r) => (r.ok ? ((await r.json()) as DayTotals) : null))
+      // A refusal (a viewer account) or a dead line is a reason to show, not
+      // an endless "reading".
+      .then(async (r) => {
+        const body = await r.json().catch(() => ({}));
+        if (!r.ok) return { connected: false, reason: body.error ?? "The calendar could not be read." } as DayTotals;
+        return body as DayTotals;
+      })
       .then((t) => !stale && setTotals(t))
-      .catch(() => !stale && setTotals(null));
+      .catch(() => !stale && setTotals({ connected: false, reason: "Could not reach the calendar." }));
     return () => {
       stale = true;
     };
@@ -144,7 +150,7 @@ function Band({ place }: { place: Place }) {
   }
   if (place.key === "hall") {
     stats.push(["Waiting", String(candidates.filter((c) => c.status === "waiting" && !c.called_at).length)]);
-    stats.push(["Testing", String(candidates.filter((c) => c.exam_started_at && !c.exam_finished_at).length)]);
+    stats.push(["Testing", String(candidates.filter(isTesting).length)]);
   }
 
   return (

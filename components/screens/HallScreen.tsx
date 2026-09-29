@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { WalkthroughBar } from "@/components/screens/WalkthroughBar";
 import { useConsole } from "@/lib/console-data";
-import { fullName } from "@/lib/format";
+import { fullName, isTesting } from "@/lib/format";
 import { useNow } from "@/lib/use-clock";
 import type { WorkstationStatus } from "@/lib/types";
 
@@ -30,7 +30,7 @@ export function HallScreen() {
   // The one called forward is shown on its own, not again in the queue.
   const waiting = candidates.filter((c) => c.status === "waiting" && !c.called_at && c.id !== called?.id);
   const testing = candidates
-    .filter((c) => c.exam_started_at && !c.exam_finished_at)
+    .filter(isTesting)
     .sort((a, b) => (a.exam_expected_end ?? "~").localeCompare(b.exam_expected_end ?? "~"));
   const onBreak = new Set(openBreaks.map((b) => b.candidate_id));
   const seatOf = new Map(workstations.map((w) => [w.id, w.seat_code]));
