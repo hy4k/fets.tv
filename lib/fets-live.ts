@@ -108,16 +108,32 @@ export function summariseDay(rows: CalendarRow[], provider: Provider, date: stri
   return { connected: true, provider, date, count, exams: list, hours };
 }
 
+/**
+ * Whether a Supabase key can read past signed-in-only rules: a new-style
+ * secret key, or a legacy JWT whose role is service_role (a legacy anon JWT
+ * is as public as a publishable key).
+ */
+export function isSecretKey(key: string): boolean {
+  if (key.startsWith("sb_secret_")) return true;
+  if (!key.startsWith("eyJ")) return false;
+  try {
+    const payload = key.split(".")[1] ?? "";
+    return JSON.parse(Buffer.from(payload, "base64url").toString("utf8"))?.role === "service_role";
+  } catch {
+    return false;
+  }
+}
+
 export async function readFetsLiveDay(provider: Provider, date: string, centre: string): Promise<DaySchedule> {
   const url = process.env.FETS_LIVE_SUPABASE_URL?.replace(/\/+$/, "").replace(/\/rest\/v1$/, "");
   const key = process.env.FETS_LIVE_SUPABASE_KEY;
   if (!url || !key) {
     return { connected: false, reason: "The fets.live calendar is not connected yet." };
   }
-  // fets.live answers a publishable key with an empty list, not a refusal, so
-  // it would read as a day with no exams.
-  if (key.startsWith("sb_publishable_")) {
-    return { connected: false, reason: "The fets.live key is a publishable key; the calendar needs a secret key." };
+  // fets.live answers a public key with an empty list, not a refusal, so it
+  // would read as a day with no exams.
+  if (!isSecretKey(key)) {
+    return { connected: false, reason: "The fets.live key is a public key; the calendar needs a secret key." };
   }
   const branch = branchOf(centre);
   if (!branch) return { connected: false, reason: `fets.live has no calendar for ${centre || "this centre"}.` };

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { branchOf, providerOf, summariseDay, type CalendarRow } from "../lib/fets-live.ts";
+import { branchOf, isSecretKey, providerOf, summariseDay, type CalendarRow } from "../lib/fets-live.ts";
 
 const row = (client: string, exam: string, count: number, start: string, end: string | null): CalendarRow => ({
   client_name: client,
@@ -65,4 +65,15 @@ test("a slot without an end finishes when it starts", () => {
   assert.ok(day.connected);
   assert.equal(day.exams[0].end, "2026-09-29T10:00:00+05:30");
   assert.equal(day.hours, 0);
+});
+
+const jwt = (role: string) =>
+  `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify({ role })).toString("base64url")}.sig`;
+
+test("only keys that pass signed-in-only rules count as secret", () => {
+  assert.equal(isSecretKey("sb_secret_abc"), true);
+  assert.equal(isSecretKey(jwt("service_role")), true);
+  assert.equal(isSecretKey("sb_publishable_abc"), false);
+  assert.equal(isSecretKey(jwt("anon")), false);
+  assert.equal(isSecretKey("eyJnot-a-jwt"), false);
 });
