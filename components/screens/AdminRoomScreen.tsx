@@ -6,7 +6,7 @@ import { MaterialsPanel } from "@/components/screens/MaterialsPanel";
 import { useConsole } from "@/lib/console-data";
 import { STAGE_LABELS, STAGE_ORDER, fullName, sinceLabel } from "@/lib/format";
 import { useNow } from "@/lib/use-clock";
-import type { Candidate, CandidateStatus } from "@/lib/types";
+import { type Candidate, type CandidateStatus, stillHeld } from "@/lib/types";
 
 const TABS = [
   { key: "tv", label: "On TV now", short: "On TV" },
@@ -193,7 +193,10 @@ export function AdminRoomScreen() {
               >
                 Materials
                 {(() => {
-                  const n = materials.filter((m) => m.candidate_id === c.id && !m.returned_at).length;
+                  // Units still out, not rows: a partial return keeps the rest counted.
+                  const n = materials
+                    .filter((m) => m.candidate_id === c.id)
+                    .reduce((sum, m) => sum + stillHeld(m), 0);
                   return n > 0 ? <span className="ml-[6px] font-mono text-accent">{n}</span> : null;
                 })()}
               </button>

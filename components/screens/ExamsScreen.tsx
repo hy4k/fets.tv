@@ -68,7 +68,9 @@ export function ExamsScreen() {
   const fromRoster = useMemo(() => {
     // Only today's roster: one uploaded ahead for tomorrow is not today's day.
     if (!session || session.exam_date !== date) return null;
-    const booked = candidates.filter((c) => c.status !== "no_show");
+    // Every booking, no-shows included: the calendar still has them, and the
+    // figures should not drift as the day goes on.
+    const booked = candidates;
     if (booked.length === 0) return null;
     const minutes =
       programmes.find((p) => p.id === session.programme_id)?.default_duration_minutes ?? null;

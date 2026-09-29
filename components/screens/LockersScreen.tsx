@@ -86,14 +86,19 @@ export function LockersScreen() {
             >
               {c.locker_key === "NIL" ? "Nil" : c.locker_key}
             </span>
-            <button
-              type="button"
-              disabled={!canFrontOffice}
-              onClick={() => setPicking(c)}
-              className="shrink-0 cursor-pointer rounded-[11px] border border-edge px-[11px] py-[8px] text-[12px] font-semibold text-fg-muted hover:border-edge-warm disabled:opacity-40"
-            >
-              Change
-            </button>
+            {/* After the exam the key only comes back at sign-out; it cannot be changed. */}
+            {c.status !== "completed" ? (
+              <button
+                type="button"
+                disabled={!canFrontOffice}
+                onClick={() => setPicking(c)}
+                className="shrink-0 cursor-pointer rounded-[11px] border border-edge px-[11px] py-[8px] text-[12px] font-semibold text-fg-muted hover:border-edge-warm disabled:opacity-40"
+              >
+                Change
+              </button>
+            ) : (
+              <span className="shrink-0 px-[4px] font-mono text-[10.5px] text-fg-faint">finished</span>
+            )}
           </Row>
         ))}
         {withKey.length === 0 && <p className="p-[22px] text-center text-[13px] text-fg-faint">No keys out.</p>}
