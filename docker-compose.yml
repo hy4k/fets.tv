@@ -11,8 +11,11 @@ services:
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
     restart: unless-stopped
-    expose:
-      - "3000"
+    # nginx on the host is the front door for fets.online and proxies here,
+    # like the other apps on this server (3020, 3021, 3023). Bound to
+    # localhost so the app is only reachable through nginx.
+    ports:
+      - "127.0.0.1:3022:3000"
     networks:
       - proxy
     labels:
