@@ -86,6 +86,14 @@ export function AdminRoomScreen() {
           </p>
 
           <div className="mt-[9px] flex flex-wrap gap-[8px]">
+            {/* Called before everything was handed over: materials stay here. */}
+            <button
+              type="button"
+              onClick={() => setIssuing(called)}
+              className="cursor-pointer rounded-[13px] border border-edge-warm bg-panel-soft px-[14px] py-[11px] text-[13px] font-semibold"
+            >
+              Materials
+            </button>
             <button
               type="button"
               disabled={!canCall}

@@ -6,7 +6,9 @@ import { useConsole } from "@/lib/console-data";
 import { fullName } from "@/lib/format";
 import type { Candidate } from "@/lib/types";
 
-const GONE = ["completed", "signed_out", "no_show"];
+// Out of the building. A candidate who has finished but not signed out still
+// holds their key, so "completed" is not here.
+const GONE = ["signed_out", "no_show"];
 
 /**
  * The locker key, as a step of its own after check-in.
@@ -28,7 +30,8 @@ export function LockersScreen() {
   );
 
   const here = candidates.filter((c) => c.check_in_at && !GONE.includes(c.status));
-  const needKey = here.filter((c) => !c.locker_key);
+  // Nobody needs a key once their exam is over.
+  const needKey = here.filter((c) => !c.locker_key && c.status !== "completed");
   const withKey = here
     .filter((c) => c.locker_key)
     .sort((a, b) => (a.locker_key ?? "").localeCompare(b.locker_key ?? ""));
