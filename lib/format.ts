@@ -168,3 +168,12 @@ export function todayInZone(timezone: string, reference: Date = new Date()) {
     day: "2-digit",
   }).format(reference);
 }
+
+/**
+ * Whether somebody is testing now: their exam clock is running and nobody has
+ * moved them on. An override to completed, signed out or no-show changes the
+ * status without stopping the clock, so the status has the last word.
+ */
+export function isTesting(c: Pick<Candidate, "exam_started_at" | "exam_finished_at" | "status">) {
+  return !!c.exam_started_at && !c.exam_finished_at && !["completed", "signed_out", "no_show"].includes(c.status);
+}

@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { isProvider, readFetsLiveDay } from "@/lib/fets-live";
+import { isProvider, readFetsLiveDay, readFetsLiveTotals } from "@/lib/fets-live";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -21,10 +21,14 @@ export async function GET(request: NextRequest) {
 
   const provider = request.nextUrl.searchParams.get("provider");
   const date = request.nextUrl.searchParams.get("date") ?? "";
-  if (!isProvider(provider) || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+  // "all" is the whole day together, for the Lobby.
+  if ((provider !== "all" && !isProvider(provider)) || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return Response.json({ error: "Choose a provider and a date" }, { status: 400 });
   }
 
   const { data: centre } = await supabase.from("centers").select("name").eq("id", profile.center_id).maybeSingle();
-  return Response.json(await readFetsLiveDay(provider, date, centre?.name ?? ""));
+  const name = centre?.name ?? "";
+  return Response.json(
+    provider === "all" ? await readFetsLiveTotals(date, name) : await readFetsLiveDay(provider, date, name),
+  );
 }

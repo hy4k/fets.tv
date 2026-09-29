@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 import { DataGaps } from "@/components/console/DataGaps";
-import { Header } from "@/components/console/Header";
-import { NavRail } from "@/components/console/NavRail";
 import { PlaceShell } from "@/components/console/PlaceShell";
 import { PlaceTabs } from "@/components/console/PlaceTabs";
+import { SpaceBar } from "@/components/console/SpaceBar";
+import { SpaceHero } from "@/components/console/SpaceHero";
 import { Toasts } from "@/components/console/Toasts";
 import { ConsoleProvider, type ConsoleSnapshot } from "@/lib/console-data";
 import { weekWindow } from "@/lib/coverage";
@@ -243,13 +243,12 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
   // channels and snapshot belong to the new centre.
   return (
     <ConsoleProvider key={center.id} initial={snapshot}>
-      {/* Phone and tablet get the nav as a bar under the content; from md up it
-          is the side rail. h-dvh, not h-screen, so a phone's address bar does
-          not push the nav off the bottom. */}
+      {/* The space's bar across the top, its hero, its steps, then the page.
+          h-dvh, not h-screen, so a phone's address bar does not hide the page. */}
       <PlaceShell>
-        <NavRail />
-        <main className="order-first flex min-h-0 min-w-0 flex-1 flex-col gap-[10px] md:order-none md:gap-[14px]">
-          <Header />
+        <SpaceBar />
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-[10px] px-[10px] pt-[10px] pb-[10px] md:gap-[14px] md:px-[28px] md:pt-[18px] md:pb-[18px]">
+          <SpaceHero />
           <PlaceTabs />
           <DataGaps />
           {children}

@@ -39,6 +39,19 @@ export type CalendarRow = {
   end_time: string | null;
 };
 
+/** The whole day at one branch, every provider together. */
+export type DayTotals =
+  | { connected: false; reason: string }
+  | {
+      connected: true;
+      date: string;
+      count: number;
+      /** How many of the five providers have anybody booked. */
+      providers: number;
+      first: string | null;
+      last: string | null;
+    };
+
 export function isProvider(v: string | null): v is Provider {
   return !!v && (PROVIDERS as readonly string[]).includes(v);
 }
@@ -129,19 +142,48 @@ export function isSecretKey(key: string): boolean {
   }
 }
 
+/** Every provider's day together, for the Lobby's "today at the centre". */
+export function summariseAll(rows: CalendarRow[], date: string): DayTotals {
+  let count = 0;
+  const providers = new Set<Provider>();
+  let first: string | null = null;
+  let last: string | null = null;
+  for (const p of PROVIDERS) {
+    const day = summariseDay(rows, p, date);
+    if (!day.connected || day.count === 0) continue;
+    providers.add(p);
+    count += day.count;
+    for (const e of day.exams) {
+      if (e.start && (!first || e.start < first)) first = e.start;
+      if (e.end && (!last || e.end > last)) last = e.end;
+    }
+  }
+  return { connected: true, date, count, providers: providers.size, first, last };
+}
+
 export async function readFetsLiveDay(provider: Provider, date: string, centre: string): Promise<DaySchedule> {
+  const got = await readCalendarRows(date, centre);
+  return "reason" in got ? { connected: false, reason: got.reason } : summariseDay(got.rows, provider, date);
+}
+
+export async function readFetsLiveTotals(date: string, centre: string): Promise<DayTotals> {
+  const got = await readCalendarRows(date, centre);
+  return "reason" in got ? { connected: false, reason: got.reason } : summariseAll(got.rows, date);
+}
+
+async function readCalendarRows(date: string, centre: string): Promise<{ rows: CalendarRow[] } | { reason: string }> {
   const url = process.env.FETS_LIVE_SUPABASE_URL?.replace(/\/+$/, "").replace(/\/rest\/v1$/, "");
   const key = process.env.FETS_LIVE_SUPABASE_KEY;
   if (!url || !key) {
-    return { connected: false, reason: "The fets.live calendar is not connected yet." };
+    return { reason: "The fets.live calendar is not connected yet." };
   }
   // fets.live answers a public key with an empty list, not a refusal, so it
   // would read as a day with no exams.
   if (!isSecretKey(key)) {
-    return { connected: false, reason: "The fets.live key is a public key; the calendar needs a secret key." };
+    return { reason: "The fets.live key is a public key; the calendar needs a secret key." };
   }
   const branch = branchOf(centre);
-  if (!branch) return { connected: false, reason: `fets.live has no calendar for ${centre || "this centre"}.` };
+  if (!branch) return { reason: `fets.live has no calendar for ${centre || "this centre"}.` };
 
   const q = new URLSearchParams({
     select: "client_name,exam_name,candidate_count,start_time,end_time",
@@ -156,10 +198,10 @@ export async function readFetsLiveDay(provider: Provider, date: string, centre: 
   let rows: CalendarRow[];
   try {
     const res = await fetch(`${url}/rest/v1/calendar_sessions?${q}`, { headers, cache: "no-store" });
-    if (!res.ok) return { connected: false, reason: `fets.live refused the calendar read (${res.status}).` };
+    if (!res.ok) return { reason: `fets.live refused the calendar read (${res.status}).` };
     rows = (await res.json()) as CalendarRow[];
   } catch {
-    return { connected: false, reason: "Could not reach fets.live." };
+    return { reason: "Could not reach fets.live." };
   }
-  return summariseDay(rows, provider, date);
+  return { rows };
 }
