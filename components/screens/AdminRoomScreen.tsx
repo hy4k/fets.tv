@@ -1,10 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Dialog } from "@/components/ui/Dialog";
+import { MaterialsPanel } from "@/components/screens/MaterialsPanel";
 import { useConsole } from "@/lib/console-data";
 import { STAGE_LABELS, STAGE_ORDER, fullName, sinceLabel } from "@/lib/format";
 import { useNow } from "@/lib/use-clock";
-import type { CandidateStatus } from "@/lib/types";
+import type { Candidate, CandidateStatus } from "@/lib/types";
 
 const TABS = [
   { key: "tv", label: "On TV now", short: "On TV" },
@@ -22,7 +24,11 @@ type TabKey = (typeof TABS)[number]["key"];
  * slides out from under anything else.
  */
 export function AdminRoomScreen() {
-  const { candidates, center, call, rpc, isAdmin, canCall, session } = useConsole();
+  const { candidates, center, call, rpc, isAdmin, canCall, session, rules, materials } = useConsole();
+  const [issuing, setIssuing] = useState<Candidate | null>(null);
+  // Called forward only with a locker key or Nil; the database refuses
+  // otherwise, and the button says why before anybody presses it.
+  const needsKey = (c: Candidate) => rules.locker_key_required && !c.locker_key;
   const [tab, setTab] = useState<TabKey>("tv");
 
   // The order people are called in is the order they were checked in, so the
@@ -40,7 +46,10 @@ export function AdminRoomScreen() {
   // Somebody was called and has not walked in yet. Until they do, calling the
   // next person would put two tokens in the hall's head at once.
   const awaitingEntry = called !== null && called.status === "waiting";
-  const next = pending[0] ?? null;
+  // The next person who can actually go: somebody still waiting on a locker
+  // key keeps their place in the list but does not hold up everyone behind.
+  const next = pending.find((c) => !needsKey(c)) ?? null;
+  const keyless = pending.filter(needsKey).length;
 
   if (!session) {
     return (
@@ -109,11 +118,15 @@ export function AdminRoomScreen() {
                 : "cursor-not-allowed bg-[#1d1d25] text-fg-dim"
             }`}
           >
-            {next ? `Call ${next.public_token} · ${fullName(next)}` : "Nobody is waiting to be called"}
+            {next
+              ? `Call ${next.public_token} · ${fullName(next)}`
+              : keyless > 0
+                ? `${keyless === 1 ? "The one waiting needs" : `All ${keyless} waiting need`} a locker key first`
+                : "Nobody is waiting to be called"}
           </button>
           <p className="mt-[9px] text-center text-[12px] text-fg-faint">
             {pending.length > 0
-              ? `${pending.length} waiting · next in line goes to the TV`
+              ? `${pending.length} waiting${keyless ? ` · ${keyless} without a locker key` : ""} · next ready goes to the TV`
               : "Everyone checked in has been called."}
           </p>
         </section>
@@ -155,14 +168,38 @@ export function AdminRoomScreen() {
               <span className="block min-w-0 flex-1">
                 <span className="block truncate text-[13.5px] font-semibold">{fullName(c)}</span>
                 <span className="block truncate font-mono text-[10px] text-fg-faint">
-                  {c.roster_number} · KEY {c.locker_key ?? "—"}
+                  {c.roster_number} ·{" "}
+                  {c.locker_key ? (
+                    `KEY ${c.locker_key === "NIL" ? "Nil" : c.locker_key}`
+                  ) : (
+                    <span className="font-semibold text-rust">NO KEY</span>
+                  )}
                 </span>
               </span>
 
+              {/* Materials are handed over here, in the hold, not at the desk. */}
               <button
                 type="button"
-                disabled={!canCall || awaitingEntry}
-                title={awaitingEntry ? `Waiting for ${called.public_token} to enter` : undefined}
+                onClick={() => setIssuing(c)}
+                className="shrink-0 cursor-pointer rounded-[12px] border border-edge px-[12px] py-[9px] text-[12px] font-semibold text-fg-muted hover:border-edge-warm hover:text-fg"
+              >
+                Materials
+                {(() => {
+                  const n = materials.filter((m) => m.candidate_id === c.id && !m.returned_at).length;
+                  return n > 0 ? <span className="ml-[6px] font-mono text-accent">{n}</span> : null;
+                })()}
+              </button>
+
+              <button
+                type="button"
+                disabled={!canCall || awaitingEntry || needsKey(c)}
+                title={
+                  needsKey(c)
+                    ? "Issue a locker key or Nil first"
+                    : awaitingEntry
+                      ? `Waiting for ${called.public_token} to enter`
+                      : undefined
+                }
                 onClick={() =>
                   rpc("fets_call_candidate", { p_candidate: c.id }, `Calling ${c.public_token}`)
                 }
@@ -177,6 +214,18 @@ export function AdminRoomScreen() {
             <p className="p-[26px] text-center text-[13px] text-fg-faint">
               Nobody is waiting. The front office checks people in.
             </p>
+          )}
+
+          {issuing && (
+            <Dialog
+              open
+              title={`Materials · ${issuing.public_token}`}
+              subtitle={`${fullName(issuing)} · what goes into the hall with them`}
+              onClose={() => setIssuing(null)}
+              width={480}
+            >
+              <MaterialsPanel candidate={candidates.find((c) => c.id === issuing.id) ?? issuing} mode="issue" />
+            </Dialog>
           )}
         </div>
       </section>

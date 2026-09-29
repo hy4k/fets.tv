@@ -9,9 +9,6 @@ import { useConsole } from "@/lib/console-data";
 import { clockAt, fullName, initials, statusChip } from "@/lib/format";
 import { type Candidate, stillHeld } from "@/lib/types";
 
-/** Physical locker bank at the front desk. */
-const LOCKER_BANK = 24;
-
 const WAITING_TO_CHECK_IN = ["scheduled", "arrived", "id_checked"];
 
 /**
@@ -233,183 +230,139 @@ function RosterRow({
 }
 
 /**
- * The check-in itself: ID, key, done. The ID tick only turns green when the
- * tick is pressed, so nobody clears it by tapping the row while scrolling, and
- * the locker bank opens over the top rather than pushing the steps around.
+ * The check-in itself: look at the ID against the list, note anything that
+ * differs, press one button.
+ *
+ * A name that does not match is written here, once, by the person holding the
+ * ID. It is saved as a reportable note on the candidate, so it appears in the
+ * Center Problem Report at the end of the day without anybody copying it over.
+ * The locker key is the next step; materials are issued in the admin room.
  */
 function CheckInDialog({ candidate, onClose }: { candidate: Candidate; onClose: () => void }) {
-  const { candidates, center, rules, rpc, canFrontOffice } = useConsole();
-  const [lockerOpen, setLockerOpen] = useState(false);
+  const { center, rpc, canFrontOffice } = useConsole();
+  const [mismatch, setMismatch] = useState(false);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  const idDone = !!candidate.id_verified_at;
-  const keyDone = !!candidate.locker_key;
-  const keyNeeded = rules.locker_key_required;
-  const ready = idDone && (keyDone || !keyNeeded) && candidate.status === "id_checked";
-
-  const lockersInUse = new Map(
-    candidates
-      .filter((c) => c.locker_key && !["signed_out", "no_show"].includes(c.status))
-      .map((c) => [c.locker_key!, c.public_token]),
-  );
+  const done = !!candidate.check_in_at;
+  const noteMissing = mismatch && !note.trim();
 
   async function checkIn() {
+    setBusy(true);
     const ok = await rpc(
-      "fets_check_in",
-      { p_candidate: candidate.id },
-      `${candidate.public_token} checked in`,
+      "fets_check_in_one",
+      { p_candidate: candidate.id, p_name_note: mismatch ? note.trim() : null },
+      mismatch
+        ? `${candidate.public_token} checked in · name note saved for the report`
+        : `${candidate.public_token} checked in`,
     );
+    setBusy(false);
     if (ok) onClose();
   }
 
+  const details: [string, string | null][] = [
+    ["Token", candidate.public_token],
+    ["Roster no.", candidate.roster_number],
+    ["Exam part", candidate.part],
+    ["Scheduled", candidate.scheduled_at ? clockAt(candidate.scheduled_at, center.timezone) : null],
+    ["Contact", candidate.phone],
+    ["Place", candidate.place],
+  ];
+
   return (
-    <>
-      <Dialog
-        open
-        title={fullName(candidate)}
-        subtitle={[candidate.public_token, candidate.roster_number, candidate.part, candidate.place]
-          .filter(Boolean)
-          .join(" · ")}
-        onClose={onClose}
-        footer={
-          <>
-            <button
-              type="button"
-              disabled={!ready || !canFrontOffice}
-              onClick={checkIn}
-              className={`flex-1 rounded-[14px] px-[22px] py-[15px] text-[14.5px] font-bold ${
-                ready && canFrontOffice
-                  ? "cursor-pointer bg-[linear-gradient(145deg,oklch(0.83_0.16_158),oklch(0.72_0.15_165))] text-[#0c1711]"
-                  : "cursor-not-allowed bg-[#1d1d25] text-fg-dim"
-              }`}
-            >
-              {ready
-                ? `Check in ${candidate.public_token}`
-                : keyNeeded && !keyDone && idDone
-                  ? "Issue a locker key first"
-                  : "Tick the ID check first"}
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="cursor-pointer rounded-[14px] border border-edge px-[20px] py-[15px] text-[14px] font-semibold text-fg-muted"
-            >
-              Close
-            </button>
-          </>
-        }
-      >
-        <div className="flex flex-col gap-[12px]">
-          <Step
-            n="1"
-            label="ID cross-verified"
-            note={idDone ? clockAt(candidate.id_verified_at, center.timezone) : "Tap the circle when the ID matches"}
-            done={idDone}
-            onTick={
-              canFrontOffice && !idDone
-                ? () =>
-                    rpc(
-                      "fets_verify_id",
-                      { p_candidate: candidate.id },
-                      `ID verified · ${candidate.public_token}`,
-                    )
-                : undefined
-            }
-          />
+    <Dialog
+      open
+      title={fullName(candidate)}
+      subtitle="Check the ID against this name before checking in"
+      onClose={onClose}
+      footer={
+        <>
+          <button
+            type="button"
+            disabled={done || busy || noteMissing || !canFrontOffice}
+            onClick={checkIn}
+            className="flex-1 cursor-pointer rounded-[14px] bg-[linear-gradient(145deg,oklch(0.83_0.16_158),oklch(0.72_0.15_165))] px-[22px] py-[15px] text-[15px] font-bold text-[#0c1711] disabled:cursor-not-allowed disabled:bg-none disabled:bg-[#1d1d25] disabled:text-fg-dim"
+          >
+            {done
+              ? `Checked in at ${clockAt(candidate.check_in_at, center.timezone)}`
+              : noteMissing
+                ? "Write what the ID says first"
+                : busy
+                  ? "Checking in…"
+                  : "Checked in"}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="cursor-pointer rounded-[14px] border border-edge px-[20px] py-[15px] text-[14px] font-semibold text-fg-muted"
+          >
+            Close
+          </button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-[12px]">
+        <dl className="grid grid-cols-2 gap-[8px] sm:grid-cols-3">
+          {details.map(([label, value]) => (
+            <div key={label} className="rounded-[12px] border border-edge-soft bg-panel-soft/60 px-[11px] py-[9px]">
+              <dt className="font-mono text-[9.5px] tracking-[0.12em] text-fg-faint uppercase">{label}</dt>
+              <dd className="mt-[3px] truncate text-[13.5px] font-semibold">{value || "—"}</dd>
+            </div>
+          ))}
+        </dl>
 
-          <Step
-            n="2"
-            label={keyNeeded ? "Locker key issued" : "Locker key (not required today)"}
-            note={candidate.locker_key ?? "No key issued"}
-            done={keyDone}
-            action={
-              canFrontOffice
-                ? { label: keyDone ? "Change key" : "Choose a key", onClick: () => setLockerOpen(true) }
-                : undefined
-            }
-          />
-
-          {/* What goes in with them. Not a step with a tick, because there is
-              no right number -- some exams need three sheets, some need none. */}
-          <div className="rounded-[16px] border border-edge bg-panel-soft/60 p-[13px]">
-            <span className="mb-[9px] block text-[11px] font-bold tracking-[0.12em] text-fg-faint uppercase">
-              Issued to them
-            </span>
-            <MaterialsPanel candidate={candidate} mode="issue" />
+        {!done && (
+          <div
+            className={`rounded-[16px] border p-[13px] transition-colors ${
+              mismatch ? "border-gold/50 bg-gold/8" : "border-edge bg-panel-soft/40"
+            }`}
+          >
+            <label className="flex cursor-pointer items-center gap-[11px]">
+              <input
+                type="checkbox"
+                checked={mismatch}
+                onChange={(e) => setMismatch(e.target.checked)}
+                className="h-[18px] w-[18px] accent-[oklch(0.83_0.16_82)]"
+              />
+              <span className="min-w-0">
+                <span className="block text-[13.5px] font-semibold">Name on the ID differs from the list</span>
+                <span className="block text-[11.5px] text-fg-faint">
+                  Goes into today&rsquo;s problem report automatically
+                </span>
+              </span>
+            </label>
+            {mismatch && (
+              <textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                maxLength={1000}
+                rows={2}
+                autoFocus
+                placeholder="What the ID says, e.g. “ID reads Anjali M. Menon”"
+                className="mt-[10px] w-full resize-none rounded-[12px] border border-edge-strong bg-panel-soft px-[12px] py-[10px] text-[13.5px] outline-none placeholder:text-fg-faint focus:border-accent/60"
+              />
+            )}
           </div>
+        )}
 
-          <Step
-            n="3"
-            label="Checked in"
-            note={
-              candidate.check_in_at
-                ? clockAt(candidate.check_in_at, center.timezone)
-                : "The button below finishes it"
-            }
-            done={!!candidate.check_in_at}
-          />
-
-          {canFrontOffice && !candidate.check_in_at && candidate.status !== "no_show" && (
-            <button
-              type="button"
-              onClick={async () => {
-                const ok = await rpc(
-                  "fets_mark_no_show",
-                  { p_candidate: candidate.id, p_note: "Marked at front office" },
-                  `${candidate.public_token} marked no show`,
-                );
-                if (ok) onClose();
-              }}
-              className="mt-[4px] cursor-pointer rounded-[13px] border border-edge px-[12px] py-[11px] text-[11.5px] font-bold tracking-[0.1em] text-fg-faint uppercase hover:border-rust/50 hover:text-rust"
-            >
-              Mark no show
-            </button>
-          )}
-        </div>
-      </Dialog>
-
-      {/* Rendered after the check-in dialog, so it sits over it. */}
-      <Dialog
-        open={lockerOpen}
-        title="Locker keys"
-        subtitle={`For ${fullName(candidate)} · a greyed key is already out`}
-        onClose={() => setLockerOpen(false)}
-        width={460}
-      >
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(62px,1fr))] gap-[9px]">
-          {Array.from({ length: LOCKER_BANK }, (_, i) => {
-            const code = `K-${String(i + 1).padStart(2, "0")}`;
-            const holder = lockersInUse.get(code);
-            const mine = candidate.locker_key === code;
-            const taken = !!holder && !mine;
-            return (
-              <button
-                key={code}
-                type="button"
-                disabled={taken || !canFrontOffice}
-                title={taken ? `Issued to ${holder}` : undefined}
-                onClick={async () => {
-                  const ok = await rpc(
-                    "fets_assign_locker",
-                    { p_candidate: candidate.id, p_key: code },
-                    `Locker ${code} issued`,
-                  );
-                  if (ok) setLockerOpen(false);
-                }}
-                className={`aspect-square rounded-[13px] border font-mono text-[12px] font-semibold ${
-                  mine
-                    ? "border-gold/60 bg-gold/20 text-gold-bright"
-                    : taken
-                      ? "cursor-not-allowed border-edge bg-panel-soft text-fg-faint/40"
-                      : "cursor-pointer border-edge bg-panel-soft text-fg-muted hover:border-edge-warm"
-                }`}
-              >
-                {code}
-              </button>
-            );
-          })}
-        </div>
-      </Dialog>
-    </>
+        {canFrontOffice && !done && candidate.status !== "no_show" && (
+          <button
+            type="button"
+            onClick={async () => {
+              const ok = await rpc(
+                "fets_mark_no_show",
+                { p_candidate: candidate.id, p_note: "Marked at front office" },
+                `${candidate.public_token} marked no show`,
+              );
+              if (ok) onClose();
+            }}
+            className="cursor-pointer self-start rounded-[12px] border border-edge px-[12px] py-[9px] text-[11px] font-bold tracking-[0.1em] text-fg-faint uppercase hover:border-rust/50 hover:text-rust"
+          >
+            Mark no show
+          </button>
+        )}
+      </div>
+    </Dialog>
   );
 }
 
@@ -472,7 +425,7 @@ function SignOutDialog({ candidate, onClose }: { candidate: Candidate; onClose: 
       }
     >
       <div className="flex flex-col gap-[12px]">
-        {candidate.locker_key && (
+        {candidate.locker_key && candidate.locker_key !== "NIL" && (
           <div className="flex items-center gap-[13px] rounded-[16px] border border-gold/40 bg-gold/8 p-[13px]">
             <span className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border-2 border-gold bg-gold/12 font-mono text-[12px] font-semibold text-gold-bright">
               K
@@ -494,70 +447,6 @@ function SignOutDialog({ candidate, onClose }: { candidate: Candidate; onClose: 
         </div>
       </div>
     </Dialog>
-  );
-}
-
-/**
- * A step with its own tick. The tick is the only thing that completes it —
- * the rest of the row is text, so a stray tap on a busy desk changes nothing.
- */
-function Step({
-  n,
-  label,
-  note,
-  done,
-  onTick,
-  action,
-}: {
-  n: string;
-  label: string;
-  note: string;
-  done: boolean;
-  onTick?: () => void;
-  action?: { label: string; onClick: () => void };
-}) {
-  // Done is light green. Waiting to be pressed is gold, the colour every other
-  // "do this now" control on the console uses. Inert is flat.
-  const tickClass = done
-    ? "border-mint bg-mint/25 text-mint"
-    : onTick
-      ? "cursor-pointer border-gold bg-gold/12 text-gold-bright hover:bg-gold/25"
-      : "border-edge bg-panel-soft text-fg-faint";
-
-  return (
-    <div
-      className={`flex items-center gap-[13px] rounded-[16px] border p-[13px] ${
-        done ? "border-mint/35 bg-mint/6" : "border-edge bg-panel-soft"
-      }`}
-    >
-      <button
-        type="button"
-        disabled={!onTick}
-        onClick={onTick}
-        aria-label={done ? `${label} — done` : `Mark ${label}`}
-        aria-pressed={done}
-        className={`flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border-2 text-[16px] transition-colors ${tickClass}`}
-      >
-        {done ? "✓" : n}
-      </button>
-
-      <span className="min-w-0 flex-1">
-        <span className={`block text-[14px] font-semibold ${done ? "text-fg" : "text-fg-muted"}`}>
-          {label}
-        </span>
-        <span className="block truncate font-mono text-[11.5px] text-fg-faint">{note}</span>
-      </span>
-
-      {action && (
-        <button
-          type="button"
-          onClick={action.onClick}
-          className="shrink-0 cursor-pointer rounded-[12px] border border-edge-warm px-[14px] py-[10px] text-[12.5px] font-semibold hover:bg-panel"
-        >
-          {action.label}
-        </button>
-      )}
-    </div>
   );
 }
 
