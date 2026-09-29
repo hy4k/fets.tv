@@ -11,6 +11,7 @@
  * work; only how you get to them has moved.
  */
 export type StepKey =
+  | "hall"
   | "exams"
   | "roster"
   | "lockers"
@@ -40,10 +41,18 @@ export type Step = {
   staffOnly?: boolean;
 };
 
-export type PlaceKey = "start" | "arrivals" | "hall" | "duty" | "screen" | "office";
+export type PlaceKey = "lobby" | "arrivals" | "hall" | "duty" | "screen" | "office";
+
+/**
+ * Which part of the building a place is in. The front desk team works the
+ * Lobby and Arrivals; the Exam Hall is a room of its own; the rest sits to one
+ * side, reached from the corner of the top bar.
+ */
+export type Wing = "front" | "hall" | "more";
 
 export type Place = {
   key: PlaceKey;
+  wing: Wing;
   title: string;
   /** One line under the title on the rail. */
   hint: string;
@@ -61,10 +70,11 @@ export const PLACES: Place[] = [
   {
     // The day starts before anybody arrives: which exams are on, then the
     // roster that says who is coming.
-    key: "start",
-    title: "Start",
+    key: "lobby",
+    wing: "front",
+    title: "The Lobby",
     hint: "Exams today · roster",
-    tone: ["oklch(0.82 0.13 45)", "oklch(0.66 0.16 32)"],
+    tone: ["oklch(0.86 0.1 80)", "oklch(0.7 0.12 62)"],
     steps: [
       { key: "exams", href: "/exams", label: "Exams today", sub: "From the fets.live calendar", n: 1 },
       { key: "roster", href: "/roster", label: "Roster", sub: "Upload or enter by hand", n: 2 },
@@ -72,6 +82,7 @@ export const PLACES: Place[] = [
   },
   {
     key: "arrivals",
+    wing: "front",
     title: "Arrivals",
     hint: "List · check-in · keys",
     tone: ["oklch(0.82 0.12 190)", "oklch(0.68 0.13 215)"],
@@ -83,10 +94,13 @@ export const PLACES: Place[] = [
   },
   {
     key: "hall",
-    title: "Exam hall",
+    wing: "hall",
+    title: "The Exam Hall",
     hint: "ID · seats · live",
-    tone: ["oklch(0.78 0.14 290)", "oklch(0.62 0.17 275)"],
+    tone: ["oklch(0.8 0.11 275)", "oklch(0.64 0.15 272)"],
     steps: [
+      // The whole room on one page; the three steps open one part full size.
+      { key: "hall", href: "/hall", label: "The hall", sub: "Everything at once" },
       { key: "security", href: "/admin", label: "Security & ID", sub: "Admin room · materials", n: 6 },
       { key: "seating", href: "/lab", label: "Seating", sub: "Lab", n: 7 },
       { key: "live", href: "/floor", label: "Live exams", sub: "Live floor", n: 8 },
@@ -94,6 +108,7 @@ export const PLACES: Place[] = [
   },
   {
     key: "duty",
+    wing: "more",
     title: "Duty",
     hint: "Floor walk · incidents",
     tone: ["oklch(0.85 0.15 80)", "oklch(0.72 0.15 58)"],
@@ -105,6 +120,7 @@ export const PLACES: Place[] = [
   {
     // The hall TV is used all day, so it is not filed under records any more.
     key: "screen",
+    wing: "more",
     title: "Hall TV",
     hint: "Screen · messages",
     tone: ["oklch(0.78 0.15 355)", "oklch(0.64 0.18 10)"],
@@ -115,6 +131,7 @@ export const PLACES: Place[] = [
   },
   {
     key: "office",
+    wing: "more",
     title: "Office",
     hint: "Past days · report · setup",
     tone: ["oklch(0.82 0.11 155)", "oklch(0.66 0.12 170)"],

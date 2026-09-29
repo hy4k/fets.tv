@@ -28,6 +28,7 @@
 
   --font-sans: var(--font-instrument-sans), Helvetica, Arial, sans-serif;
   --font-serif: var(--font-instrument-serif), Georgia, serif;
+  --font-display: var(--font-cormorant), var(--font-instrument-serif), Georgia, serif;
   --font-mono: var(--font-plex-mono), ui-monospace, monospace;
 
   --animate-pulse-dot: fetspulse 1.8s infinite;
@@ -146,6 +147,23 @@
   box-shadow:
     0 0 0 1px color-mix(in oklab, var(--place-accent, oklch(0.85 0.15 80)) 55%, transparent) inset,
     0 10px 30px -14px color-mix(in oklab, var(--place-accent, oklch(0.85 0.15 80)) 60%, transparent);
+}
+
+/* The name of a place, lit in its colour: bright at the top, the place's
+   second stop at the foot, as if lamplit from above. */
+@utility display-ink {
+  background: linear-gradient(180deg, color-mix(in oklab, var(--place-accent, oklch(0.85 0.15 80)) 22%, #fbf7ee) 8%, var(--place-accent, oklch(0.85 0.15 80)) 96%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* The light behind a place's hero. */
+@utility hero-bg {
+  background:
+    radial-gradient(900px 420px at 16% -20%, color-mix(in oklab, var(--place-accent, oklch(0.85 0.15 80)) 24%, transparent), transparent 70%),
+    radial-gradient(700px 380px at 96% 30%, color-mix(in oklab, var(--place-accent-2, oklch(0.72 0.15 58)) 14%, transparent), transparent 70%),
+    linear-gradient(180deg, #111014, #0d0d11);
 }
 
 @utility mint-bg {

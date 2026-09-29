@@ -2,17 +2,18 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { URGENT, useStepBadges } from "@/components/console/NavRail";
+import { URGENT, useStepBadges } from "@/components/console/badges";
 import { useConsole } from "@/lib/console-data";
 import { locate } from "@/lib/nav";
 
 /**
- * The steps inside the current place, across the top of the page.
+ * The steps inside the current space, as a row of tabs under its hero.
  *
- * Numbered steps are drawn as a journey — joined by a line, in the order a
- * candidate goes through them — because that is what they are. The current
- * step is lit in the place's colour. Counts are quiet; only a number somebody
- * must act on is red, the same rule the rail follows.
+ * Numbered steps are the candidate's journey (01 Exams today … 08 Live exams)
+ * and keep their numbers across spaces, so "step 04" means check-in wherever it
+ * is said. The open one is underlined in the space's colour. Counts are quiet;
+ * only a number somebody must act on is red. The next space is offered at the
+ * end of the row, so the day reads forward.
  */
 export function PlaceTabs() {
   const pathname = usePathname();
@@ -21,71 +22,50 @@ export function PlaceTabs() {
   const { place, step: here } = locate(pathname);
   if (!place) return null;
   const steps = place.steps.filter((s) => !s.staffOnly || profile.role !== "viewer");
+  const onward = place.key === "lobby" ? { href: "/candidates", label: "Arrivals" } : place.key === "arrivals" ? { href: "/hall", label: "The Exam Hall" } : null;
 
   return (
     <nav
-      className="relative flex shrink-0 items-stretch gap-[4px] overflow-x-auto rounded-[18px] border border-edge-soft header-bg p-[5px] md:rounded-[20px] md:p-[6px]"
+      className="flex shrink-0 items-stretch gap-[6px] overflow-x-auto border-b border-edge-soft md:gap-[26px]"
       aria-label={`${place.title} steps`}
     >
-      {steps.map((step, i) => {
+      {steps.map((step) => {
         const active = step.key === here?.key;
-        const passed = !!step.n && (here?.n ?? 0) >= step.n;
         const badge = badges[step.key] ?? 0;
         const urgent = URGENT.includes(step.key);
         return (
-          <div
+          <Link
             key={step.key}
-            className={`flex min-w-0 shrink-0 items-center gap-[4px] ${step.n && !active ? "sm:flex-1" : "flex-1"}`}
+            href={step.href}
+            aria-current={active ? "page" : undefined}
+            className={`-mb-px flex shrink-0 items-center gap-[9px] border-b-2 px-[6px] py-[12px] text-[14px] transition-colors md:px-[2px] md:text-[14.5px] ${
+              active ? "border-accent font-semibold text-fg" : "border-transparent font-medium text-fg-dim hover:text-fg"
+            }`}
           >
-            {i > 0 && step.n && (
-              <span
-                aria-hidden
-                className={`hidden h-[2px] w-[20px] shrink-0 rounded-full md:block ${passed ? "bg-accent/70" : "bg-edge-strong"}`}
-              />
-            )}
-            <Link
-              href={step.href}
-              aria-current={active ? "page" : undefined}
-              className={`flex min-w-0 flex-1 items-center gap-[11px] rounded-[14px] border px-[11px] py-[8px] transition-all duration-200 md:px-[14px] md:py-[10px] ${
-                active
-                  ? "border-accent/45 bg-[linear-gradient(120deg,color-mix(in_oklab,var(--place-accent)_18%,transparent),color-mix(in_oklab,var(--place-accent-2)_6%,transparent))] text-fg accent-glow"
-                  : "border-transparent text-fg-dim hover:bg-panel-soft/80 hover:text-fg"
-              }`}
-            >
-              {step.n && (
-                <span
-                  className={`flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full font-mono text-[11.5px] font-bold ${
-                    active
-                      ? "gold-bg text-[#141418]"
-                      : passed
-                        ? "border border-accent/50 text-accent"
-                        : "border border-edge-strong text-fg-faint"
-                  }`}
-                >
-                  {step.n}
-                </span>
-              )}
-              {/* On a phone a numbered step that is not open shows only its
-                  number, so the open one has room for its whole name. */}
-              <span className={`min-w-0 ${step.n && !active ? "hidden sm:block" : ""}`}>
-                <span className="block truncate text-[13px] font-semibold md:text-[14.5px]">{step.label}</span>
-                <span className={`hidden truncate font-mono text-[10px] sm:block ${active ? "text-accent" : "text-fg-faint"}`}>
-                  {step.sub}
-                </span>
+            {step.n && (
+              <span className={`font-mono text-[11px] ${active ? "text-accent" : "text-fg-faint"}`}>
+                {String(step.n).padStart(2, "0")}
               </span>
-              {badge > 0 && (
-                <span
-                  className={`ml-auto flex h-[20px] min-w-[20px] shrink-0 items-center justify-center rounded-full px-[6px] font-mono text-[10.5px] font-bold ${
-                    urgent ? "bg-rust text-[#141418]" : "bg-fg/10 text-fg-muted"
-                  }`}
-                >
-                  {badge > 99 ? "99+" : badge}
-                </span>
-              )}
-            </Link>
-          </div>
+            )}
+            {step.label}
+            {badge > 0 && (
+              <span
+                className={`flex h-[19px] min-w-[19px] items-center justify-center rounded-full px-[5px] font-mono text-[10px] font-bold ${
+                  urgent ? "bg-rust text-[#141418]" : "bg-fg/10 text-fg-muted"
+                }`}
+              >
+                {badge > 99 ? "99+" : badge}
+              </span>
+            )}
+          </Link>
         );
       })}
+      <span className="min-w-[12px] flex-1" />
+      {onward && (
+        <Link href={onward.href} className="hidden shrink-0 items-center py-[12px] text-[13px] text-accent hover:text-fg sm:flex">
+          Next: {onward.label} →
+        </Link>
+      )}
     </nav>
   );
 }
