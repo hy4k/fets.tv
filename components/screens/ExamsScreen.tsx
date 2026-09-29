@@ -47,8 +47,13 @@ export function ExamsScreen() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     fetch(`${basePath}/api/fets-live/day?provider=${encodeURIComponent(provider)}&date=${date}`)
-      .then((r) => r.json())
-      .then((d: DaySchedule) => !stale && setDay(d))
+      // A refusal (signed out, viewer account) is a reason to show, not a day.
+      .then(async (r) => {
+        const body = await r.json().catch(() => ({}));
+        if (!r.ok) return { connected: false, reason: body.error ?? "The calendar could not be read." } as DaySchedule;
+        return body as DaySchedule;
+      })
+      .then((d) => !stale && setDay(d))
       .catch(() => !stale && setDay({ connected: false, reason: "Could not reach the calendar." }))
       .finally(() => !stale && setLoading(false));
     return () => {
