@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { CprComposer } from "@/components/screens/CprComposer";
 import { useConsole } from "@/lib/console-data";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { clockAt } from "@/lib/format";
@@ -189,6 +190,7 @@ export function ReportScreen() {
           report={report}
           timezone={tz}
           frozen={!!frozen}
+          canAddEntry={!frozen && dayId === session?.id}
           busy={busy}
           isAdmin={isAdmin}
           summary={summary}
@@ -258,10 +260,13 @@ export function ReportBody({
   onSave,
   onFinalise,
   onReopen,
+  canAddEntry = false,
 }: {
   report: ProblemReport;
   timezone: string;
   frozen: boolean;
+  /** Whether new entries may be written into this report: today's, not signed off. */
+  canAddEntry?: boolean;
   busy: boolean;
   isAdmin: boolean;
   summary: string;
@@ -285,6 +290,10 @@ export function ReportBody({
               <Stat label="Signed out" value={report.counts.signed_out} />
               <Stat label="No shows" value={report.counts.no_shows} tone={report.counts.no_shows > 0} />
             </div>
+
+            {/* The centre's own wording, filled from the day. Only today's
+                open report takes new entries; any day's can be copied. */}
+            <CprComposer canAdd={canAddEntry} />
 
             <section className="rounded-[18px] border border-edge-mid panel-bg p-[14px]">
               <h2 className="mb-[10px] text-[11px] font-bold tracking-[0.13em] text-fg-dim uppercase">
