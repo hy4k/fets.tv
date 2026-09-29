@@ -14,7 +14,7 @@ import { useNow } from "@/lib/use-clock";
  */
 export function useStepBadges(): Partial<Record<StepKey, number>> {
   const now = useNow();
-  const { candidates, call, notice, openBreaks, incidents, dutyBlocks } = useConsole();
+  const { candidates, call, notice, openBreaks, incidents, dutyBlocks, rules } = useConsole();
 
   const waiting = candidates.filter((c) => c.status === "waiting" && !c.called_at).length;
   const testing = candidates.filter((c) => c.exam_started_at && !c.exam_finished_at).length;
@@ -23,8 +23,16 @@ export function useStepBadges(): Partial<Record<StepKey, number>> {
     (b) => !b.ended_at && now > 0 && new Date(b.started_at).getTime() + b.minutes * 60000 <= now,
   ).length;
 
+  // Only a count to act on when keys are required; optional keys raise no alarm.
+  const keyless = rules.locker_key_required
+    ? candidates.filter(
+        (c) => c.check_in_at && !c.locker_key && !["completed", "signed_out", "no_show"].includes(c.status),
+      ).length
+    : 0;
+
   return {
     candidates: candidates.length,
+    lockers: keyless,
     checkin: call?.candidate_id ? 1 : 0,
     security: waiting,
     live: testing + openBreaks.length,
@@ -35,7 +43,7 @@ export function useStepBadges(): Partial<Record<StepKey, number>> {
 }
 
 /** Only these count toward the number on a place: things somebody must act on. */
-export const URGENT: StepKey[] = ["checkin", "security", "duty", "incidents"];
+export const URGENT: StepKey[] = ["checkin", "lockers", "security", "duty", "incidents"];
 
 /**
  * Five places, each in its own colour.
@@ -59,7 +67,7 @@ export function NavRail() {
 
   return (
     <nav
-      className="grid shrink-0 grid-cols-5 gap-[4px] rounded-[18px] border border-edge-soft rail-bg p-[5px] md:flex md:w-[204px] md:flex-col md:gap-[6px] md:self-stretch md:rounded-[24px] md:p-[12px]"
+      className="grid shrink-0 grid-cols-6 gap-[3px] rounded-[18px] border border-edge-soft rail-bg p-[5px] md:flex md:w-[204px] md:flex-col md:gap-[6px] md:self-stretch md:rounded-[24px] md:p-[12px]"
       aria-label="Console places"
     >
       {/* The mark in the centre's own metal, and the centre under the name:
@@ -98,6 +106,7 @@ export function NavRail() {
 }
 
 const GLYPH: Record<PlaceKey, string> = {
+  start: "M12 3v2M12 19v2M4.2 7l1.7 1M18.1 16l1.7 1M3 12h2M19 12h2M4.2 17l1.7-1M18.1 8l1.7-1M8 12a4 4 0 1 0 8 0 4 4 0 0 0-8 0z",
   arrivals: "M4 20V9l8-5 8 5v11M9 20v-6h6v6",
   hall: "M3 7h18M3 12h18M3 17h18M7 4v16M17 4v16",
   duty: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zm0 4v5l3 2",

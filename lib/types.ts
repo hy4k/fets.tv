@@ -23,6 +23,9 @@ export type Center = {
   timezone: string;
   active: boolean;
   show_name_on_tv: boolean;
+  /** Locker bank: keys run PREFIX-01 to PREFIX-count, plus NIL. */
+  locker_prefix?: string | null;
+  locker_count?: number | null;
   created_at: string;
 };
 

@@ -53,7 +53,7 @@ export function CentreChooser({
     if (picked) {
       await supabaseBrowser().rpc("fets_switch_centre" as never, { p_center: picked.id } as never);
     }
-    router.push("/front-office");
+    router.push("/exams");
     router.refresh();
   }
 

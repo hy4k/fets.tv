@@ -34,7 +34,7 @@ function Form() {
       await supabaseBrowser().rpc("fets_switch_centre" as never, { p_center: centre } as never);
     }
 
-    router.replace(params.get("next") ?? "/front-office");
+    router.replace(params.get("next") ?? "/exams");
     router.refresh();
   }
 

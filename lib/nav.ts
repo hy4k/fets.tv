@@ -11,7 +11,9 @@
  * work; only how you get to them has moved.
  */
 export type StepKey =
+  | "exams"
   | "roster"
+  | "lockers"
   | "candidates"
   | "checkin"
   | "security"
@@ -38,7 +40,7 @@ export type Step = {
   staffOnly?: boolean;
 };
 
-export type PlaceKey = "arrivals" | "hall" | "duty" | "screen" | "office";
+export type PlaceKey = "start" | "arrivals" | "hall" | "duty" | "screen" | "office";
 
 export type Place = {
   key: PlaceKey;
@@ -57,14 +59,26 @@ export type Place = {
 
 export const PLACES: Place[] = [
   {
+    // The day starts before anybody arrives: which exams are on, then the
+    // roster that says who is coming.
+    key: "start",
+    title: "Start",
+    hint: "Exams today · roster",
+    tone: ["oklch(0.82 0.13 45)", "oklch(0.66 0.16 32)"],
+    steps: [
+      { key: "exams", href: "/exams", label: "Exams today", sub: "From the fets.live calendar", n: 1 },
+      { key: "roster", href: "/roster", label: "Roster", sub: "Upload or enter by hand", n: 2 },
+    ],
+  },
+  {
     key: "arrivals",
     title: "Arrivals",
-    hint: "Roster · list · check-in",
+    hint: "List · check-in · keys",
     tone: ["oklch(0.82 0.12 190)", "oklch(0.68 0.13 215)"],
     steps: [
-      { key: "roster", href: "/roster", label: "Roster", sub: "Upload the day", n: 1 },
-      { key: "candidates", href: "/candidates", label: "Candidates", sub: "Everyone booked", n: 2 },
-      { key: "checkin", href: "/front-office", label: "Check-in", sub: "Front desk", n: 3 },
+      { key: "candidates", href: "/candidates", label: "Candidates", sub: "Everyone booked today", n: 3 },
+      { key: "checkin", href: "/front-office", label: "Check-in", sub: "ID and name", n: 4 },
+      { key: "lockers", href: "/lockers", label: "Locker key", sub: "Issue a key or Nil", n: 5 },
     ],
   },
   {
@@ -73,9 +87,9 @@ export const PLACES: Place[] = [
     hint: "ID · seats · live",
     tone: ["oklch(0.78 0.14 290)", "oklch(0.62 0.17 275)"],
     steps: [
-      { key: "security", href: "/admin", label: "Security & ID", sub: "Admin room", n: 4 },
-      { key: "seating", href: "/lab", label: "Seating", sub: "Lab", n: 5 },
-      { key: "live", href: "/floor", label: "Live exams", sub: "Live floor", n: 6 },
+      { key: "security", href: "/admin", label: "Security & ID", sub: "Admin room · materials", n: 6 },
+      { key: "seating", href: "/lab", label: "Seating", sub: "Lab", n: 7 },
+      { key: "live", href: "/floor", label: "Live exams", sub: "Live floor", n: 8 },
     ],
   },
   {
