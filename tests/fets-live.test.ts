@@ -77,3 +77,29 @@ test("only keys that pass signed-in-only rules count as secret", () => {
   assert.equal(isSecretKey(jwt("anon")), false);
   assert.equal(isSecretKey("eyJnot-a-jwt"), false);
 });
+
+test("mock exams are no provider's", () => {
+  assert.equal(providerOf("MOCK EXAM - CMA US", "MOCK"), null);
+});
+
+test("one exam typed several ways is one exam", () => {
+  const day = summariseDay(
+    [
+      row("PEARSON VUE", "Microsoft", 1, "08:00:00", "09:05:00"),
+      row("PEARSON VUE", "MICROSOFT ", 1, "08:00:00", "10:00:00"),
+      row("PEARSON VUE", "microsoft", 1, "10:30:00", "11:30:00"),
+      row("PEARSON VUE", "ANTHROPIC", 1, "10:30:00", "12:45:00"),
+    ],
+    "Pearson VUE",
+    "2026-09-29",
+  );
+  assert.ok(day.connected);
+  assert.deepEqual(
+    day.exams.map((e) => [e.name, e.count]),
+    [
+      ["Microsoft", 3],
+      ["ANTHROPIC", 1],
+    ],
+  );
+  assert.equal(day.hours, 4.75);
+});

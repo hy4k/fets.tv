@@ -50,11 +50,13 @@ export function isProvider(v: string | null): v is Provider {
  * VUE, CELPIP, PSI, ITTS). Older rows sometimes carry the exam there instead,
  * so the exam name is the fallback, using fets.live's own rules: CELPIP is
  * its own provider, CMA US runs through Prometric. Anything else that is
- * named — IELTS, say — is none of the five and is left out.
+ * named — IELTS, say — is none of the five and is left out, as are FETS's
+ * own mock exams ("MOCK EXAM - CMA US"), which no provider delivers.
  */
 export function providerOf(client: string | null, exam: string | null): Provider | null {
   const c = (client ?? "").toUpperCase();
   const e = (exam ?? "").toUpperCase();
+  if (/\bMOCK\b/.test(c) || /\bMOCK\b/.test(e)) return null;
   if (c.includes("CELPIP") || e.includes("CELPIP")) return "CELPIP";
   if (c.includes("PROMETRIC")) return "Prometric";
   if (c.includes("PEARSON") || /\bVUE\b/.test(c)) return "Pearson VUE";
@@ -88,15 +90,18 @@ export function summariseDay(rows: CalendarRow[], provider: Provider, date: stri
   for (const r of rows) {
     if (providerOf(r.client_name, r.exam_name) !== provider) continue;
     const n = Math.max(0, Number(r.candidate_count) || 0);
-    const name = (r.exam_name ?? "").trim() || provider;
+    // The calendar is typed by hand: "Microsoft", "MICROSOFT " and
+    // "microsoft" are one exam, shown as first spelled.
+    const name = (r.exam_name ?? "").trim().replace(/\s+/g, " ") || provider;
+    const key = name.toUpperCase();
     const start = atIst(date, r.start_time);
     // A slot saved without an end finishes when it starts, as fets.live saves it.
     const end = atIst(date, r.end_time) ?? start;
-    const e = exams.get(name) ?? { name, count: 0, start: null, end: null };
+    const e = exams.get(key) ?? { name, count: 0, start: null, end: null };
     e.count += n;
     if (start && (!e.start || start < e.start)) e.start = start;
     if (end && (!e.end || end > e.end)) e.end = end;
-    exams.set(name, e);
+    exams.set(key, e);
     count += n;
   }
   const list = [...exams.values()].sort((a, b) => (a.start ?? "~").localeCompare(b.start ?? "~"));
