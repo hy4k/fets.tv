@@ -69,7 +69,7 @@ export function DeskChat() {
   const here = locate(pathname);
   const place = here.place?.key;
   const fromPage: Desk =
-    place === "hall" ? "admin" : place === "office" || place === "duty" ? "office" : "front";
+    place === "hall" ? "admin" : place === "lab" ? "lab" : place === "office" ? "office" : "front";
   const desk = chosen ?? fromPage;
   const target = to ?? (desk === "front" ? "admin" : "front");
 

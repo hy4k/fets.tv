@@ -144,7 +144,7 @@ export function RosterUploadScreen() {
           </div>
           <p className="max-w-[62ch] text-[12.5px] leading-[1.5] text-fg-faint">
             This sets how long every candidate&rsquo;s clock runs once they are seated. Lengths come
-            from Setup, and any one candidate can still be corrected on the Live Floor.
+            from Setup, and any one candidate can still be corrected in the Lab.
           </p>
 
           {programmes.length === 0 ? (

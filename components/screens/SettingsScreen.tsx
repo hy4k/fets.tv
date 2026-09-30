@@ -238,7 +238,7 @@ function ExamsSection() {
   return (
     <Panel
       title="Exams"
-      note="How long each exam runs. Seating a candidate starts their clock at the length shown here, and it can still be corrected on the Live Floor."
+      note="How long each exam runs. Seating a candidate starts their clock at the length shown here, and it can still be corrected in the Lab."
     >
       {programmes.length === 0 ? (
         <p className="rounded-[14px] border border-gold/35 bg-gold/8 p-[13px] text-[12.5px] text-gold">
@@ -341,7 +341,7 @@ function SectionsEditor({ programme, onClose }: { programme: ExamProgramme; onCl
     <Dialog
       open
       title={`${programme.code} — the parts`}
-      subtitle="In the order they are sat. The Live Floor works out when each one is due from these."
+      subtitle="In the order they are sat. The Lab works out when each one is due from these."
       onClose={onClose}
       width={620}
       footer={

@@ -86,7 +86,7 @@ export function CandidateDetailsDialog({
   return (
     <Dialog
       open={open}
-      title={editing ? "Edit details" : "Add a candidate"}
+      title={editing ? "Edit details" : "Add a walk-in candidate"}
       subtitle={
         editing
           ? `${candidate.public_token} · ${candidate.roster_number}`

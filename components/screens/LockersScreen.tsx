@@ -142,6 +142,22 @@ function Row({ c, children }: { c: Candidate; children: React.ReactNode }) {
   );
 }
 
+/**
+ * The key picker on its own, for opening straight after check-in so the
+ * desk goes check in → key without a trip to this page.
+ */
+export function LockerKeyDialog({ candidate, onClose }: { candidate: Candidate; onClose: () => void }) {
+  const { candidates, center } = useConsole();
+  const prefix = center.locker_prefix ?? "K";
+  const count = center.locker_count ?? 24;
+  const bank = useMemo(
+    () => Array.from({ length: count }, (_, i) => `${prefix}-${String(i + 1).padStart(2, "0")}`),
+    [prefix, count],
+  );
+  const inUse = candidates.filter((c) => c.check_in_at && !GONE.includes(c.status) && c.locker_key);
+  return <KeyPicker candidate={candidate} bank={bank} inUse={inUse} onClose={onClose} />;
+}
+
 function KeyPicker({
   candidate,
   bank,

@@ -20,10 +20,10 @@ export function PlaceTabs() {
   const badges = useStepBadges();
   const { profile } = useConsole();
   const { place, step: here } = locate(pathname);
-  // The hall switches between its two pages from its hero instead.
+  // The Admin is one page: no tab row.
   if (!place || place.key === "hall") return null;
   const steps = place.steps.filter((s) => !s.staffOnly || profile.role !== "viewer");
-  const onward = place.key === "lobby" ? { href: "/candidates", label: "Arrivals" } : place.key === "arrivals" ? { href: "/admin", label: "The Exam Hall" } : null;
+  const onward = place.key === "lobby" ? { href: "/candidates", label: "The Check-in" } : place.key === "arrivals" ? { href: "/admin", label: "The Admin" } : null;
 
   return (
     <nav

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { basePath } from "@/lib/base-path";
@@ -29,8 +28,8 @@ export function SpaceHero() {
 const OVERLINE: Record<Place["key"], string> = {
   lobby: "Front of house",
   arrivals: "Front of house · the desk",
-  hall: "Quiet please · exams in progress",
-  duty: "On duty",
+  hall: "The admin room · call to seat",
+  lab: "Quiet please · exams in progress",
   screen: "What the hall sees",
   office: "The office",
 };
@@ -137,7 +136,7 @@ function Fig({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Band({ place, pathname }: { place: Place; pathname: string }) {
+function Band({ place }: { place: Place; pathname: string }) {
   const { center, candidates, rules } = useConsole();
   const clock = useClock(center.timezone);
 
@@ -151,6 +150,9 @@ function Band({ place, pathname }: { place: Place; pathname: string }) {
   }
   if (place.key === "hall") {
     stats.push(["Waiting", String(candidates.filter((c) => c.status === "waiting" && !c.called_at).length)]);
+    stats.push(["To seat", String(candidates.filter((c) => ["frisking", "biometrics", "assigned"].includes(c.status) && !c.workstation_id).length)]);
+  }
+  if (place.key === "lab") {
     stats.push(["Testing", String(candidates.filter(isTesting).length)]);
   }
 
@@ -165,26 +167,6 @@ function Band({ place, pathname }: { place: Place; pathname: string }) {
         >
           {place.title}
         </h1>
-        {/* The hall has two pages and no tab row: a switch, under its name. */}
-        {place.key === "hall" && (
-          <span className="mt-[12px] inline-flex rounded-full border border-accent/25 bg-ink/50 p-[3px] backdrop-blur-sm">
-            {place.steps.map((s) => {
-              const on = locate(pathname).step?.key === s.key;
-              return (
-                <Link
-                  key={s.key}
-                  href={s.href}
-                  aria-current={on ? "page" : undefined}
-                  className={`rounded-full px-[16px] py-[7px] text-[13px] font-semibold transition-colors ${
-                    on ? "bg-accent text-[#141418]" : "text-fg-dim hover:text-fg"
-                  }`}
-                >
-                  {s.label}
-                </Link>
-              );
-            })}
-          </span>
-        )}
       </div>
       {stats.length > 0 && (
         <div className="flex gap-[10px]">
@@ -196,7 +178,7 @@ function Band({ place, pathname }: { place: Place; pathname: string }) {
           ))}
         </div>
       )}
-      {place.key === "hall" && (
+      {(place.key === "hall" || place.key === "lab") && (
         <span className="font-mono text-[38px] leading-none font-medium tabular-nums md:text-[48px]">{clock}</span>
       )}
     </section>
