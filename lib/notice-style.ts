@@ -67,11 +67,3 @@ export function cleanStyle(raw: unknown): NoticeStyle {
   if (r.bold === true) out.bold = true;
   return out;
 }
-
-/** Whether a colour is light, so the eyebrow and fine print can flip to dark. */
-export function isLight(hex: string | undefined): boolean {
-  if (!hex || !HEX.test(hex)) return false;
-  const n = parseInt(hex.slice(1), 16);
-  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 150;
-}

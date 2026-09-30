@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { cleanStyle, isLight } from "../lib/notice-style.ts";
+import { cleanStyle } from "../lib/notice-style.ts";
 
 test("only known style choices survive", () => {
   assert.deepEqual(
@@ -11,10 +11,4 @@ test("only known style choices survive", () => {
   assert.deepEqual(cleanStyle(null), {});
   // "By tone" is the absence of a background, not a background.
   assert.deepEqual(cleanStyle({ background: "tone" }), {});
-});
-
-test("light colours are told apart from dark ones", () => {
-  assert.equal(isLight("#f5f2ec"), true);
-  assert.equal(isLight("#1a1a1f"), false);
-  assert.equal(isLight(undefined), false);
 });

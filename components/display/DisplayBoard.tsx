@@ -43,6 +43,8 @@ function noticeLook(raw: NoticeStyle | null | undefined, baseSize: string) {
       ...(st.bold ? { fontWeight: 700 } : {}),
       fontSize: `calc(${baseSize} * ${scale})`,
     },
+    /** The small print (eyebrow, "board active") goes dark on a light background. */
+    aux: lightBg ? { color: "rgba(26,26,31,0.72)" } : undefined,
   };
 }
 
@@ -158,6 +160,7 @@ export function DisplayBoard({
           {notice && tone ? (
             <>
               <span
+                style={noticeLook(notice.style, "1px").aux}
                 className={`text-[clamp(7px,1.35cqw,20px)] font-extrabold tracking-[0.24em] uppercase ${tone.accent}`}
               >
                 {tone.eyebrow}
@@ -212,7 +215,10 @@ export function DisplayBoard({
               </span>
             </>
           )}
-          <span className="mt-[1cqh] flex items-center gap-[9px] font-mono text-[clamp(7px,1.15cqw,16px)] tracking-[0.16em] text-fg-faint uppercase">
+          <span
+            style={notice ? noticeLook(notice.style, "1px").aux : undefined}
+            className="mt-[1cqh] flex items-center gap-[9px] font-mono text-[clamp(7px,1.15cqw,16px)] tracking-[0.16em] text-fg-faint uppercase"
+          >
             <span className="h-[7px] w-[7px] animate-pulse-dot rounded-full bg-mint motion-reduce:animate-none" />
             Board active
           </span>
@@ -225,6 +231,7 @@ export function DisplayBoard({
           className={`flex shrink-0 items-baseline gap-[clamp(6px,1.2cqw,18px)] rounded-[18px] border px-[clamp(8px,1.6cqw,26px)] py-[clamp(6px,1.2cqh,18px)] ${tone.band}`}
         >
           <span
+            style={noticeLook(notice.style, "1px").aux}
             className={`shrink-0 text-[clamp(6px,1.05cqw,15px)] font-extrabold tracking-[0.2em] uppercase ${tone.accent}`}
           >
             {tone.eyebrow}
