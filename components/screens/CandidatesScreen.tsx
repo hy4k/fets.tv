@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { CandidateDetailsDialog } from "@/components/screens/CandidateDetailsDialog";
 import { useConsole } from "@/lib/console-data";
-import { clockAt, fullName, statusChip } from "@/lib/format";
+import { clockAt, fullName, lateFirst, statusChip } from "@/lib/format";
 import type { Candidate } from "@/lib/types";
 
 const FILTERS = [
@@ -58,7 +58,8 @@ export function CandidatesScreen() {
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return candidates
+    // Walk-ins and late bookings sit on top until they are checked in.
+    return lateFirst(candidates, session)
       .filter((c) => matches(c, filter))
       .filter(
         (c) =>
@@ -68,7 +69,7 @@ export function CandidatesScreen() {
           c.public_token.toLowerCase().includes(q) ||
           (c.phone ?? "").includes(q),
       );
-  }, [candidates, filter, query]);
+  }, [candidates, filter, query, session]);
 
   if (!session) {
     return (

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { Dialog } from "@/components/ui/Dialog";
 import { useConsole } from "@/lib/console-data";
 import { fullName } from "@/lib/format";
@@ -26,6 +27,9 @@ export function CandidateDetailsDialog({
 }) {
   const { center, rpc, canFrontOffice } = useConsole();
   const editing = candidate !== null;
+  const router = useRouter();
+  // On the check-in page the new person is pinned at the top already.
+  const atDesk = usePathname() === "/front-office";
 
   const [name, setName] = useState(candidate ? fullName(candidate) : "");
   const [part, setPart] = useState(candidate?.part ?? "");
@@ -35,7 +39,7 @@ export function CandidateDetailsDialog({
 
   const trimmed = name.trim();
 
-  async function save() {
+  async function save(thenCheckIn = false) {
     if (!trimmed) return;
     setBusy(true);
 
@@ -73,7 +77,10 @@ export function CandidateDetailsDialog({
         );
 
     setBusy(false);
-    if (ok) onClose();
+    if (ok) {
+      onClose();
+      if (thenCheckIn) router.push("/front-office");
+    }
   }
 
   return (
@@ -91,11 +98,21 @@ export function CandidateDetailsDialog({
           <button
             type="button"
             disabled={busy || !trimmed || !canFrontOffice}
-            onClick={save}
+            onClick={() => save(!editing && !atDesk)}
             className="flex-1 cursor-pointer rounded-[14px] gold-bg px-[22px] py-[14px] text-[14px] font-bold text-[#1a1512] disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {busy ? "Saving…" : editing ? "Save changes" : "Add to today's list"}
+            {busy ? "Saving…" : editing ? "Save changes" : atDesk ? "Add to today's list" : "Add & check in"}
           </button>
+          {!editing && !atDesk && (
+            <button
+              type="button"
+              disabled={busy || !trimmed || !canFrontOffice}
+              onClick={() => save(false)}
+              className="cursor-pointer rounded-[14px] border border-edge-warm px-[18px] py-[14px] text-[14px] font-semibold text-fg-muted disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Add only
+            </button>
+          )}
           <button
             type="button"
             onClick={onClose}

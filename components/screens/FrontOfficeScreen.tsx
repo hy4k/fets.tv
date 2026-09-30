@@ -2,14 +2,21 @@
 
 import { useMemo, useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
+import { CandidateDetailsDialog } from "@/components/screens/CandidateDetailsDialog";
 import { MaterialsPanel } from "@/components/screens/MaterialsPanel";
 import { Drawer } from "@/components/ui/Drawer";
 import { useDrawers } from "@/lib/drawer-store";
 import { useConsole } from "@/lib/console-data";
-import { clockAt, fullName, initials, statusChip } from "@/lib/format";
+import {
+  WAITING_TO_CHECK_IN,
+  clockAt,
+  fullName,
+  initials,
+  joinedLate,
+  lateFirst,
+  statusChip,
+} from "@/lib/format";
 import { type Candidate, stillHeld } from "@/lib/types";
-
-const WAITING_TO_CHECK_IN = ["scheduled", "arrived", "id_checked"];
 
 /**
  * The desk, as one flow rather than a page of controls. The roster is the page;
@@ -22,10 +29,12 @@ export function FrontOfficeScreen() {
   const [query, setQuery] = useState("");
   const [checkingInId, setCheckingInId] = useState<string | null>(null);
   const [signingOutId, setSigningOutId] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return candidates
+    // Walk-ins and late bookings first while they wait, so none is missed.
+    return lateFirst(candidates, session)
       .filter(
         (c) =>
           !q ||
@@ -34,7 +43,12 @@ export function FrontOfficeScreen() {
           c.public_token.toLowerCase().includes(q),
       )
       .slice(0, 120);
-  }, [candidates, query]);
+  }, [candidates, query, session]);
+
+  const lateWaiting = useMemo(
+    () => lateFirst(candidates, session).filter((c) => WAITING_TO_CHECK_IN.includes(c.status) && joinedLate(c, session)),
+    [candidates, session],
+  );
 
   const checkingIn = candidates.find((c) => c.id === checkingInId) ?? null;
   const signingOut = candidates.find((c) => c.id === signingOutId) ?? null;
@@ -78,6 +92,41 @@ export function FrontOfficeScreen() {
         </div>
       )}
 
+      {/* Added after the list was loaded: a walk-in, an emergency, a late
+          booking. They are held here until checked in, whatever the list's
+          order, so a single late candidate is never lost at the bottom. */}
+      {lateWaiting.length > 0 && (
+        <div className="flex shrink-0 flex-col gap-[10px] rounded-[20px] border border-gold/45 bg-gold/8 p-[14px] md:flex-row md:items-center md:gap-[14px] md:px-[18px]">
+          <span className="flex items-center gap-[10px]">
+            <span className="relative flex h-[10px] w-[10px]">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-gold opacity-60" />
+              <span className="relative inline-flex h-[10px] w-[10px] rounded-full bg-gold" />
+            </span>
+            <span className="text-[13px] font-bold text-gold-bright">
+              {lateWaiting.length === 1 ? "Added late · waiting to check in" : `${lateWaiting.length} added late · waiting to check in`}
+            </span>
+          </span>
+          <span className="flex min-w-0 flex-1 flex-wrap gap-[8px]">
+            {lateWaiting.slice(0, 6).map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                disabled={!canFrontOffice}
+                onClick={() => setCheckingInId(c.id)}
+                className="flex cursor-pointer items-center gap-[9px] rounded-[12px] border border-gold/50 bg-panel px-[12px] py-[8px] text-left hover:border-gold disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <span className="font-mono text-[11px] text-gold">{c.public_token}</span>
+                <span className="max-w-[180px] truncate text-[13px] font-semibold">{fullName(c)}</span>
+                <span className="rounded-[8px] gold-bg px-[8px] py-[3px] text-[11px] font-bold text-[#1a1512]">Check in</span>
+              </button>
+            ))}
+            {lateWaiting.length > 6 && (
+              <span className="self-center text-[12px] text-gold">+{lateWaiting.length - 6} more at the top of the list</span>
+            )}
+          </span>
+        </div>
+      )}
+
       <div className="flex shrink-0 flex-wrap items-center gap-[12px]">
         <span className="min-w-0">
           <span className="block text-[15px] font-semibold">Check-in &amp; sign-out</span>
@@ -97,6 +146,14 @@ export function FrontOfficeScreen() {
             className="min-w-0 flex-1 border-0 bg-transparent text-[15px] outline-none placeholder:text-fg-faint"
           />
         </div>
+        <button
+          type="button"
+          disabled={!canFrontOffice}
+          onClick={() => setAdding(true)}
+          className="shrink-0 cursor-pointer rounded-[14px] border border-edge-warm px-[16px] py-[12px] text-[13px] font-semibold text-fg-muted hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          + Walk-in
+        </button>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[20px] border border-edge-mid panel-bg">
@@ -139,6 +196,8 @@ export function FrontOfficeScreen() {
         </div>
       </Drawer>
 
+      {adding && <CandidateDetailsDialog open candidate={null} onClose={() => setAdding(false)} />}
+
       {checkingIn && (
         <CheckInDialog
           key={checkingIn.id}
@@ -168,22 +227,34 @@ function RosterRow({
   onCheckIn: () => void;
   onSignOut: () => void;
 }) {
-  const { canFrontOffice, materials } = useConsole();
+  const { canFrontOffice, materials, session } = useConsole();
   const chip = statusChip(candidate);
   const pending = WAITING_TO_CHECK_IN.includes(candidate.status);
+  const late = pending && joinedLate(candidate, session);
   const leaving = candidate.status === "completed";
   const holding = materials
     .filter((m) => m.candidate_id === candidate.id)
     .reduce((n, m) => n + stillHeld(m), 0);
 
   return (
-    <div className="flex items-center gap-[12px] border-b border-edge-soft/60 px-[14px] py-[11px] md:px-[18px] md:py-[12px]">
+    <div
+      className={`flex items-center gap-[12px] border-b border-edge-soft/60 px-[14px] py-[11px] md:px-[18px] md:py-[12px] ${
+        late ? "bg-gold/6 shadow-[inset_3px_0_0_var(--color-gold)]" : ""
+      }`}
+    >
       <span className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-[12px] border border-edge-strong bg-[#1f1f27] font-mono text-[11px] font-semibold">
         {initials(fullName(candidate))}
       </span>
 
       <span className="block min-w-0 flex-1">
-        <span className="block truncate text-[14px] font-semibold">{fullName(candidate)}</span>
+        <span className="flex min-w-0 items-center gap-[8px]">
+          <span className="truncate text-[14px] font-semibold">{fullName(candidate)}</span>
+          {late && (
+            <span className="shrink-0 rounded-[7px] border border-gold/50 px-[6px] py-[1px] text-[9.5px] font-bold tracking-[0.08em] text-gold uppercase">
+              Added late
+            </span>
+          )}
+        </span>
         <span className="block truncate font-mono text-[10.5px] text-fg-faint">
           {[candidate.public_token, candidate.roster_number, candidate.part].filter(Boolean).join(" · ")}
         </span>

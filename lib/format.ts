@@ -34,6 +34,41 @@ export function fullName(c: Pick<Candidate, "first_name" | "last_name">) {
   return `${c.first_name} ${c.last_name}`.trim();
 }
 
+/** Statuses that still need the front desk's check-in. */
+export const WAITING_TO_CHECK_IN = ["scheduled", "arrived", "id_checked"];
+
+/**
+ * Somebody who joined today's list after it was loaded: a walk-in or
+ * emergency added by hand, or a late booking brought across from fets.live.
+ * They carry the day's last slot, so in time order they sink to the bottom of a
+ * long list, which is exactly where a check-in gets missed.
+ */
+export function joinedLate(
+  c: Pick<Candidate, "created_at" | "roster_number">,
+  session: { created_at: string } | null,
+) {
+  if (c.roster_number?.startsWith("MANUAL-")) return true;
+  if (!session) return false;
+  // A minute's grace: an import or sync writes its rows just after the day opens.
+  return Date.parse(c.created_at) - Date.parse(session.created_at) > 60_000;
+}
+
+/**
+ * The list with anybody who joined late and is still waiting to check in
+ * lifted to the top, newest first. Everyone else keeps the order they had.
+ */
+export function lateFirst<T extends Pick<Candidate, "created_at" | "roster_number" | "status">>(
+  list: T[],
+  session: { created_at: string } | null,
+): T[] {
+  const late = list
+    .filter((c) => WAITING_TO_CHECK_IN.includes(c.status) && joinedLate(c, session))
+    .sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+  if (late.length === 0) return list;
+  const lifted = new Set(late);
+  return [...late, ...list.filter((c) => !lifted.has(c))];
+}
+
 export function initials(name: string) {
   return name
     .split(/\s+/)
