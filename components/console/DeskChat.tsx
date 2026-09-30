@@ -87,10 +87,12 @@ export function DeskChat() {
       .select("*")
       .eq("center_id", center.id)
       .gte("created_at", since)
-      .order("created_at", { ascending: true })
+      // The newest 300, turned back into reading order: an old-first cap would
+      // freeze a busy day's chat at its first 300 messages.
+      .order("created_at", { ascending: false })
       .limit(300);
     if (error) return;
-    const rows = (data ?? []) as unknown as Message[];
+    const rows = ((data ?? []) as unknown as Message[]).reverse();
     if (!loaded.current) for (const m of rows) heard.current.add(m.id);
     loaded.current = true;
     setMessages(rows);
@@ -103,10 +105,22 @@ export function DeskChat() {
       .channel(`desk-chat-${center.id}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "desk_messages", filter: `center_id=eq.${center.id}` }, () => void load())
       .subscribe();
+    // A console left open overnight starts the new day's chat at midnight,
+    // not at the first message someone happens to send.
+    let midnight: ReturnType<typeof setTimeout>;
+    const atMidnight = () => {
+      const next = instantFromZonedTime("00:00", tz, new Date(Date.now() + 24 * 3600000)).getTime();
+      midnight = setTimeout(() => {
+        void load();
+        atMidnight();
+      }, Math.max(1000, next - Date.now() + 1000));
+    };
+    atMidnight();
     return () => {
+      clearTimeout(midnight);
       void supabaseBrowser().removeChannel(channel);
     };
-  }, [center.id, load]);
+  }, [center.id, load, tz]);
 
   const forMe = useCallback((m: Message) => m.from_desk !== desk && (m.to_desk === desk || m.to_desk === "all"), [desk]);
   const unread = messages.filter((m) => forMe(m) && !m.seen_at);
