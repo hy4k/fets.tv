@@ -4,10 +4,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { basePath } from "@/lib/base-path";
 import { useConsole } from "@/lib/console-data";
-import { PROVIDERS, type DaySchedule, type Provider } from "@/lib/fets-live";
+import { PROVIDERS, REMEMBER_PROVIDER as REMEMBER, type DaySchedule, type Provider } from "@/lib/fets-live";
 import { clockAt, todayInZone } from "@/lib/format";
-
-const REMEMBER = "fets.provider";
 
 /** A mark of colour for each provider, so the five read apart at a glance. */
 const TINT: Record<Provider, string> = {

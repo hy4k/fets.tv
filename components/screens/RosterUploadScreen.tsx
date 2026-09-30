@@ -1,17 +1,21 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Dialog } from "@/components/ui/Dialog";
 import { useConsole } from "@/lib/console-data";
 import { basePath } from "@/lib/base-path";
+import { PROVIDERS, REMEMBER_PROVIDER, liveProviderOf, type Provider } from "@/lib/fets-live";
 import { clockAt, todayInZone } from "@/lib/format";
 import type { RosterDiagnostics, RosterPreview } from "@/lib/types";
 
 /**
- * Step one of the day, and nothing else. The page does one thing: take the
- * file, show what is in it, and commit it. Once that is done it moves on to
- * the candidate list rather than leaving staff to find it.
+ * Step two of the day: who is coming.
+ *
+ * The roster now lives in fets.live, so the first way in is one press that
+ * brings today's list across; after that the console keeps checking for late
+ * bookings on its own. Uploading a file stays underneath for now, until the
+ * fets.live path has carried a few real days.
  */
 export function RosterUploadScreen() {
   const { center, session, candidates, programmes, rpc, isAdmin, notify, refresh } = useConsole();
@@ -114,7 +118,9 @@ export function RosterUploadScreen() {
               {session.exam_name} — {candidates.length} candidates
             </span>
             <span className="block text-[12px] text-fg-faint">
-              Imported {clockAt(session.created_at, center.timezone)}. Uploading again replaces it.
+              {liveProviderOf(session.source_filename)
+                ? `From fets.live at ${clockAt(session.created_at, center.timezone)} · checked again every 5 minutes. Uploading a file replaces it.`
+                : `Imported ${clockAt(session.created_at, center.timezone)}. Uploading again replaces it.`}
             </span>
           </span>
           <span className="flex-1" />
@@ -171,6 +177,18 @@ export function RosterUploadScreen() {
       )}
 
       {!preview && (
+        <FromFetsLive
+          disabled={!isAdmin || busy || (programmes.length > 0 && !programme)}
+          needsExam={programmes.length > 0 && !programme}
+          programmeId={programmeId}
+          onDone={async () => {
+            await refresh();
+            router.push("/candidates");
+          }}
+        />
+      )}
+
+      {!preview && (
         <div
           onDragOver={(e) => {
             e.preventDefault();
@@ -183,15 +201,12 @@ export function RosterUploadScreen() {
             const file = e.dataTransfer.files?.[0];
             if (file) void onFile(file);
           }}
-          className={`flex min-h-[280px] flex-1 flex-col items-center justify-center gap-[16px] rounded-[24px] border-2 border-dashed p-[40px] text-center transition-colors ${
+          className={`flex min-h-[240px] shrink-0 flex-col items-center justify-center gap-[16px] rounded-[24px] border-2 border-dashed p-[32px] text-center transition-colors ${
             dragging ? "border-gold bg-gold/8" : "border-[#3d3d4a] bg-panel-soft"
           }`}
         >
-          <span className="flex h-[26px] w-[26px] items-center justify-center rounded-[8px] bg-panel-soft font-mono text-[13px] font-semibold text-fg-dim">
-            2
-          </span>
-          <span className="font-serif text-[30px] leading-[1.15]">
-            {session ? "Upload a new roster" : "Upload today's roster"}
+          <span className="font-serif text-[24px] leading-[1.15]">
+            {session ? "Or upload a new roster file" : "Or upload a roster file"}
           </span>
           <span className="max-w-[46ch] text-[14px] leading-[1.5] text-fg-muted">
             Drop the file here, or choose it below. The Prometric site roster and candidate contact
@@ -389,6 +404,142 @@ export function RosterUploadScreen() {
         </div>
       )}
     </div>
+  );
+}
+
+type SyncResult = { inserted: number; updated: number; unchanged: number; found: number; left_out: number };
+
+/**
+ * One press: today's roster for the chosen provider, straight from fets.live.
+ *
+ * Safe to press again at any time. It adds bookings not yet on the list and
+ * refreshes the ones who have not arrived; nobody's progress is touched and
+ * nobody is removed.
+ */
+function FromFetsLive({
+  disabled,
+  needsExam,
+  programmeId,
+  onDone,
+}: {
+  disabled: boolean;
+  needsExam: boolean;
+  programmeId: string;
+  onDone: () => Promise<void>;
+}) {
+  const { session, notify } = useConsole();
+  const [provider, setProvider] = useState<Provider | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<SyncResult | null>(null);
+
+  useEffect(() => {
+    // The day's provider if it came from fets.live, else the one picked on Exams today.
+    const fromDay = liveProviderOf(session?.source_filename);
+    if (fromDay) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setProvider(fromDay);
+      return;
+    }
+    try {
+      const saved = localStorage.getItem(REMEMBER_PROVIDER);
+      if (saved && (PROVIDERS as readonly string[]).includes(saved)) setProvider(saved as Provider);
+    } catch {}
+  }, [session?.source_filename]);
+
+  function choose(p: Provider) {
+    setProvider(p);
+    setResult(null);
+    try {
+      localStorage.setItem(REMEMBER_PROVIDER, p);
+    } catch {}
+  }
+
+  async function bringIn() {
+    if (!provider) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`${basePath}/api/fets-live/roster`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider, programme: programmeId || null }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok || !body) {
+        notify(body?.error ?? `fets.live could not be read (${res.status})`, "error");
+        return;
+      }
+      const r = body as SyncResult;
+      setResult(r);
+      if (r.found === 0) {
+        notify(
+          r.left_out > 0
+            ? `fets.live has ${r.left_out} ${provider} booking${r.left_out === 1 ? "" : "s"} today, none with a roster number`
+            : `fets.live has nobody booked for ${provider} today`,
+          "error",
+        );
+        return;
+      }
+      notify(
+        r.inserted > 0
+          ? `${r.inserted} candidate${r.inserted === 1 ? "" : "s"} brought in from fets.live`
+          : "Already up to date with fets.live",
+      );
+      if (r.inserted > 0) await onDone();
+    } catch {
+      notify("Could not reach the server — check the connection and try again", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="flex shrink-0 flex-col gap-[14px] rounded-[20px] border border-accent/35 panel-bg p-[18px]">
+      <div className="flex items-center gap-[11px]">
+        <span className="flex h-[26px] w-[26px] items-center justify-center rounded-[8px] bg-panel-soft font-mono text-[13px] font-semibold text-fg-dim">
+          2
+        </span>
+        <span className="text-[16px] font-semibold">Bring in today&rsquo;s roster from fets.live</span>
+      </div>
+      <p className="max-w-[64ch] text-[12.5px] leading-[1.5] text-fg-faint">
+        One press brings across everyone booked today for the provider. After that the console
+        checks fets.live every 5 minutes and adds late bookings on its own. Pressing again never
+        removes anybody or undoes a check-in.
+      </p>
+
+      <div className="flex flex-wrap gap-[8px]">
+        {PROVIDERS.map((p) => (
+          <button
+            key={p}
+            type="button"
+            onClick={() => choose(p)}
+            aria-pressed={p === provider}
+            className={`cursor-pointer rounded-[12px] border px-[14px] py-[10px] text-[13px] font-semibold transition-colors ${
+              p === provider ? "border-accent/60 bg-accent/12 text-fg" : "border-edge bg-panel-soft text-fg-muted hover:text-fg"
+            }`}
+          >
+            {p}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-[12px]">
+        <button
+          type="button"
+          disabled={disabled || busy || !provider}
+          onClick={bringIn}
+          className="cursor-pointer rounded-[14px] gold-bg px-[24px] py-[14px] text-[14px] font-bold text-[#1a1512] disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {busy ? "Reading fets.live…" : provider ? `Bring in ${provider} for today` : "Choose a provider"}
+        </button>
+        {needsExam && <span className="text-[12.5px] text-gold">Choose the exam above first.</span>}
+        {result && result.found > 0 && (
+          <span className="text-[12.5px] text-fg-muted">
+            {result.found} in fets.live · {result.inserted} added · {result.updated} updated
+            {result.left_out > 0 ? ` · ${result.left_out} left out (no roster number or cancelled)` : ""}
+          </span>
+        )}
+      </div>
+    </section>
   );
 }
 

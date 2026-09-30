@@ -3,6 +3,7 @@ import { DataGaps } from "@/components/console/DataGaps";
 import { DeskChat } from "@/components/console/DeskChat";
 import { PlaceShell } from "@/components/console/PlaceShell";
 import { PlaceTabs } from "@/components/console/PlaceTabs";
+import { RosterAutoSync } from "@/components/console/RosterAutoSync";
 import { SpaceBar } from "@/components/console/SpaceBar";
 import { SpaceHero } from "@/components/console/SpaceHero";
 import { Toasts } from "@/components/console/Toasts";
@@ -255,6 +256,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
           {children}
         </main>
         <DeskChat />
+        <RosterAutoSync />
         <Toasts />
       </PlaceShell>
     </ConsoleProvider>
