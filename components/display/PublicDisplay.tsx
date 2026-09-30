@@ -40,6 +40,7 @@ export function PublicDisplay({ displayKey, initial }: { displayKey: string; ini
                 tone: state.notice.tone,
                 mediaUrl: state.notice.media_url ?? null,
                 mediaKind: state.notice.media_kind,
+                style: state.notice.style ?? null,
               }
             : null
         }

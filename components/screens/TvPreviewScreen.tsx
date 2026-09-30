@@ -27,7 +27,7 @@ export function TvPreviewScreen() {
         hallLabel={displays[0]?.hall_label ?? "HALL 1"}
         timezone={center.timezone}
         nonce={call?.call_nonce ?? 0}
-        notice={notice ? { body: notice.body, tone: notice.tone } : null}
+        notice={notice ? { body: notice.body, tone: notice.tone, style: notice.style ?? null } : null}
         centre={center.name}
         siteLabel={center.site_code}
         call={
