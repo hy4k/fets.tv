@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { CandidateDetailsDialog } from "@/components/screens/CandidateDetailsDialog";
+import { LockerKeyDialog } from "@/components/screens/LockersScreen";
 import { MaterialsPanel } from "@/components/screens/MaterialsPanel";
 import { Drawer } from "@/components/ui/Drawer";
 import { useDrawers } from "@/lib/drawer-store";
@@ -30,6 +31,8 @@ export function FrontOfficeScreen() {
   const [checkingInId, setCheckingInId] = useState<string | null>(null);
   const [signingOutId, setSigningOutId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  // Opened by itself the moment a check-in lands: the key is the next thing.
+  const [keyForId, setKeyForId] = useState<string | null>(null);
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -52,6 +55,7 @@ export function FrontOfficeScreen() {
 
   const checkingIn = candidates.find((c) => c.id === checkingInId) ?? null;
   const signingOut = candidates.find((c) => c.id === signingOutId) ?? null;
+  const keyFor = candidates.find((c) => c.id === keyForId) ?? null;
   const called = candidates.find((c) => c.id === call?.candidate_id) ?? null;
   const recent = candidates
     .filter((c) => c.check_in_at)
@@ -152,7 +156,7 @@ export function FrontOfficeScreen() {
           onClick={() => setAdding(true)}
           className="shrink-0 cursor-pointer rounded-[14px] border border-edge-warm px-[16px] py-[12px] text-[13px] font-semibold text-fg-muted hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
         >
-          + Walk-in
+          + Walk-in candidate
         </button>
       </div>
 
@@ -203,7 +207,15 @@ export function FrontOfficeScreen() {
           key={checkingIn.id}
           candidate={checkingIn}
           onClose={() => setCheckingInId(null)}
+          onCheckedIn={() => {
+            setCheckingInId(null);
+            setKeyForId(checkingIn.id);
+          }}
         />
+      )}
+
+      {keyFor && !keyFor.locker_key && (
+        <LockerKeyDialog key={keyFor.id} candidate={keyFor} onClose={() => setKeyForId(null)} />
       )}
 
       {signingOut && (
@@ -309,7 +321,15 @@ function RosterRow({
  * Center Problem Report at the end of the day without anybody copying it over.
  * The locker key is the next step; materials are issued in the admin room.
  */
-function CheckInDialog({ candidate, onClose }: { candidate: Candidate; onClose: () => void }) {
+function CheckInDialog({
+  candidate,
+  onClose,
+  onCheckedIn,
+}: {
+  candidate: Candidate;
+  onClose: () => void;
+  onCheckedIn: () => void;
+}) {
   const { center, rpc, canFrontOffice } = useConsole();
   const [mismatch, setMismatch] = useState(false);
   const [note, setNote] = useState("");
@@ -328,7 +348,7 @@ function CheckInDialog({ candidate, onClose }: { candidate: Candidate; onClose: 
         : `${candidate.public_token} checked in`,
     );
     setBusy(false);
-    if (ok) onClose();
+    if (ok) onCheckedIn();
   }
 
   const details: [string, string | null][] = [

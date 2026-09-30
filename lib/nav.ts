@@ -18,7 +18,6 @@ export type StepKey =
   | "checkin"
   | "security"
   | "live"
-  | "duty"
   | "incidents"
   | "history"
   | "report"
@@ -39,7 +38,7 @@ export type Step = {
   staffOnly?: boolean;
 };
 
-export type PlaceKey = "lobby" | "arrivals" | "hall" | "duty" | "screen" | "office";
+export type PlaceKey = "lobby" | "arrivals" | "hall" | "lab" | "screen" | "office";
 
 /**
  * Which part of the building a place is in. The front desk team works the
@@ -81,7 +80,7 @@ export const PLACES: Place[] = [
   {
     key: "arrivals",
     wing: "front",
-    title: "Arrivals",
+    title: "The Check-in",
     hint: "List · check-in · keys",
     tone: ["oklch(0.82 0.12 190)", "oklch(0.68 0.13 215)"],
     steps: [
@@ -91,26 +90,25 @@ export const PLACES: Place[] = [
     ],
   },
   {
+    // The admin room, up to the moment a candidate has a seat: call, the
+    // frisking gate, the seat. Once seated they belong to the Lab.
     key: "hall",
     wing: "hall",
-    title: "The Exam Hall",
-    hint: "Admin · live exams",
+    title: "The Admin",
+    hint: "Call · frisking · seat",
     tone: ["oklch(0.8 0.11 275)", "oklch(0.64 0.15 272)"],
-    steps: [
-      // The admin room is one page: call, frisking gate, seat. Live exams is
-      // the only other place in the hall.
-      { key: "security", href: "/admin", label: "Admin", sub: "Call · frisking · seat", n: 6 },
-      { key: "live", href: "/floor", label: "Live exams", sub: "Who is testing", n: 7 },
-    ],
+    steps: [{ key: "security", href: "/admin", label: "Admin", sub: "Call · frisking · seat", n: 6 }],
   },
   {
-    key: "duty",
-    wing: "more",
-    title: "Duty",
-    hint: "Floor walk · incidents",
-    tone: ["oklch(0.85 0.15 80)", "oklch(0.72 0.15 58)"],
+    // The testing room: who is sitting, how long they have left, and what went
+    // wrong. The duty rota and 90-minute blocks live in fets.live now.
+    key: "lab",
+    wing: "hall",
+    title: "The Lab",
+    hint: "Live exams · incidents",
+    tone: ["oklch(0.86 0.06 85)", "oklch(0.72 0.08 70)"],
     steps: [
-      { key: "duty", href: "/duty", label: "Floor walk & DVR", sub: "Who is on, the log" },
+      { key: "live", href: "/floor", label: "Live exams", sub: "Who is testing", n: 7 },
       { key: "incidents", href: "/incidents", label: "Incidents", sub: "What went wrong" },
     ],
   },

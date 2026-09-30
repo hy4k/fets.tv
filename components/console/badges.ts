@@ -2,22 +2,17 @@
 
 import { useConsole } from "@/lib/console-data";
 import type { StepKey } from "@/lib/nav";
-import { useNow } from "@/lib/use-clock";
 
 /**
  * How many things want attention, per step. Shared by the top bar (summed per
  * place) and the tabs under the hero (one each), so the two never disagree.
  */
 export function useStepBadges(): Partial<Record<StepKey, number>> {
-  const now = useNow();
-  const { candidates, call, notice, openBreaks, incidents, dutyBlocks, rules } = useConsole();
+  const { candidates, call, notice, openBreaks, incidents, rules } = useConsole();
 
   const waiting = candidates.filter((c) => c.status === "waiting" && !c.called_at).length;
   const testing = candidates.filter((c) => c.exam_started_at && !c.exam_finished_at).length;
   const openIncidents = incidents.filter((i) => !i.resolved_at).length;
-  const pastBlock = dutyBlocks.filter(
-    (b) => !b.ended_at && now > 0 && new Date(b.started_at).getTime() + b.minutes * 60000 <= now,
-  ).length;
 
   // Only a count to act on when keys are required; optional keys raise no alarm.
   const keyless = rules.locker_key_required
@@ -32,11 +27,10 @@ export function useStepBadges(): Partial<Record<StepKey, number>> {
     checkin: call?.candidate_id ? 1 : 0,
     security: waiting,
     live: testing + openBreaks.length,
-    duty: pastBlock,
     incidents: openIncidents,
     messages: notice ? 1 : 0,
   };
 }
 
 /** Only these count toward the number on a place: things somebody must act on. */
-export const URGENT: StepKey[] = ["checkin", "lockers", "security", "duty", "incidents"];
+export const URGENT: StepKey[] = ["checkin", "lockers", "security", "incidents"];
