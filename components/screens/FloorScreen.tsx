@@ -2,25 +2,16 @@
 
 import { useMemo, useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
-import { WalkthroughBar } from "@/components/screens/WalkthroughBar";
 import { useConsole } from "@/lib/console-data";
 import { clockAt, fullName, instantFromZonedTime } from "@/lib/format";
 import { currentSection, sectionsFor, type SectionView } from "@/lib/sections";
 import { useNow } from "@/lib/use-clock";
-import type { Candidate, CandidateBreak, ExamProgramme, Workstation } from "@/lib/types";
-
-/**
- * Countdown bands. The clock is an operational estimate — reaching zero asks
- * staff to confirm, it never finishes anyone.
- */
-function band(msRemaining: number) {
-  const minutes = msRemaining / 60000;
-  if (minutes <= 0) return { text: "text-rust", row: "bg-rust/12", pulse: true };
-  if (minutes <= 5) return { text: "text-rust", row: "bg-rust/8", pulse: true };
-  if (minutes <= 15) return { text: "text-rust", row: "", pulse: false };
-  if (minutes <= 60) return { text: "text-iris", row: "", pulse: false };
-  return { text: "text-mint", row: "", pulse: false };
-}
+import type {
+  Candidate,
+  CandidateBreak,
+  ExamProgramme,
+  Workstation,
+} from "@/lib/types";
 
 function countdown(msRemaining: number) {
   const over = msRemaining <= 0;
@@ -31,8 +22,45 @@ function countdown(msRemaining: number) {
   return over ? `+${body}` : body;
 }
 
-function awayFor(startedAt: string, now: number) {
-  return `${Math.max(0, Math.round((now - new Date(startedAt).getTime()) / 60000))}m`;
+/** "6:04" — minutes and seconds away, for a break running now. */
+function awayClock(startedAt: string, now: number) {
+  const s = Math.max(
+    0,
+    Math.floor((now - new Date(startedAt).getTime()) / 1000),
+  );
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+/**
+ * The liquid in each tube. One calm champagne for most of the sitting, warming
+ * to amber in the last quarter hour and to a soft coral once past time; a break
+ * turns it to frosted pearl. No traffic-light red and green.
+ */
+function liquid(remaining: number, onBreak: boolean) {
+  if (onBreak)
+    return {
+      fill: "linear-gradient(90deg, oklch(0.78 0.04 290), oklch(0.9 0.03 300))",
+      glow: "oklch(0.8 0.06 295 / 0.45)",
+      text: "text-[oklch(0.88_0.05_300)]",
+    };
+  const minutes = remaining / 60000;
+  if (minutes <= 0)
+    return {
+      fill: "linear-gradient(90deg, oklch(0.62 0.13 25), oklch(0.76 0.12 35))",
+      glow: "oklch(0.7 0.14 30 / 0.5)",
+      text: "text-[oklch(0.8_0.12_35)]",
+    };
+  if (minutes <= 15)
+    return {
+      fill: "linear-gradient(90deg, oklch(0.7 0.13 60), oklch(0.85 0.12 78))",
+      glow: "oklch(0.8 0.13 70 / 0.45)",
+      text: "text-[oklch(0.87_0.11_78)]",
+    };
+  return {
+    fill: "linear-gradient(90deg, oklch(0.72 0.07 75), oklch(0.93 0.05 90))",
+    glow: "oklch(0.9 0.06 85 / 0.35)",
+    text: "text-[oklch(0.93_0.04_90)]",
+  };
 }
 
 type Seated = {
@@ -70,18 +98,28 @@ export function FloorScreen() {
   // already happened.
   const [partsId, setPartsId] = useState<string | null>(null);
 
-  const seatById = useMemo(() => new Map(workstations.map((w) => [w.id, w])), [workstations]);
+  const seatById = useMemo(
+    () => new Map(workstations.map((w) => [w.id, w])),
+    [workstations],
+  );
 
   const seated: Seated[] = useMemo(
     () =>
       candidates
-        .filter((c) => c.workstation_id && seatById.has(c.workstation_id) && !c.exam_finished_at)
+        .filter(
+          (c) =>
+            c.workstation_id &&
+            seatById.has(c.workstation_id) &&
+            !c.exam_finished_at,
+        )
         .map((c) => ({
           seat: seatById.get(c.workstation_id!)!,
           candidate: c,
           programme: programmes.find((p) => p.id === c.programme_id) ?? null,
           onBreak: openBreaks.find((b) => b.candidate_id === c.id) ?? null,
-          remaining: c.exam_expected_end ? new Date(c.exam_expected_end).getTime() - now : Infinity,
+          remaining: c.exam_expected_end
+            ? new Date(c.exam_expected_end).getTime() - now
+            : Infinity,
           sections: sectionsFor(
             c,
             programmeSections.filter((s) => s.programme_id === c.programme_id),
@@ -89,86 +127,58 @@ export function FloorScreen() {
           ),
         }))
         .sort((a, b) => a.remaining - b.remaining),
-    [candidates, seatById, programmes, programmeSections, candidateSections, openBreaks, now],
+    [
+      candidates,
+      seatById,
+      programmes,
+      programmeSections,
+      candidateSections,
+      openBreaks,
+      now,
+    ],
   );
 
   const partsRow = seated.find((s) => s.candidate.id === partsId) ?? null;
-
-  const overdue = seated.filter((s) => s.remaining <= 0);
-  const soon = seated.filter((s) => s.remaining > 0 && s.remaining <= 5 * 60000);
-  const away = seated.filter((s) => s.onBreak);
-  const faults = workstations.filter((w) => w.lab_id && w.status === "fault");
-
-  // Anything that needs a person, gathered where a person will see it.
-  const alerts = [
-    overdue.length > 0 && {
-      key: "over",
-      tone: "border-rust bg-rust/15 text-rust",
-      text:
-        overdue.length === 1
-          ? `${overdue[0].seat.seat_code} is past time — confirm or extend`
-          : `${overdue.length} seats are past time — confirm or extend`,
-    },
-    soon.length > 0 && {
-      key: "soon",
-      tone: "border-gold/60 bg-gold/12 text-gold-bright",
-      text: `${soon.length} finishing within 5 minutes: ${soon.map((s) => s.seat.seat_code).join(", ")}`,
-    },
-    away.length > 0 && {
-      key: "away",
-      tone: "border-iris/55 bg-iris/12 text-iris",
-      text: `${away.length} on break: ${away
-        .map((s) => `${s.seat.seat_code} ${awayFor(s.onBreak!.started_at, now)}`)
-        .join(", ")}`,
-    },
-    faults.length > 0 && {
-      key: "fault",
-      tone: "border-rust/50 bg-rust/8 text-rust",
-      text: `Faulty: ${faults.map((w) => w.seat_code).join(", ")}`,
-    },
-  ].filter(Boolean) as { key: string; tone: string; text: string }[];
+  const free = workstations.filter(
+    (w) => w.lab_id && w.status === "free",
+  ).length;
+  const away = seated.filter((s) => s.onBreak).length;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-[11px]">
-      {/* The walk belongs where the floor is, so it sits above the alerts. */}
-      <WalkthroughBar />
-
-      {alerts.length > 0 && (
-        <div className="flex shrink-0 flex-col gap-[7px]">
-          {alerts.map((a) => (
-            <div
-              key={a.key}
-              className={`rounded-[15px] border-2 px-[15px] py-[12px] text-[14px] font-bold ${a.tone}`}
-            >
-              {a.text}
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="flex shrink-0 flex-wrap items-center gap-[10px]">
-        <span className="text-[11px] font-bold tracking-[0.13em] text-fg-dim uppercase">
+    <div className="flex min-h-0 flex-1 flex-col gap-[14px] overflow-y-auto pb-[8px]">
+      <div className="flex shrink-0 flex-wrap items-center gap-x-[14px] gap-y-[8px] px-[4px]">
+        <span className="font-display text-[30px] leading-none font-light">
           On the floor
         </span>
-        <span className="font-mono text-[13px] font-semibold text-gold">{seated.length}</span>
-        <span className="h-px min-w-[12px] flex-1 bg-edge-soft" />
-        <span className="text-[12px] text-fg-faint">
-          {workstations.filter((w) => w.lab_id && w.status === "free").length} seats free
+        <span className="rounded-full border border-white/10 bg-white/[0.04] px-[12px] py-[5px] font-mono text-[12px] text-fg-muted">
+          {seated.length} testing
+        </span>
+        {away > 0 && (
+          <span className="flex items-center gap-[7px] rounded-full border border-[oklch(0.8_0.06_295/0.35)] bg-[oklch(0.8_0.06_295/0.1)] px-[12px] py-[5px] font-mono text-[12px] text-[oklch(0.88_0.05_300)]">
+            <span className="h-[6px] w-[6px] animate-pulse rounded-full bg-[oklch(0.88_0.05_300)]" />
+            {away} on break
+          </span>
+        )}
+        <span className="h-px min-w-[12px] flex-1 bg-gradient-to-r from-white/10 to-transparent" />
+        <span className="font-mono text-[12px] text-fg-faint">
+          {free} seats free
         </span>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[20px] border border-edge-mid panel-bg">
-        <div className="hidden shrink-0 grid-cols-[86px_1fr_78px_64px_auto] items-center gap-[12px] border-b border-edge-soft px-[16px] py-[10px] text-[10.5px] font-semibold text-fg-dim sm:grid">
-          <span>Seat</span>
-          <span>Candidate</span>
-          <span className="text-right">Left</span>
-          <span>Ends</span>
-          <span />
+      {seated.length === 0 ? (
+        <div className="flex min-h-[260px] flex-col items-center justify-center gap-[10px] rounded-[28px] border border-white/[0.07] bg-white/[0.02] p-[30px] text-center">
+          <span className="font-display text-[28px] font-light">
+            The floor is quiet
+          </span>
+          <span className="max-w-[44ch] text-[13px] text-fg-faint">
+            Assigning a seat on the Admin page starts a candidate&rsquo;s clock,
+            and they appear here.
+          </span>
         </div>
-
-        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
+      ) : (
+        <div className="grid shrink-0 grid-cols-1 gap-[12px] 2xl:grid-cols-2">
           {seated.map((s) => (
-            <FloorRow
+            <FloorCard
               key={s.seat.id}
               row={s}
               now={now}
@@ -180,36 +190,47 @@ export function FloorScreen() {
               onParts={() => setPartsId(s.candidate.id)}
             />
           ))}
-
-          {seated.length === 0 && (
-            <p className="p-[26px] text-center text-[13px] text-fg-faint">
-              Nobody is on the floor. Assigning a seat on the Admin page starts their clock.
-            </p>
-          )}
         </div>
-      </div>
+      )}
 
-      <p className="shrink-0 font-mono text-[10.5px] text-fg-faint">
-        The clock is an estimate and keeps running through breaks. The exam software remains
-        authoritative; nobody is finished until somebody presses Finish.
+      <p className="shrink-0 px-[4px] font-mono text-[10.5px] text-fg-faint">
+        Each tube is the sitting in tenths. The clock is an estimate and keeps
+        running through breaks; the exam software is authoritative, and nobody
+        is finished until somebody presses Finish.
       </p>
 
       {editing && (
-        <AdjustDialog key={editing.candidate.id} row={editing} onClose={() => setEditing(null)} />
+        <AdjustDialog
+          key={editing.candidate.id}
+          row={editing}
+          onClose={() => setEditing(null)}
+        />
       )}
 
       {moving && (
-        <TransferDialog key={moving.candidate.id} row={moving} onClose={() => setMoving(null)} />
+        <TransferDialog
+          key={moving.candidate.id}
+          row={moving}
+          onClose={() => setMoving(null)}
+        />
       )}
 
       {partsRow && (
-        <SectionsDialog key={partsRow.candidate.id} row={partsRow} onClose={() => setPartsId(null)} />
+        <SectionsDialog
+          key={partsRow.candidate.id}
+          row={partsRow}
+          onClose={() => setPartsId(null)}
+        />
       )}
     </div>
   );
 }
 
-function FloorRow({
+/**
+ * One candidate on the floor: who and where, then the sitting as a glass tube
+ * in ten parts filling from the left, and the three things staff do.
+ */
+function FloorCard({
   row,
   now,
   canLab,
@@ -223,123 +244,286 @@ function FloorRow({
   now: number;
   canLab: boolean;
   timezone: string;
-  rpc: (fn: string, args: Record<string, unknown>, ok?: string) => Promise<boolean>;
+  rpc: (
+    fn: string,
+    args: Record<string, unknown>,
+    ok?: string,
+  ) => Promise<boolean>;
   onEdit: () => void;
   onMove: () => void;
   onParts: () => void;
 }) {
   const { seat, candidate, programme, onBreak, remaining, sections } = row;
-  const tone = band(remaining);
   const part = currentSection(sections, now);
+  const look = liquid(remaining, !!onBreak);
+
+  const started = candidate.exam_started_at
+    ? new Date(candidate.exam_started_at).getTime()
+    : null;
+  const length = (candidate.exam_duration_minutes ?? 0) * 60000;
+  const progress =
+    started && length > 0 && now > 0
+      ? Math.min(1, Math.max(0, (now - started) / length))
+      : 0;
+  const breakAt =
+    onBreak && started && length > 0
+      ? Math.min(
+          1,
+          Math.max(
+            0,
+            (new Date(onBreak.started_at).getTime() - started) / length,
+          ),
+        )
+      : null;
 
   return (
-    <div
-      className={`grid grid-cols-[1fr_auto] items-center gap-x-[12px] gap-y-[7px] border-b border-edge-soft/60 px-[13px] py-[10px] sm:grid-cols-[86px_1fr_78px_64px_auto] sm:px-[16px] ${tone.row}`}
-    >
-      <span className="order-1 font-mono text-[12.5px] font-semibold whitespace-nowrap">
-        {seat.seat_code}
-      </span>
+    <article className="group relative overflow-hidden rounded-[26px] border border-white/[0.08] bg-[linear-gradient(160deg,rgba(255,255,255,0.055),rgba(255,255,255,0.012))] p-[16px] shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_24px_48px_-28px_rgba(0,0,0,0.8)] backdrop-blur-xl md:px-[20px]">
+      {/* A soft light behind the glass, in the tube's own colour. */}
+      <div
+        className="pointer-events-none absolute -top-[70px] right-[8%] h-[140px] w-[260px] rounded-full opacity-60 blur-[60px]"
+        style={{ background: look.glow }}
+      />
 
-      <span className="order-3 col-span-2 block min-w-0 sm:order-2 sm:col-span-1">
-        <span className="flex items-center gap-[8px]">
-          <span className="min-w-0 truncate text-[13.5px]">{fullName(candidate)}</span>
-          {onBreak && (
-            <span className="shrink-0 rounded-[7px] bg-iris/20 px-[7px] py-[3px] text-[9.5px] font-bold whitespace-nowrap text-iris uppercase">
-              break {awayFor(onBreak.started_at, now)}
-            </span>
-          )}
+      <div className="relative flex flex-wrap items-center gap-x-[14px] gap-y-[8px]">
+        <span className="rounded-[12px] border border-white/10 bg-white/[0.05] px-[11px] py-[6px] font-mono text-[12.5px] font-semibold tracking-[0.04em] shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]">
+          {seat.seat_code}
         </span>
-        <span className="flex min-w-0 items-center gap-[7px]">
-          <span className="truncate font-mono text-[10px] text-fg-faint">
-            {[candidate.public_token, programme?.code, `${candidate.exam_duration_minutes ?? "?"} min`]
-              .filter(Boolean)
-              .join(" · ")}
+        <span className="min-w-0">
+          <span className="block truncate font-display text-[22px] leading-[1.05]">
+            {fullName(candidate)}
           </span>
+          <span className="mt-[2px] flex min-w-0 items-center gap-[7px]">
+            <span className="truncate font-mono text-[10.5px] text-fg-faint">
+              {[
+                candidate.public_token,
+                programme?.code,
+                `${candidate.exam_duration_minutes ?? "?"} min`,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+            {/* Which part they are in: filled once somebody confirmed it. */}
+            {sections.length > 0 && (
+              <button
+                type="button"
+                onClick={onParts}
+                title="The parts of this exam, planned against what happened"
+                className={`shrink-0 cursor-pointer rounded-full px-[8px] py-[1px] font-mono text-[9.5px] font-semibold whitespace-nowrap ${
+                  part?.confirmed
+                    ? "bg-white/15 text-fg"
+                    : "border border-white/15 text-fg-dim hover:bg-white/[0.06]"
+                }`}
+              >
+                {part
+                  ? `${part.section.name}${part.confirmed ? "" : "?"}`
+                  : "parts"}
+              </button>
+            )}
+          </span>
+        </span>
 
-          {/* Which part they are in. Gold once somebody has confirmed it,
-              outlined while it is only what the plan expects. */}
-          {sections.length > 0 && (
+        {onBreak && <BreakPill startedAt={onBreak.started_at} now={now} />}
+
+        <span className="flex-1" />
+
+        <button
+          type="button"
+          onClick={onEdit}
+          title="Correct the start time or length"
+          className="cursor-pointer text-right"
+        >
+          <span
+            className={`block font-mono text-[26px] leading-none font-medium tabular-nums ${look.text}`}
+          >
+            {Number.isFinite(remaining) ? countdown(remaining) : "—"}
+          </span>
+          <span className="mt-[3px] block font-mono text-[10px] tracking-[0.1em] text-fg-faint uppercase">
+            {remaining <= 0 ? "past time" : "left"} · ends{" "}
+            {clockAt(candidate.exam_expected_end, timezone)}
+          </span>
+        </button>
+      </div>
+
+      <div className="relative mt-[12px] flex flex-col gap-[10px] md:flex-row md:items-center md:gap-[14px]">
+        <div className="min-w-0 flex-1">
+          <GlassTube
+            progress={progress}
+            fill={look.fill}
+            glow={look.glow}
+            breakAt={breakAt}
+            paused={!!onBreak}
+          />
+        </div>
+        <div className="flex shrink-0 items-center justify-end gap-[7px]">
+          {onBreak ? (
             <button
               type="button"
-              onClick={onParts}
-              title="The parts of this exam, planned against what happened"
-              className={`shrink-0 cursor-pointer rounded-[7px] px-[7px] py-[2px] font-mono text-[9.5px] font-semibold whitespace-nowrap ${
-                part?.confirmed
-                  ? "bg-gold/20 text-gold-bright"
-                  : "border border-edge-warm text-fg-dim hover:bg-panel-soft"
-              }`}
+              disabled={!canLab}
+              onClick={() =>
+                rpc(
+                  "fets_break_in",
+                  { p_candidate: candidate.id },
+                  `${candidate.public_token} is back from break`,
+                )
+              }
+              className="flex cursor-pointer items-center gap-[8px] rounded-full border border-[oklch(0.85_0.05_300/0.45)] bg-[linear-gradient(180deg,oklch(0.85_0.05_300/0.28),oklch(0.7_0.05_300/0.12))] px-[16px] py-[8px] text-[12px] font-semibold text-[oklch(0.93_0.03_300)] shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_8px_24px_-10px_oklch(0.8_0.06_295/0.6)] disabled:opacity-40"
             >
-              {part ? `${part.section.name}${part.confirmed ? "" : "?"}` : "parts"}
+              <span className="text-[13px]">↩</span> End break
             </button>
+          ) : (
+            <GlassButton
+              disabled={!canLab}
+              onClick={() =>
+                rpc(
+                  "fets_break_out",
+                  { p_candidate: candidate.id, p_kind: "scheduled" },
+                  `${candidate.public_token} on break`,
+                )
+              }
+            >
+              Break
+            </GlassButton>
           )}
-        </span>
-      </span>
-
-      <button
-        type="button"
-        onClick={onEdit}
-        title="Correct the start time or length"
-        className={`order-2 cursor-pointer text-right font-mono text-[19px] leading-none font-semibold sm:order-3 ${tone.text} ${
-          tone.pulse ? "animate-pulse-dot motion-reduce:animate-none" : ""
-        }`}
-      >
-        {Number.isFinite(remaining) ? countdown(remaining) : "—"}
-      </button>
-
-      <span className="order-4 hidden font-mono text-[11px] text-fg-faint sm:block">
-        {clockAt(candidate.exam_expected_end, timezone)}
-      </span>
-
-      <span className="order-5 col-span-2 flex justify-end gap-[6px] sm:col-span-1">
-        {onBreak ? (
-          <button
-            type="button"
+          <GlassButton
             disabled={!canLab}
-            onClick={() => rpc("fets_break_in", { p_candidate: candidate.id }, "Break ended")}
-            className="cursor-pointer rounded-[10px] border border-iris/55 bg-iris/15 px-[11px] py-[8px] text-[11.5px] font-bold text-iris disabled:opacity-40"
+            onClick={onMove}
+            title="Move them to another machine, carrying the sitting across"
           >
-            Back
-          </button>
-        ) : (
+            Move
+          </GlassButton>
           <button
             type="button"
-            disabled={!canLab}
+            disabled={!canLab || !!onBreak}
             onClick={() =>
               rpc(
-                "fets_break_out",
-                { p_candidate: candidate.id, p_kind: "scheduled" },
-                "Break started",
+                "fets_confirm_finish",
+                { p_candidate: candidate.id },
+                `${candidate.public_token} finished`,
               )
             }
-            className="cursor-pointer rounded-[10px] border border-edge-strong bg-panel-soft px-[11px] py-[8px] text-[11.5px] font-bold text-fg-muted disabled:opacity-40"
+            className="cursor-pointer rounded-full border border-white/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(226,220,205,0.85))] px-[18px] py-[8px] text-[12px] font-bold text-[#17151a] shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_8px_22px_-10px_rgba(255,240,210,0.5)] disabled:cursor-not-allowed disabled:opacity-30"
           >
-            Break
+            Finish
           </button>
-        )}
-        <button
-          type="button"
-          disabled={!canLab}
-          onClick={onMove}
-          title="Move them to another machine, carrying the sitting across"
-          className="cursor-pointer rounded-[10px] border border-edge-strong bg-panel-soft px-[11px] py-[8px] text-[11.5px] font-bold text-fg-muted disabled:opacity-40"
-        >
-          Move
-        </button>
-        <button
-          type="button"
-          disabled={!canLab || !!onBreak}
-          onClick={() =>
-            rpc(
-              "fets_confirm_finish",
-              { p_candidate: candidate.id },
-              `${candidate.public_token} finished`,
-            )
-          }
-          className="cursor-pointer rounded-[10px] bg-[linear-gradient(145deg,oklch(0.83_0.16_158),oklch(0.72_0.15_165))] px-[13px] py-[8px] text-[11.5px] font-bold text-[#0c1711] disabled:opacity-40"
-        >
-          Finish
-        </button>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function GlassButton({
+  children,
+  onClick,
+  disabled,
+  title,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  title?: string;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      title={title}
+      className="cursor-pointer rounded-full border border-white/12 bg-white/[0.05] px-[16px] py-[8px] text-[12px] font-semibold text-fg-muted shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] transition-colors hover:bg-white/[0.1] hover:text-fg disabled:opacity-40"
+    >
+      {children}
+    </button>
+  );
+}
+
+/** A break running now: a frosted pill with a live minutes-and-seconds clock. */
+function BreakPill({ startedAt, now }: { startedAt: string; now: number }) {
+  return (
+    <span className="flex items-center gap-[9px] rounded-full border border-[oklch(0.85_0.05_300/0.4)] bg-[linear-gradient(180deg,oklch(0.85_0.05_300/0.2),oklch(0.6_0.05_300/0.08))] py-[5px] pr-[12px] pl-[8px] shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_6px_20px_-8px_oklch(0.8_0.06_295/0.55)] backdrop-blur-md">
+      <span className="relative flex h-[18px] w-[18px] items-center justify-center rounded-full bg-[oklch(0.88_0.05_300/0.25)]">
+        <span className="absolute inset-0 animate-ping rounded-full bg-[oklch(0.88_0.05_300/0.35)] motion-reduce:animate-none" />
+        <span className="relative h-[7px] w-[7px] rounded-full bg-[oklch(0.94_0.03_300)]" />
       </span>
+      <span className="font-mono text-[10px] font-bold tracking-[0.16em] text-[oklch(0.9_0.04_300)] uppercase">
+        On break
+      </span>
+      <span className="font-mono text-[13px] font-semibold tabular-nums text-[oklch(0.96_0.02_300)]">
+        {now ? awayClock(startedAt, now) : "—"}
+      </span>
+    </span>
+  );
+}
+
+/**
+ * The sitting as a glass cylinder in ten parts. Each part fills in turn, the
+ * one in progress partly; light sits along the top edge and shade along the
+ * bottom so it reads as a tube, not a bar. A break marks where it began and
+ * frosts the time since.
+ */
+function GlassTube({
+  progress,
+  fill,
+  glow,
+  breakAt,
+  paused,
+}: {
+  progress: number;
+  fill: string;
+  glow: string;
+  breakAt: number | null;
+  paused: boolean;
+}) {
+  return (
+    <div className="relative rounded-full border border-white/[0.12] bg-[linear-gradient(180deg,rgba(255,255,255,0.09),rgba(255,255,255,0.015)_55%,rgba(0,0,0,0.25))] p-[5px] shadow-[inset_0_1px_1px_rgba(255,255,255,0.22),inset_0_-10px_18px_rgba(0,0,0,0.45),0_14px_30px_-16px_rgba(0,0,0,0.9)]">
+      <div className="relative flex h-[26px] gap-[4px]">
+        {Array.from({ length: 10 }, (_, i) => {
+          const f = Math.min(1, Math.max(0, progress * 10 - i));
+          const first = i === 0;
+          const last = i === 9;
+          return (
+            <span
+              key={i}
+              className={`relative flex-1 overflow-hidden bg-[linear-gradient(180deg,rgba(0,0,0,0.35),rgba(255,255,255,0.03))] shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)] ${
+                first ? "rounded-l-full" : "rounded-[5px]"
+              } ${last ? "rounded-r-full" : ""}`}
+            >
+              {f > 0 && (
+                <span
+                  className="absolute inset-y-0 left-0 transition-[width] duration-1000 ease-out"
+                  style={{
+                    width: `${f * 100}%`,
+                    background: fill,
+                    boxShadow: `0 0 14px ${glow}`,
+                  }}
+                >
+                  {/* Light across the top of the liquid, shade beneath it. */}
+                  <span className="absolute inset-x-0 top-[2px] h-[38%] rounded-full bg-gradient-to-b from-white/70 to-white/0" />
+                  <span className="absolute inset-x-0 bottom-0 h-[35%] bg-gradient-to-t from-black/25 to-transparent" />
+                </span>
+              )}
+            </span>
+          );
+        })}
+
+        {/* Where the break began, and the frosted time since. */}
+        {breakAt !== null && (
+          <>
+            <span
+              className="pointer-events-none absolute inset-y-0 rounded-full bg-[repeating-linear-gradient(135deg,rgba(255,255,255,0.22)_0_4px,transparent_4px_9px)] mix-blend-screen"
+              style={{
+                left: `${breakAt * 100}%`,
+                width: `${Math.max(0.6, (progress - breakAt) * 100)}%`,
+              }}
+            />
+            <span
+              className="pointer-events-none absolute -top-[9px] -bottom-[9px] w-[2px] rounded-full bg-[oklch(0.94_0.03_300)] shadow-[0_0_10px_oklch(0.85_0.06_300)]"
+              style={{ left: `calc(${breakAt * 100}% - 1px)` }}
+            />
+          </>
+        )}
+      </div>
+      {/* The glass itself: one long highlight along the top of the tube. */}
+      <span className="pointer-events-none absolute inset-x-[14px] top-[3px] h-[6px] rounded-full bg-gradient-to-b from-white/35 to-transparent" />
+      {paused && <span className="sr-only">Clock running through break</span>}
     </div>
   );
 }
@@ -356,7 +540,13 @@ function FloorRow({
  * answer that arrives late: Writing really began at 10:42, not when somebody
  * got back to the desk.
  */
-function SectionsDialog({ row, onClose }: { row: Seated; onClose: () => void }) {
+function SectionsDialog({
+  row,
+  onClose,
+}: {
+  row: Seated;
+  onClose: () => void;
+}) {
   const { center, rpc, canLab } = useConsole();
   const { candidate, sections } = row;
   const [at, setAt] = useState("");
@@ -375,7 +565,9 @@ function SectionsDialog({ row, onClose }: { row: Seated; onClose: () => void }) 
       {
         p_candidate: candidate.id,
         p_position: position,
-        p_at: usable ? instantFromZonedTime(typed, center.timezone).toISOString() : null,
+        p_at: usable
+          ? instantFromZonedTime(typed, center.timezone).toISOString()
+          : null,
       },
       "Noted",
     );
@@ -390,7 +582,9 @@ function SectionsDialog({ row, onClose }: { row: Seated; onClose: () => void }) 
       footer={
         <>
           <label className="flex flex-1 items-center gap-[10px] rounded-[14px] border border-edge-strong bg-panel-soft px-[13px] py-[11px]">
-            <span className="shrink-0 text-[11.5px] font-semibold text-fg-faint">Mark at</span>
+            <span className="shrink-0 text-[11.5px] font-semibold text-fg-faint">
+              Mark at
+            </span>
             <input
               value={at}
               onChange={(e) => setAt(e.target.value)}
@@ -409,7 +603,9 @@ function SectionsDialog({ row, onClose }: { row: Seated; onClose: () => void }) 
                 clear
               </button>
             )}
-            {blocked && <span className="shrink-0 text-[11px] text-rust">HH:MM</span>}
+            {blocked && (
+              <span className="shrink-0 text-[11px] text-rust">HH:MM</span>
+            )}
           </label>
           <button
             type="button"
@@ -452,7 +648,12 @@ function SectionsDialog({ row, onClose }: { row: Seated; onClose: () => void }) 
                   )}
                 </span>
                 <span className="block font-mono text-[10.5px] text-fg-faint">
-                  due {clockAt(new Date(v.estimatedStart).toISOString(), center.timezone)} · {v.minutes} min
+                  due{" "}
+                  {clockAt(
+                    new Date(v.estimatedStart).toISOString(),
+                    center.timezone,
+                  )}{" "}
+                  · {v.minutes} min
                 </span>
               </span>
 
@@ -460,7 +661,10 @@ function SectionsDialog({ row, onClose }: { row: Seated; onClose: () => void }) 
                 {done ? (
                   <>
                     <span className="block font-mono text-[13px] font-semibold text-gold-bright">
-                      {clockAt(new Date(v.actualStart!).toISOString(), center.timezone)}
+                      {clockAt(
+                        new Date(v.actualStart!).toISOString(),
+                        center.timezone,
+                      )}
                     </span>
                     <span
                       className={`block font-mono text-[10px] ${late ? "text-rust" : "text-fg-faint"}`}
@@ -473,7 +677,9 @@ function SectionsDialog({ row, onClose }: { row: Seated; onClose: () => void }) 
                     </span>
                   </>
                 ) : (
-                  <span className="block font-mono text-[11px] text-fg-faint">not seen</span>
+                  <span className="block font-mono text-[11px] text-fg-faint">
+                    not seen
+                  </span>
                 )}
               </span>
 
@@ -508,8 +714,8 @@ function SectionsDialog({ row, onClose }: { row: Seated; onClose: () => void }) 
 
         {sections.length === 0 && (
           <p className="rounded-[14px] border border-gold/35 bg-gold/8 p-[13px] text-[12.5px] text-gold">
-            This exam has no parts set up yet. Add them under Setup &rsaquo; Exams and they will appear
-            here for every candidate sitting it.
+            This exam has no parts set up yet. Add them under Setup &rsaquo;
+            Exams and they will appear here for every candidate sitting it.
           </p>
         )}
       </div>
@@ -525,7 +731,9 @@ function AdjustDialog({ row, onClose }: { row: Seated; onClose: () => void }) {
   const [startTime, setStartTime] = useState(() =>
     clockAt(candidate.exam_started_at, center.timezone),
   );
-  const [duration, setDuration] = useState(String(candidate.exam_duration_minutes ?? 180));
+  const [duration, setDuration] = useState(
+    String(candidate.exam_duration_minutes ?? 180),
+  );
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -540,7 +748,10 @@ function AdjustDialog({ row, onClose }: { row: Seated; onClose: () => void }) {
       return;
     }
     if (!reason.trim()) {
-      notify("Say why it is being changed — it goes in the audit trail", "error");
+      notify(
+        "Say why it is being changed — it goes in the audit trail",
+        "error",
+      );
       return;
     }
 
@@ -594,13 +805,16 @@ function AdjustDialog({ row, onClose }: { row: Seated; onClose: () => void }) {
     >
       <div className="flex flex-col gap-[15px]">
         <p className="text-[12.5px] leading-[1.5] text-fg-faint">
-          The clock started when this candidate was seated. Change it here if they actually started
-          at a different time, or if the exam is a different length.
+          The clock started when this candidate was seated. Change it here if
+          they actually started at a different time, or if the exam is a
+          different length.
         </p>
 
         <div className="flex flex-wrap gap-[12px]">
           <label className="flex w-[120px] flex-col gap-[7px]">
-            <span className="text-[11.5px] font-semibold text-fg-dim">Started at</span>
+            <span className="text-[11.5px] font-semibold text-fg-dim">
+              Started at
+            </span>
             <input
               inputMode="numeric"
               maxLength={5}
@@ -610,7 +824,9 @@ function AdjustDialog({ row, onClose }: { row: Seated; onClose: () => void }) {
             />
           </label>
           <label className="flex w-[120px] flex-col gap-[7px]">
-            <span className="text-[11.5px] font-semibold text-fg-dim">Minutes</span>
+            <span className="text-[11.5px] font-semibold text-fg-dim">
+              Minutes
+            </span>
             <input
               inputMode="numeric"
               value={duration}
@@ -622,7 +838,10 @@ function AdjustDialog({ row, onClose }: { row: Seated; onClose: () => void }) {
 
         <label className="flex flex-col gap-[7px]">
           <span className="text-[11.5px] font-semibold text-fg-dim">
-            Why <span className="font-normal text-fg-faint">— kept in the audit trail</span>
+            Why{" "}
+            <span className="font-normal text-fg-faint">
+              — kept in the audit trail
+            </span>
           </span>
           <input
             value={reason}
@@ -644,7 +863,13 @@ function AdjustDialog({ row, onClose }: { row: Seated; onClose: () => void }) {
  * standing about are given back, and the machine that failed does not quietly
  * return to the pool. The form does all three and writes the incident itself.
  */
-function TransferDialog({ row, onClose }: { row: Seated; onClose: () => void }) {
+function TransferDialog({
+  row,
+  onClose,
+}: {
+  row: Seated;
+  onClose: () => void;
+}) {
   const { workstations, labs, rpc, notify, canLab } = useConsole();
   const { candidate, seat } = row;
 
@@ -658,11 +883,16 @@ function TransferDialog({ row, onClose }: { row: Seated; onClose: () => void }) 
     () =>
       workstations
         .filter((w) => w.lab_id && w.status === "free" && w.id !== seat.id)
-        .sort((a, b) => a.seat_code.localeCompare(b.seat_code, undefined, { numeric: true })),
+        .sort((a, b) =>
+          a.seat_code.localeCompare(b.seat_code, undefined, { numeric: true }),
+        ),
     [workstations, seat.id],
   );
 
-  const byLab = labs.map((lab) => ({ lab, seats: free.filter((w) => w.lab_id === lab.id) }));
+  const byLab = labs.map((lab) => ({
+    lab,
+    seats: free.filter((w) => w.lab_id === lab.id),
+  }));
   const chosen = free.find((w) => w.id === toSeat) ?? null;
 
   async function move() {
@@ -730,8 +960,9 @@ function TransferDialog({ row, onClose }: { row: Seated; onClose: () => void }) 
     >
       <div className="flex flex-col gap-[17px]">
         <p className="text-[12.5px] leading-[1.55] text-fg-faint">
-          Their clock keeps the time they have already sat. Whatever you put as minutes lost is added
-          on at the end, so they get it back rather than losing it.
+          Their clock keeps the time they have already sat. Whatever you put as
+          minutes lost is added on at the end, so they get it back rather than
+          losing it.
         </p>
 
         {free.length === 0 ? (
@@ -768,7 +999,10 @@ function TransferDialog({ row, onClose }: { row: Seated; onClose: () => void }) 
 
         <label className="flex flex-col gap-[7px]">
           <span className="text-[11.5px] font-semibold text-fg-dim">
-            Why <span className="font-normal text-fg-faint">— this becomes the incident</span>
+            Why{" "}
+            <span className="font-normal text-fg-faint">
+              — this becomes the incident
+            </span>
           </span>
           <input
             value={reason}
@@ -779,7 +1013,9 @@ function TransferDialog({ row, onClose }: { row: Seated; onClose: () => void }) 
         </label>
 
         <label className="flex w-[170px] flex-col gap-[7px]">
-          <span className="text-[11.5px] font-semibold text-fg-dim">Minutes to give back</span>
+          <span className="text-[11.5px] font-semibold text-fg-dim">
+            Minutes to give back
+          </span>
           <input
             inputMode="numeric"
             value={minutes}
@@ -800,8 +1036,9 @@ function TransferDialog({ row, onClose }: { row: Seated; onClose: () => void }) 
               Take {seat.seat_code} out of service
             </span>
             <span className="mt-[2px] block text-[12px] leading-[1.45] text-fg-faint">
-              On by default. A machine that just failed should not be handed to the next candidate.
-              Turn it off if the move was for some other reason.
+              On by default. A machine that just failed should not be handed to
+              the next candidate. Turn it off if the move was for some other
+              reason.
             </span>
           </span>
           <span
