@@ -76,10 +76,20 @@ export function NoticesScreen() {
     setPresets((data ?? []) as unknown as NoticePreset[]);
   }, [center.id]);
 
+  // Saved on another console shows up here too.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadPresets();
-  }, [loadPresets]);
+    const channel = supabaseBrowser()
+      .channel(`notice-presets-${center.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "notice_presets", filter: `center_id=eq.${center.id}` }, () => void loadPresets())
+      // A delete carries only the id, so the centre filter never matches it.
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "notice_presets" }, () => void loadPresets())
+      .subscribe();
+    return () => {
+      void supabaseBrowser().removeChannel(channel);
+    };
+  }, [loadPresets, center.id]);
 
   function editPreset(p: NoticePreset) {
     setMode("custom");
