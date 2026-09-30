@@ -66,15 +66,26 @@ export function NoticesScreen() {
   const [style, setStyle] = useState<NoticeStyle>({});
   const [presets, setPresets] = useState<NoticePreset[]>([]);
   const [presetName, setPresetName] = useState("");
+  const [retry, setRetry] = useState(0);
 
   const loadPresets = useCallback(async () => {
-    const { data } = await supabaseBrowser()
+    const { data, error } = await supabaseBrowser()
       .from("notice_presets" as never)
       .select("*")
       .eq("center_id", center.id)
       .order("label");
+    // A failed read keeps the list already on screen rather than emptying it,
+    // and tries once more shortly.
+    if (error) {
+      setTimeout(() => setRetry((n) => n + 1), 5000);
+      return;
+    }
     setPresets((data ?? []) as unknown as NoticePreset[]);
   }, [center.id]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (retry > 0) void loadPresets();
+  }, [retry, loadPresets]);
 
   // Saved on another console shows up here too.
   useEffect(() => {
