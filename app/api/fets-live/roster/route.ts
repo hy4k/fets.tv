@@ -40,6 +40,11 @@ export async function POST(request: NextRequest) {
 
   const roster = await readFetsLiveRoster(provider, date, centre?.name ?? "");
   if (!roster.connected) return Response.json({ error: roster.reason }, { status: 502 });
+  // Nobody to bring in: say so without opening an empty day, which would
+  // close the list that is open now.
+  if (roster.rows.length === 0) {
+    return Response.json({ inserted: 0, updated: 0, unchanged: 0, skipped: 0, found: 0, left_out: roster.skipped, provider, date });
+  }
 
   const { data, error } = await supabase.rpc("fets_sync_roster", {
     p_center: profile.center_id,

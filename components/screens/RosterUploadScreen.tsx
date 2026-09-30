@@ -471,7 +471,12 @@ function FromFetsLive({
       const r = body as SyncResult;
       setResult(r);
       if (r.found === 0) {
-        notify(`fets.live has nobody booked for ${provider} today`, "error");
+        notify(
+          r.left_out > 0
+            ? `fets.live has ${r.left_out} ${provider} booking${r.left_out === 1 ? "" : "s"} today, none with a roster number`
+            : `fets.live has nobody booked for ${provider} today`,
+          "error",
+        );
         return;
       }
       notify(
