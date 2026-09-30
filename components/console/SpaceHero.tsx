@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { basePath } from "@/lib/base-path";
@@ -22,7 +23,7 @@ export function SpaceHero() {
   const { place } = locate(pathname);
   if (!place) return null;
   if (place.key === "lobby") return <LobbyHero />;
-  return <Band place={place} />;
+  return <Band place={place} pathname={pathname} />;
 }
 
 const OVERLINE: Record<Place["key"], string> = {
@@ -136,7 +137,7 @@ function Fig({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Band({ place }: { place: Place }) {
+function Band({ place, pathname }: { place: Place; pathname: string }) {
   const { center, candidates, rules } = useConsole();
   const clock = useClock(center.timezone);
 
@@ -164,6 +165,26 @@ function Band({ place }: { place: Place }) {
         >
           {place.title}
         </h1>
+        {/* The hall has two pages and no tab row: a switch, under its name. */}
+        {place.key === "hall" && (
+          <span className="mt-[12px] inline-flex rounded-full border border-accent/25 bg-ink/50 p-[3px] backdrop-blur-sm">
+            {place.steps.map((s) => {
+              const on = locate(pathname).step?.key === s.key;
+              return (
+                <Link
+                  key={s.key}
+                  href={s.href}
+                  aria-current={on ? "page" : undefined}
+                  className={`rounded-full px-[16px] py-[7px] text-[13px] font-semibold transition-colors ${
+                    on ? "bg-accent text-[#141418]" : "text-fg-dim hover:text-fg"
+                  }`}
+                >
+                  {s.label}
+                </Link>
+              );
+            })}
+          </span>
+        )}
       </div>
       {stats.length > 0 && (
         <div className="flex gap-[10px]">
