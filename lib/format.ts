@@ -34,6 +34,12 @@ export function fullName(c: Pick<Candidate, "first_name" | "last_name">) {
   return `${c.first_name} ${c.last_name}`.trim();
 }
 
+/** How long a call stays large on the TV before the next may be called. */
+export const CALL_GAP_SECONDS = 45;
+
+/** How many called candidates may be on their way to the gate at once. */
+export const MAX_ON_THE_WAY = 5;
+
 /** Statuses that still need the front desk's check-in. */
 export const WAITING_TO_CHECK_IN = ["scheduled", "arrived", "id_checked"];
 

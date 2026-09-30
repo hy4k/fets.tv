@@ -56,6 +56,7 @@ export function PublicDisplay({ displayKey, initial }: { displayKey: string; ini
             : null
         }
         next={state.next.map((n) => ({ token: n.public_token, name: n.name }))}
+        earlier={(state.earlier ?? []).map((e) => ({ token: e.token, name: e.name }))}
       />
       {!online && (
         <p className="pt-[8px] text-center font-mono text-[11px] text-rust">Reconnecting to the console…</p>

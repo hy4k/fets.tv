@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { CallAlert } from "@/components/console/CallAlert";
 import { DataGaps } from "@/components/console/DataGaps";
 import { DeskChat } from "@/components/console/DeskChat";
 import { PlaceShell } from "@/components/console/PlaceShell";
@@ -250,6 +251,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
       <PlaceShell>
         <SpaceBar />
         <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-[10px] px-[10px] pt-[10px] pb-[10px] md:gap-[14px] md:px-[28px] md:pt-[18px] md:pb-[18px]">
+          <CallAlert />
           <SpaceHero />
           <PlaceTabs />
           <DataGaps />

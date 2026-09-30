@@ -25,7 +25,7 @@ import { type Candidate, stillHeld } from "@/lib/types";
  * closes behind you. Nothing is parked at the bottom waiting to be noticed.
  */
 export function FrontOfficeScreen() {
-  const { candidates, center, call, rpc, canFrontOffice, session } = useConsole();
+  const { candidates, center, canFrontOffice, session } = useConsole();
   const { open, toggle } = useDrawers("front-office", { recent: false });
   const [query, setQuery] = useState("");
   const [checkingInId, setCheckingInId] = useState<string | null>(null);
@@ -56,7 +56,6 @@ export function FrontOfficeScreen() {
   const checkingIn = candidates.find((c) => c.id === checkingInId) ?? null;
   const signingOut = candidates.find((c) => c.id === signingOutId) ?? null;
   const keyFor = candidates.find((c) => c.id === keyForId) ?? null;
-  const called = candidates.find((c) => c.id === call?.candidate_id) ?? null;
   const recent = candidates
     .filter((c) => c.check_in_at)
     .sort((a, b) => (a.check_in_at! < b.check_in_at! ? 1 : -1))
@@ -69,33 +68,6 @@ export function FrontOfficeScreen() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-[14px]">
-      {/* Somebody has been called and the hall is expecting them. This is the
-          one thing on the page that is not about the roster, so it sits above
-          it rather than inside it. */}
-      {called && (
-        <div className="flex shrink-0 flex-wrap items-center gap-[14px] rounded-[20px] mint-bg px-[18px] py-[16px] text-[#0c1711]">
-          <span className="text-[11px] font-extrabold tracking-[0.18em] uppercase">Send in</span>
-          <span className="font-mono text-[26px] font-semibold whitespace-nowrap">
-            {called.public_token}
-          </span>
-          <span className="font-serif text-[25px]">{fullName(called)}</span>
-          <span className="flex-1" />
-          <span className="rounded-[12px] bg-[#0c1711] px-[14px] py-[9px] text-[13px] font-extrabold tracking-[0.06em] text-mint uppercase">
-            {call?.room_label ?? "Frisking"}
-          </span>
-          <button
-            type="button"
-            disabled={!canFrontOffice}
-            onClick={() =>
-              rpc("fets_mark_entered", { p_center: center.id }, `${called.public_token} entered`)
-            }
-            className="cursor-pointer rounded-[13px] bg-[#0c1711] px-[18px] py-[12px] text-[13px] font-bold text-[#eafaf1] disabled:opacity-50"
-          >
-            Entered
-          </button>
-        </div>
-      )}
-
       {/* Added after the list was loaded: a walk-in, an emergency, a late
           booking. They are held here until checked in, whatever the list's
           order, so a single late candidate is never lost at the bottom. */}

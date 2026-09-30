@@ -68,6 +68,7 @@ export function DisplayBoard({
   timezone,
   call,
   next,
+  earlier = [],
   notice = null,
   nonce = 0,
   siteLabel,
@@ -78,6 +79,8 @@ export function DisplayBoard({
   timezone: string;
   call: BoardCall;
   next: BoardNext[];
+  /** Called before the big one and not yet in: small, but readable across the hall. */
+  earlier?: { token: string; name: string | null }[];
   notice?: BoardNotice;
   nonce?: number;
   siteLabel?: string;
@@ -222,6 +225,27 @@ export function DisplayBoard({
             <span className="h-[7px] w-[7px] animate-pulse-dot rounded-full bg-mint motion-reduce:animate-none" />
             Board active
           </span>
+        </section>
+      )}
+
+      {call && earlier.length > 0 && (
+        <section aria-label="Also called" className="flex shrink-0 flex-wrap items-center gap-[clamp(5px,1cqw,16px)]">
+          <span className="text-[clamp(6px,1.05cqw,15px)] font-extrabold tracking-[0.2em] text-gold uppercase">
+            Also called · please proceed
+          </span>
+          {earlier.map((e) => (
+            <span
+              key={e.token}
+              className="flex items-baseline gap-[clamp(5px,0.8cqw,12px)] rounded-[16px] border border-gold/45 bg-gold/10 px-[clamp(8px,1.3cqw,20px)] py-[clamp(4px,0.9cqh,12px)]"
+            >
+              <span className="font-mono text-[clamp(12px,min(2.4cqw,4.4cqh),38px)] leading-none font-semibold text-gold-bright">
+                {e.token}
+              </span>
+              {e.name && (
+                <span className="font-serif text-[clamp(9px,1.6cqw,26px)] leading-none text-fg">{e.name}</span>
+              )}
+            </span>
+          ))}
         </section>
       )}
 

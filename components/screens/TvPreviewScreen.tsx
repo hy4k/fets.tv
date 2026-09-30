@@ -41,6 +41,11 @@ export function TvPreviewScreen() {
             : null
         }
         next={next}
+        earlier={candidates
+          .filter((c) => c.status === "waiting" && c.called_at && c.id !== called?.id)
+          .sort((a, b) => (b.called_at ?? "").localeCompare(a.called_at ?? ""))
+          .slice(0, 4)
+          .map((c) => ({ token: c.public_token, name: showName ? fullName(c) : null }))}
       />
 
       <Drawer
