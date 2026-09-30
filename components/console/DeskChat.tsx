@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useConsole } from "@/lib/console-data";
-import { clockAt, fullName, instantFromZonedTime } from "@/lib/format";
+import { clockAt, fullName, instantFromZonedTime, todayInZone } from "@/lib/format";
 import { locate } from "@/lib/nav";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
@@ -66,8 +66,10 @@ export function DeskChat() {
   const may = profile.role !== "viewer";
 
   // The desk you are at: what you chose, else what the page says.
-  const place = locate(pathname).place?.key;
-  const fromPage: Desk = place === "hall" ? "admin" : place === "office" || place === "duty" ? "office" : "front";
+  const here = locate(pathname);
+  const place = here.place?.key;
+  const fromPage: Desk =
+    here.step?.key === "seating" ? "lab" : place === "hall" ? "admin" : place === "office" || place === "duty" ? "office" : "front";
   const desk = chosen ?? fromPage;
   const target = to ?? (desk === "front" ? "admin" : "front");
 
@@ -109,7 +111,11 @@ export function DeskChat() {
     // not at the first message someone happens to send.
     let midnight: ReturnType<typeof setTimeout>;
     const atMidnight = () => {
-      const next = instantFromZonedTime("00:00", tz, new Date(Date.now() + 24 * 3600000)).getTime();
+      // Tomorrow's date at the centre, then its midnight: a calendar day, not
+      // 24 hours, so a clock change cannot skip or repeat it.
+      const [y, m, d] = todayInZone(tz).split("-").map(Number);
+      const tomorrow = new Date(Date.UTC(y, m - 1, d + 1, 12));
+      const next = instantFromZonedTime("00:00", tz, tomorrow).getTime();
       midnight = setTimeout(() => {
         void load();
         atMidnight();
@@ -148,9 +154,14 @@ export function DeskChat() {
   useEffect(() => {
     if (!open || !may || unread.length === 0) return;
     const t = setTimeout(() => {
-      void supabaseBrowser().rpc("fets_desk_seen" as never, { p_center: center.id, p_desk: desk } as never);
+      // Only what this panel has shown is marked seen.
+      void supabaseBrowser().rpc(
+        "fets_desk_seen" as never,
+        { p_center: center.id, p_desk: desk, p_ids: unread.map((m) => m.id) } as never,
+      );
     }, 800);
     return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, unread.length, may, center.id, desk]);
 
   useEffect(() => {
