@@ -16,6 +16,17 @@
 export const PROVIDERS = ["Prometric", "Pearson VUE", "CELPIP", "PSI", "ITTS"] as const;
 export type Provider = (typeof PROVIDERS)[number];
 
+/** Where the browser remembers the provider chosen on Exams today. */
+export const REMEMBER_PROVIDER = "fets.provider";
+
+/** How a day brought in from fets.live is labelled, and read back for re-syncs. */
+export const LIVE_SOURCE = "fets.live · ";
+export function liveProviderOf(source: string | null | undefined): Provider | null {
+  if (!source?.startsWith(LIVE_SOURCE)) return null;
+  const p = source.slice(LIVE_SOURCE.length);
+  return isProvider(p) ? p : null;
+}
+
 export type DaySchedule =
   | { connected: false; reason: string }
   | {
@@ -172,36 +183,120 @@ export async function readFetsLiveTotals(date: string, centre: string): Promise<
 }
 
 async function readCalendarRows(date: string, centre: string): Promise<{ rows: CalendarRow[] } | { reason: string }> {
+  return readTable<CalendarRow>("calendar_sessions", centre, {
+    select: "client_name,exam_name,candidate_count,start_time,end_time",
+    date: `eq.${date}`,
+  });
+}
+
+/** One of fets.live's `candidates`, the columns read here. */
+export type LiveCandidate = {
+  full_name: string | null;
+  phone: string | null;
+  roster_number: string | null;
+  exam_part: string | null;
+  exam_start_time: string | null;
+  client_name: string | null;
+  exam_name: string | null;
+  status: string | null;
+};
+
+/** A row as fets_sync_roster takes it. */
+export type SyncRow = {
+  roster_number: string;
+  first_name: string;
+  last_name: string;
+  part: string | null;
+  phone: string | null;
+  scheduled_at: string | null;
+};
+
+export type LiveRoster =
+  | { connected: false; reason: string }
+  | { connected: true; provider: Provider; date: string; exam: string; rows: SyncRow[]; skipped: number };
+
+/**
+ * fets.live keeps one name field; the desk matches ID against first and last.
+ * The last word is the surname, as on the provider rosters.
+ */
+export function splitName(full: string | null): { first_name: string; last_name: string } {
+  const words = (full ?? "").trim().split(/\s+/).filter(Boolean);
+  if (words.length <= 1) return { first_name: words[0] ?? "", last_name: "" };
+  return { first_name: words.slice(0, -1).join(" "), last_name: words.at(-1)! };
+}
+
+/**
+ * One provider's candidates for the day, shaped for the sync. Rows with no
+ * roster number cannot be matched on the next sync, so they are left out and
+ * counted, as are cancelled bookings. The part is the exam part when fets.live
+ * has one, else the exam, so a day with two exams still reads apart.
+ */
+export function rosterFrom(rows: LiveCandidate[], provider: Provider, date: string): Extract<LiveRoster, { connected: true }> {
+  const out: SyncRow[] = [];
+  const exams = new Map<string, string>();
+  let skipped = 0;
+  for (const r of rows) {
+    if (providerOf(r.client_name, r.exam_name) !== provider) continue;
+    const roster = (r.roster_number ?? "").trim();
+    const name = splitName(r.full_name);
+    if (!roster || /cancel/i.test(r.status ?? "") || (!name.first_name && !name.last_name)) {
+      skipped++;
+      continue;
+    }
+    const exam = (r.exam_name ?? "").trim().replace(/\s+/g, " ");
+    if (exam) exams.set(exam.toUpperCase(), exams.get(exam.toUpperCase()) ?? exam);
+    out.push({
+      roster_number: roster,
+      ...name,
+      part: (r.exam_part ?? "").trim() || exam || null,
+      phone: (r.phone ?? "").trim() || null,
+      scheduled_at: atIst(date, r.exam_start_time),
+    });
+  }
+  const names = [...exams.values()];
+  return { connected: true, provider, date, exam: names.length === 1 ? names[0] : provider, rows: out, skipped };
+}
+
+export async function readFetsLiveRoster(provider: Provider, date: string, centre: string): Promise<LiveRoster> {
+  // exam_date is a timestamp at IST midnight, so the day is a range.
+  const next = new Date(Date.parse(`${date}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
+  const got = await readTable<LiveCandidate>("candidates", centre, {
+    select: "full_name,phone,roster_number,exam_part,exam_start_time,client_name,exam_name,status",
+    and: `(exam_date.gte.${date}T00:00:00+05:30,exam_date.lt.${next}T00:00:00+05:30)`,
+    order: "exam_start_time.asc.nullslast,full_name.asc",
+  });
+  return "reason" in got ? { connected: false, reason: got.reason } : rosterFrom(got.rows, provider, date);
+}
+
+async function readTable<T>(
+  table: string,
+  centre: string,
+  query: Record<string, string>,
+): Promise<{ rows: T[] } | { reason: string }> {
   const url = process.env.FETS_LIVE_SUPABASE_URL?.replace(/\/+$/, "").replace(/\/rest\/v1$/, "");
   const key = process.env.FETS_LIVE_SUPABASE_KEY;
   if (!url || !key) {
-    return { reason: "The fets.live calendar is not connected yet." };
+    return { reason: "fets.live is not connected yet." };
   }
   // fets.live answers a public key with an empty list, not a refusal, so it
-  // would read as a day with no exams.
+  // would read as a day with nobody booked.
   if (!isSecretKey(key)) {
-    return { reason: "The fets.live key is a public key; the calendar needs a secret key." };
+    return { reason: "The fets.live key is a public key; fets.live needs a secret key." };
   }
   const branch = branchOf(centre);
-  if (!branch) return { reason: `fets.live has no calendar for ${centre || "this centre"}.` };
+  if (!branch) return { reason: `fets.live has nothing for ${centre || "this centre"}.` };
 
-  const q = new URLSearchParams({
-    select: "client_name,exam_name,candidate_count,start_time,end_time",
-    date: `eq.${date}`,
-    branch_location: `eq.${branch}`,
-  });
+  const q = new URLSearchParams({ ...query, branch_location: `eq.${branch}` });
   // A new-style secret key goes in `apikey` alone; a legacy service-role JWT
   // also needs to be the bearer.
   const headers: Record<string, string> = { apikey: key };
   if (key.startsWith("eyJ")) headers.Authorization = `Bearer ${key}`;
 
-  let rows: CalendarRow[];
   try {
-    const res = await fetch(`${url}/rest/v1/calendar_sessions?${q}`, { headers, cache: "no-store" });
-    if (!res.ok) return { reason: `fets.live refused the calendar read (${res.status}).` };
-    rows = (await res.json()) as CalendarRow[];
+    const res = await fetch(`${url}/rest/v1/${table}?${q}`, { headers, cache: "no-store" });
+    if (!res.ok) return { reason: `fets.live refused the read (${res.status}).` };
+    return { rows: (await res.json()) as T[] };
   } catch {
     return { reason: "Could not reach fets.live." };
   }
-  return { rows };
 }

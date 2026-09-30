@@ -629,6 +629,17 @@ export type Database = {
         Returns: Candidate;
       };
       fets_sync_workstations: { Args: { p_center: string }; Returns: number };
+      fets_sync_roster: {
+        Args: {
+          p_center: string;
+          p_exam_date: string;
+          p_exam_name: string;
+          p_source: string;
+          p_rows: import("@/lib/fets-live").SyncRow[];
+          p_programme?: string | null;
+        };
+        Returns: { exam_session_id: string; inserted: number; updated: number; unchanged: number; skipped: number };
+      };
       fets_import_roster: {
         Args: {
           p_center: string;

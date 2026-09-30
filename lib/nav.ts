@@ -77,7 +77,7 @@ export const PLACES: Place[] = [
     tone: ["oklch(0.86 0.1 80)", "oklch(0.7 0.12 62)"],
     steps: [
       { key: "exams", href: "/exams", label: "Exams today", sub: "From the fets.live calendar", n: 1 },
-      { key: "roster", href: "/roster", label: "Roster", sub: "Upload or enter by hand", n: 2 },
+      { key: "roster", href: "/roster", label: "Roster", sub: "From fets.live", n: 2 },
     ],
   },
   {
