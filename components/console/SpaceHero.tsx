@@ -169,7 +169,7 @@ function Band({ place, pathname }: { place: Place; pathname: string }) {
         {place.key === "hall" && (
           <span className="mt-[12px] inline-flex rounded-full border border-accent/25 bg-ink/50 p-[3px] backdrop-blur-sm">
             {place.steps.map((s) => {
-              const on = pathname === s.href;
+              const on = locate(pathname).step?.key === s.key;
               return (
                 <Link
                   key={s.key}
