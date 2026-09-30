@@ -4,32 +4,33 @@ import { useMemo, useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { MaterialsPanel } from "@/components/screens/MaterialsPanel";
 import { useConsole } from "@/lib/console-data";
-import { STAGE_LABELS, STAGE_ORDER, fullName, sinceLabel } from "@/lib/format";
-import { useNow } from "@/lib/use-clock";
+import { SeatGrid } from "@/components/screens/SeatGrid";
+import { STAGE_LABELS, STAGE_ORDER, fullName } from "@/lib/format";
 import { type Candidate, type CandidateStatus, stillHeld } from "@/lib/types";
 
-const TABS = [
-  { key: "tv", label: "On TV now", short: "On TV" },
-  { key: "flow", label: "Flow · 11 stages", short: "Flow" },
-  { key: "audit", label: "Audit trail", short: "Audit" },
-  { key: "override", label: "Admin override", short: "Override" },
-] as const;
+/** Everyone who has walked in from the desk but has nowhere to sit yet. */
+const UNSEATED = ["frisking", "biometrics", "assigned"];
 
-type TabKey = (typeof TABS)[number]["key"];
+/** Where a called candidate goes first. */
+const GATE = "Frisking · Gate 1";
 
 /**
- * The calling desk. One thing happens at a time here, so the page says one
- * thing at a time: who is being waited on now, then who is next, then a single
- * panel of detail chosen from the bar at the foot. Nothing stacks and nothing
- * slides out from under anything else.
+ * The admin room, as one page and one flow: call the next person, watch them
+ * walk to the frisking gate, then seat them — all from here.
+ *
+ * The call button stays at the top. Once pressed, the person called is held in
+ * a banner at the foot — "Frisking · Gate 1" — until the front desk marks them
+ * in; then the same place becomes their seat: press, pick the seat, confirm.
  */
 export function AdminRoomScreen() {
-  const { candidates, center, call, rpc, isAdmin, canCall, session, rules, materials } = useConsole();
+  const { candidates, center, call, rpc, isAdmin, canCall, canLab, session, rules, materials, workstations } =
+    useConsole();
   const [issuing, setIssuing] = useState<Candidate | null>(null);
+  const [overriding, setOverriding] = useState(false);
+  const [seatingId, setSeatingId] = useState<string | null>(null);
   // Called forward only with a locker key or Nil; the database refuses
   // otherwise, and the button says why before anybody presses it.
   const needsKey = (c: Candidate) => rules.locker_key_required && !c.locker_key;
-  const [tab, setTab] = useState<TabKey>("tv");
 
   // The order people are called in is the order they were checked in, so the
   // numbers on screen are the numbers the hall is waiting on.
@@ -38,6 +39,14 @@ export function AdminRoomScreen() {
       candidates
         .filter((c) => c.status === "waiting" && !c.called_at)
         .sort((a, b) => (a.check_in_at ?? "").localeCompare(b.check_in_at ?? "")),
+    [candidates],
+  );
+
+  const toSeat = useMemo(
+    () =>
+      candidates
+        .filter((c) => UNSEATED.includes(c.status) && !c.workstation_id)
+        .sort((a, b) => (a.frisked_at ?? a.check_in_at ?? "").localeCompare(b.frisked_at ?? b.check_in_at ?? "")),
     [candidates],
   );
 
@@ -50,117 +59,78 @@ export function AdminRoomScreen() {
   // key keeps their place in the list but does not hold up everyone behind.
   const next = pending.find((c) => !needsKey(c)) ?? null;
   const keyless = pending.filter(needsKey).length;
+  const seating = toSeat.find((c) => c.id === seatingId) ?? null;
+  const freeSeats = workstations.filter((w) => w.lab_id && w.status === "free").length;
 
   if (!session) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center rounded-[20px] border border-edge-mid panel-bg p-[24px] text-center">
         <p className="max-w-[360px] text-[13.5px] text-fg-muted">
-          No active roster for this center. Import one from{" "}
+          No active roster for this center. Bring one in from{" "}
           <span className="font-semibold text-gold">Roster</span> to start calling.
         </p>
       </div>
     );
   }
 
+  const unitsOut = (c: Candidate) =>
+    materials.filter((m) => m.candidate_id === c.id).reduce((sum, m) => sum + stillHeld(m), 0);
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-[12px]">
-      {/* One banner, one state. Either somebody is being waited on, or the next
-          person can be called. Never both, never neither. */}
-      {awaitingEntry ? (
-        <section className="shrink-0 rounded-[20px] border-2 border-mint/50 bg-[linear-gradient(150deg,oklch(0.42_0.1_165/0.35),#141816)] p-[16px]">
-          <div className="flex flex-wrap items-center gap-x-[16px] gap-y-[8px]">
-            <span className="rounded-[10px] bg-mint/20 px-[11px] py-[6px] text-[10.5px] font-extrabold tracking-[0.16em] text-mint uppercase">
-              Called · waiting to enter
-            </span>
-            <span className="font-mono text-[clamp(26px,4vw,38px)] leading-none font-semibold whitespace-nowrap text-mint">
-              {called.public_token}
-            </span>
-            <span className="min-w-0 truncate font-serif text-[24px]">{fullName(called)}</span>
-          </div>
-
-          {/* Marking somebody in is the front desk's call — they are the ones
-              who can see the door. Putting the same button here too had two
-              rooms racing to press it. */}
-          <p className="mt-[12px] rounded-[13px] bg-[#0c1711]/40 px-[14px] py-[11px] text-[13px] text-mint">
-            The front office marks them in when they arrive at the desk.
-          </p>
-
-          <div className="mt-[9px] flex flex-wrap gap-[8px]">
-            {/* Called before everything was handed over: materials stay here. */}
+    <div className="flex min-h-0 flex-1 flex-col gap-[12px] overflow-y-auto">
+      {/* The call, always here. */}
+      <section className="shrink-0 rounded-[22px] border border-edge-mid panel-bg p-[16px]">
+        <div className="mb-[12px] flex items-center gap-[10px]">
+          <span className="text-[11px] font-bold tracking-[0.16em] text-fg-dim uppercase">Admin · the call</span>
+          <span className="h-px flex-1 bg-edge-soft" />
+          {isAdmin && (
             <button
               type="button"
-              onClick={() => setIssuing(called)}
-              className="cursor-pointer rounded-[13px] border border-edge-warm bg-panel-soft px-[14px] py-[11px] text-[13px] font-semibold"
+              onClick={() => setOverriding(true)}
+              className="cursor-pointer rounded-[10px] border border-edge px-[10px] py-[6px] text-[11px] font-semibold text-fg-dim hover:border-rust/50 hover:text-rust"
             >
-              Materials
+              Override
             </button>
-            <button
-              type="button"
-              disabled={!canCall}
-              onClick={() => rpc("fets_recall", { p_center: center.id })}
-              className="flex-1 cursor-pointer rounded-[13px] border border-edge-warm bg-panel-soft px-[14px] py-[11px] text-[13px] font-semibold disabled:opacity-40"
-            >
-              Call them again
-            </button>
-            <button
-              type="button"
-              disabled={!canCall}
-              onClick={() => rpc("fets_clear_call", { p_center: center.id }, "Display cleared")}
-              className="flex-1 cursor-pointer rounded-[13px] border border-edge px-[14px] py-[11px] text-[13px] font-semibold text-fg-muted disabled:opacity-40"
-            >
-              Clear the TV
-            </button>
-          </div>
-        </section>
-      ) : (
-        <section className="shrink-0 rounded-[20px] border border-edge-mid panel-bg p-[16px]">
-          <button
-            type="button"
-            disabled={!canCall || !next}
-            onClick={() =>
-              next && rpc("fets_call_candidate", { p_candidate: next.id }, `Calling ${next.public_token}`)
-            }
-            className={`w-full rounded-[15px] px-[22px] py-[17px] text-[16px] font-bold ${
-              canCall && next
-                ? "cursor-pointer gold-bg text-[#1a1512]"
-                : "cursor-not-allowed bg-[#1d1d25] text-fg-dim"
-            }`}
-          >
-            {next
+          )}
+        </div>
+        <button
+          type="button"
+          disabled={!canCall || !next || awaitingEntry}
+          onClick={() =>
+            next && rpc("fets_call_candidate", { p_candidate: next.id }, `Calling ${next.public_token}`)
+          }
+          className={`w-full rounded-[16px] px-[22px] py-[18px] text-[16px] font-bold ${
+            canCall && next && !awaitingEntry
+              ? "cursor-pointer gold-bg text-[#1a1512]"
+              : "cursor-not-allowed bg-[#1d1d25] text-fg-dim"
+          }`}
+        >
+          {awaitingEntry
+            ? `${called.public_token} is on the way to ${GATE}`
+            : next
               ? `Call ${next.public_token} · ${fullName(next)}`
               : keyless > 0
                 ? `${keyless === 1 ? "The one waiting needs" : `All ${keyless} waiting need`} a locker key first`
                 : "Nobody is waiting to be called"}
-          </button>
-          <p className="mt-[9px] text-center text-[12px] text-fg-faint">
-            {pending.length > 0
-              ? `${pending.length} waiting${keyless ? ` · ${keyless} without a locker key` : ""} · next ready goes to the TV`
-              : "Everyone checked in has been called."}
-          </p>
-        </section>
-      )}
+        </button>
+        <p className="mt-[9px] text-center text-[12px] text-fg-faint">
+          {pending.length > 0
+            ? `${pending.length} waiting${keyless ? ` · ${keyless} without a locker key` : ""}`
+            : "Everyone checked in has been called."}
+        </p>
+      </section>
 
       {/* The queue, numbered the way the hall counts it. */}
-      <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[20px] border border-edge-mid panel-bg">
+      <section className="flex min-h-[180px] flex-1 flex-col overflow-hidden rounded-[22px] border border-edge-mid panel-bg">
         <div className="flex shrink-0 items-center gap-[10px] border-b border-edge-soft px-[16px] py-[12px]">
-          <span className="text-[11px] font-bold tracking-[0.13em] text-fg-dim uppercase">
-            Waiting to be called
-          </span>
-          {awaitingEntry && (
-            <span className="truncate text-[11.5px] text-mint">
-              Held until {called.public_token} walks in
-            </span>
-          )}
+          <span className="text-[11px] font-bold tracking-[0.13em] text-fg-dim uppercase">Waiting to be called</span>
           <span className="h-px min-w-[12px] flex-1 bg-edge-soft" />
           <span className="font-mono text-[13px] font-semibold text-gold">{pending.length}</span>
         </div>
 
         <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
           {pending.map((c, i) => (
-            <div
-              key={c.id}
-              className="flex items-center gap-[11px] border-b border-edge-soft/60 px-[14px] py-[11px] md:px-[16px]"
-            >
+            <div key={c.id} className="flex items-center gap-[11px] border-b border-edge-soft/60 px-[14px] py-[11px] md:px-[16px]">
               <span
                 className={`flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[10px] font-mono text-[12px] font-bold ${
                   i === 0 ? "bg-gold text-[#1a1512]" : "bg-panel-soft text-fg-dim"
@@ -168,11 +138,7 @@ export function AdminRoomScreen() {
               >
                 {i + 1}
               </span>
-
-              <span className="w-[74px] shrink-0 font-mono text-[12.5px] font-semibold">
-                {c.public_token}
-              </span>
-
+              <span className="w-[74px] shrink-0 font-mono text-[12.5px] font-semibold">{c.public_token}</span>
               <span className="block min-w-0 flex-1">
                 <span className="block truncate text-[13.5px] font-semibold">{fullName(c)}</span>
                 <span className="block truncate font-mono text-[10px] text-fg-faint">
@@ -184,7 +150,6 @@ export function AdminRoomScreen() {
                   )}
                 </span>
               </span>
-
               {/* Materials are handed over here, in the hold, not at the desk. */}
               <button
                 type="button"
@@ -192,15 +157,8 @@ export function AdminRoomScreen() {
                 className="shrink-0 cursor-pointer rounded-[12px] border border-edge px-[12px] py-[9px] text-[12px] font-semibold text-fg-muted hover:border-edge-warm hover:text-fg"
               >
                 Materials
-                {(() => {
-                  // Units still out, not rows: a partial return keeps the rest counted.
-                  const n = materials
-                    .filter((m) => m.candidate_id === c.id)
-                    .reduce((sum, m) => sum + stillHeld(m), 0);
-                  return n > 0 ? <span className="ml-[6px] font-mono text-accent">{n}</span> : null;
-                })()}
+                {unitsOut(c) > 0 && <span className="ml-[6px] font-mono text-accent">{unitsOut(c)}</span>}
               </button>
-
               <button
                 type="button"
                 disabled={!canCall || awaitingEntry || needsKey(c)}
@@ -208,206 +166,130 @@ export function AdminRoomScreen() {
                   needsKey(c)
                     ? "Issue a locker key or Nil first"
                     : awaitingEntry
-                      ? `Waiting for ${called.public_token} to enter`
+                      ? `Waiting for ${called.public_token} to reach ${GATE}`
                       : undefined
                 }
-                onClick={() =>
-                  rpc("fets_call_candidate", { p_candidate: c.id }, `Calling ${c.public_token}`)
-                }
+                onClick={() => rpc("fets_call_candidate", { p_candidate: c.id }, `Calling ${c.public_token}`)}
                 className="shrink-0 cursor-pointer rounded-[12px] gold-bg px-[15px] py-[10px] text-[12.5px] font-bold text-[#1a1512] disabled:cursor-not-allowed disabled:opacity-35"
               >
                 Call
               </button>
             </div>
           ))}
-
           {pending.length === 0 && (
             <p className="p-[26px] text-center text-[13px] text-fg-faint">
               Nobody is waiting. The front office checks people in.
             </p>
           )}
-
-          {issuing && (
-            <Dialog
-              open
-              title={`Materials · ${issuing.public_token}`}
-              subtitle={`${fullName(issuing)} · what goes into the hall with them`}
-              onClose={() => setIssuing(null)}
-              width={480}
-            >
-              <MaterialsPanel candidate={candidates.find((c) => c.id === issuing.id) ?? issuing} mode="issue" />
-            </Dialog>
-          )}
         </div>
       </section>
 
-      {/* One panel at a time, chosen from the bar beneath it. */}
-      <section className="flex max-h-[32dvh] shrink-0 flex-col overflow-hidden rounded-[20px] border border-edge-mid panel-bg sm:max-h-[42dvh]">
-        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-[15px]">
-          {tab === "tv" && <TvPanel />}
-          {tab === "flow" && <FlowPanel />}
-          {tab === "audit" && <AuditPanel />}
-          {tab === "override" && (isAdmin ? <OverridePanel /> : <NotAdmin />)}
-        </div>
-
-        <nav className="flex shrink-0 gap-[5px] border-t border-edge-soft p-[7px]" aria-label="Admin panels">
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              onClick={() => setTab(t.key)}
-              aria-current={tab === t.key ? "true" : undefined}
-              className={`min-w-0 flex-1 cursor-pointer truncate rounded-[12px] px-[9px] py-[11px] text-[12px] font-semibold transition-colors ${
-                tab === t.key
-                  ? "bg-accent/12 text-accent"
-                  : "text-fg-dim hover:bg-panel-soft hover:text-fg"
-              }`}
-            >
-              <span className="sm:hidden">{t.short}</span>
-              <span className="hidden sm:inline">{t.label}</span>
-            </button>
-          ))}
-        </nav>
-      </section>
-    </div>
-  );
-}
-
-/** What the hall's screen is showing, and the numbers behind the day. */
-function TvPanel() {
-  const { candidates, call } = useConsole();
-  const called = candidates.find((c) => c.id === call?.candidate_id) ?? null;
-
-  const stats = [
-    { label: "Arrived", value: candidates.filter((c) => c.arrival_at).length, className: "text-gold" },
-    {
-      label: "In lab",
-      value: candidates.filter((c) => c.status === "lab_entry" || c.status === "testing").length,
-      className: "text-iris",
-    },
-    {
-      label: "Done",
-      value: candidates.filter((c) => c.status === "completed" || c.status === "signed_out").length,
-      className: "text-mint",
-    },
-  ];
-
-  return (
-    <div className="flex flex-col gap-[13px]">
-      <div className="rounded-[17px] border border-[#332c42] bg-[linear-gradient(150deg,oklch(0.3_0.05_268/0.5),#161311)] p-[15px]">
-        <span className="text-[10.5px] font-bold tracking-[0.16em] text-[#a79cc4] uppercase">
-          The TV is showing
-        </span>
-        <div className="mt-[7px] font-mono text-[clamp(26px,4vw,40px)] leading-none font-semibold">
-          {called ? called.public_token : "NO CALL"}
-        </div>
-        <div className="mt-[5px] truncate font-serif text-[21px]">
-          {called ? fullName(called) : "Idle"}
-        </div>
-        <div className="mt-[11px] flex flex-wrap gap-[7px] text-[11px]">
-          <span className="rounded-[10px] border border-[#3a3346] bg-[#221d28] px-[11px] py-[7px] font-bold tracking-[0.07em] text-[#cfc6e6] uppercase">
-            {call?.room_label ?? "Idle"}
-          </span>
-          {call && call.call_nonce > 0 && (
-            <span className="rounded-[10px] border border-[#3a3346] px-[11px] py-[7px] text-[#a79cc4]">
-              Called {call.call_nonce + 1} times
+      {/* Called: on the way to the gate. The front desk marks them in. */}
+      {awaitingEntry && (
+        <section className="relative shrink-0 overflow-hidden rounded-[22px] border border-accent/40 bg-[linear-gradient(135deg,oklch(0.36_0.09_275/0.55),oklch(0.2_0.03_275/0.7))] p-[16px] shadow-[0_18px_50px_-24px_oklch(0.6_0.15_275/0.6)] md:px-[22px]">
+          <div className="pointer-events-none absolute -top-[60px] -right-[40px] h-[160px] w-[160px] rounded-full bg-accent/25 blur-[50px]" />
+          <div className="relative flex flex-wrap items-center gap-x-[18px] gap-y-[10px]">
+            <span className="flex items-center gap-[9px]">
+              <span className="relative flex h-[10px] w-[10px]">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-70" />
+                <span className="relative inline-flex h-[10px] w-[10px] rounded-full bg-accent" />
+              </span>
+              <span className="font-mono text-[12px] font-bold tracking-[0.2em] text-accent uppercase">{GATE}</span>
             </span>
-          )}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-3 gap-[10px]">
-        {stats.map((s) => (
-          <div key={s.label} className="rounded-[15px] border border-edge bg-panel-soft p-[12px]">
-            <span className="text-[9.5px] font-bold tracking-[0.12em] text-fg-dim uppercase">
-              {s.label}
-            </span>
-            <div className={`mt-[3px] font-serif text-[30px] leading-[1.05] ${s.className}`}>
-              {s.value}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function FlowPanel() {
-  const { candidates } = useConsole();
-
-  const counts = useMemo(() => {
-    const map = new Map<CandidateStatus, number>();
-    for (const c of candidates) map.set(c.status, (map.get(c.status) ?? 0) + 1);
-    return map;
-  }, [candidates]);
-
-  return (
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(98px,1fr))] gap-[8px]">
-      {STAGE_ORDER.map((status, i) => {
-        const count = counts.get(status) ?? 0;
-        const tone =
-          status === "testing"
-            ? "text-iris"
-            : status === "completed"
-              ? "text-mint"
-              : count > 0
-                ? "text-gold"
-                : "text-fg-faint";
-        return (
-          <div key={status} className="rounded-[15px] border border-edge bg-panel-soft px-[11px] py-[10px]">
-            <div className="font-mono text-[9px] text-fg-faint">{String(i + 1).padStart(2, "0")}</div>
-            <div className="mt-[3px] min-h-[26px] text-[10.5px] leading-[1.25] font-semibold">
-              {STAGE_LABELS[status]}
-            </div>
-            <div className={`mt-[3px] font-mono text-[18px] font-semibold ${tone}`}>{count}</div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function AuditPanel() {
-  const { candidates, events, names } = useConsole();
-  const now = useNow();
-
-  if (events.length === 0) {
-    return <p className="text-[12.5px] text-fg-faint">No events yet today.</p>;
-  }
-
-  return (
-    <div className="flex flex-col gap-[9px]">
-      {events.map((e) => {
-        const c = candidates.find((x) => x.id === e.candidate_id);
-        const tone =
-          e.event_type === "admin.override"
-            ? "bg-rust"
-            : e.to_status === "completed" || e.to_status === "signed_out"
-              ? "bg-mint"
-              : e.to_status === "testing"
-                ? "bg-iris"
-                : "bg-gold";
-        return (
-          <div key={e.id} className="flex items-center gap-[10px]">
-            <span className={`h-[7px] w-[7px] shrink-0 rounded-full ${tone}`} />
-            <span className="w-[74px] shrink-0 font-mono text-[11px]">{c?.public_token ?? "—"}</span>
-            <span className="min-w-0 flex-1 truncate text-[11.5px] text-fg-muted">
-              {describeEvent(e.event_type, e.to_status)}
-              {e.note ? ` · ${e.note}` : ""}
-              {e.operator_id ? ` · ${names[e.operator_id] ?? "operator"}` : ""}
-            </span>
-            <span className="shrink-0 font-mono text-[10px] text-fg-faint">
-              {now ? sinceLabel(e.occurred_at, now) : "—"}
+            <span className="font-mono text-[clamp(24px,3.4vw,34px)] leading-none font-semibold">{called.public_token}</span>
+            <span className="min-w-0 truncate font-display text-[26px] leading-none">{fullName(called)}</span>
+            <span className="flex-1" />
+            <span className="flex flex-wrap gap-[8px]">
+              <button
+                type="button"
+                onClick={() => setIssuing(called)}
+                className="cursor-pointer rounded-[12px] border border-edge-warm bg-ink/40 px-[13px] py-[10px] text-[12.5px] font-semibold"
+              >
+                Materials
+              </button>
+              <button
+                type="button"
+                disabled={!canCall}
+                onClick={() => rpc("fets_recall", { p_center: center.id })}
+                className="cursor-pointer rounded-[12px] border border-edge-warm bg-ink/40 px-[13px] py-[10px] text-[12.5px] font-semibold disabled:opacity-40"
+              >
+                Call again
+              </button>
+              <button
+                type="button"
+                disabled={!canCall}
+                onClick={() => rpc("fets_clear_call", { p_center: center.id }, "Call cleared")}
+                className="cursor-pointer rounded-[12px] border border-edge px-[13px] py-[10px] text-[12.5px] font-semibold text-fg-muted disabled:opacity-40"
+              >
+                Cancel call
+              </button>
             </span>
           </div>
-        );
-      })}
+          <p className="relative mt-[10px] text-[12px] text-fg-dim">The front office marks them in at the desk; then they can be seated here.</p>
+        </section>
+      )}
+
+      {/* In: the same place becomes their seat. */}
+      {toSeat.length > 0 && (
+        <section className="shrink-0 rounded-[22px] border border-mint/35 bg-[linear-gradient(135deg,oklch(0.36_0.08_165/0.4),oklch(0.19_0.02_165/0.7))] p-[16px] md:px-[22px]">
+          <div className="flex items-center gap-[10px]">
+            <span className="font-mono text-[12px] font-bold tracking-[0.2em] text-mint uppercase">Assign a seat</span>
+            <span className="h-px flex-1 bg-mint/20" />
+            <span className="font-mono text-[12px] text-fg-dim">
+              {toSeat.length} to seat · {freeSeats} free
+            </span>
+          </div>
+          <div className="mt-[12px] flex flex-col gap-[8px]">
+            {toSeat.map((c) => (
+              <div key={c.id} className="rounded-[16px] border border-edge-soft bg-ink/35 p-[12px]">
+                <div className="flex flex-wrap items-center gap-x-[14px] gap-y-[8px]">
+                  <span className="font-mono text-[18px] font-semibold">{c.public_token}</span>
+                  <span className="min-w-0 truncate text-[15px] font-semibold">{fullName(c)}</span>
+                  <span className="font-mono text-[11px] text-fg-faint">
+                    {[c.part, c.locker_key && `KEY ${c.locker_key === "NIL" ? "Nil" : c.locker_key}`].filter(Boolean).join(" · ")}
+                  </span>
+                  <span className="flex-1" />
+                  {seating?.id !== c.id && (
+                    <button
+                      type="button"
+                      disabled={!canLab || freeSeats === 0}
+                      onClick={() => setSeatingId(c.id)}
+                      className="cursor-pointer rounded-[13px] bg-[linear-gradient(145deg,oklch(0.83_0.16_158),oklch(0.72_0.15_165))] px-[18px] py-[11px] text-[13.5px] font-bold text-[#0c1711] disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {freeSeats === 0 ? "No seat free" : "Assign seat"}
+                    </button>
+                  )}
+                </div>
+                {seating?.id === c.id && (
+                  <div className="mt-[12px] border-t border-edge-soft pt-[12px]">
+                    <SeatGrid candidate={c} onDone={() => setSeatingId(null)} />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {issuing && (
+        <Dialog
+          open
+          title={`Materials · ${issuing.public_token}`}
+          subtitle={`${fullName(issuing)} · what goes into the hall with them`}
+          onClose={() => setIssuing(null)}
+          width={480}
+        >
+          <MaterialsPanel candidate={candidates.find((c) => c.id === issuing.id) ?? issuing} mode="issue" />
+        </Dialog>
+      )}
+
+      {overriding && (
+        <Dialog open title="Admin override" subtitle="Move somebody to another stage, with a reason" onClose={() => setOverriding(false)} width={620}>
+          <OverridePanel />
+        </Dialog>
+      )}
     </div>
   );
-}
-
-function NotAdmin() {
-  return <p className="text-[12.5px] text-gold">Only staff can move somebody between stages.</p>;
 }
 
 function OverridePanel() {
@@ -478,35 +360,4 @@ function OverridePanel() {
       </button>
     </div>
   );
-}
-
-function describeEvent(type: string, to: CandidateStatus | null) {
-  switch (type) {
-    case "candidate.id_verified":
-      return "ID cross-verified";
-    case "candidate.locker_issued":
-      return "Locker key issued";
-    case "candidate.checked_in":
-      return "Checked in at front office";
-    case "candidate_added":
-      return "Added by hand";
-    case "details_edited":
-      return "Details edited";
-    case "display.call_updated":
-      return "Called to the display";
-    case "display.recalled":
-      return "Re-called on the display";
-    case "display.call_cleared":
-      return "Display cleared";
-    case "candidate.entered":
-      return "Sent in from front office";
-    case "candidate.assigned":
-      return "Assigned to a workstation";
-    case "candidate.no_show":
-      return "Flagged no show";
-    case "admin.override":
-      return `Admin override → ${to ? STAGE_LABELS[to] : "?"}`;
-    default:
-      return to ? `Moved to ${STAGE_LABELS[to]}` : type;
-  }
 }

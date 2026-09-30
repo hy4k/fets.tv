@@ -1,5 +1,6 @@
-import { LabScreen } from "@/components/screens/LabScreen";
+import { redirect } from "next/navigation";
 
-export default function LabPage() {
-  return <LabScreen />;
+// Seating happens on the admin page now, next to the call.
+export default function Page() {
+  redirect("/admin");
 }

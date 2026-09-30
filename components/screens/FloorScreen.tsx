@@ -183,7 +183,7 @@ export function FloorScreen() {
 
           {seated.length === 0 && (
             <p className="p-[26px] text-center text-[13px] text-fg-faint">
-              Nobody is on the floor. Seating somebody in the Lab starts their clock.
+              Nobody is on the floor. Assigning a seat on the Admin page starts their clock.
             </p>
           )}
         </div>

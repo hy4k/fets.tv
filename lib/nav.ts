@@ -11,14 +11,12 @@
  * work; only how you get to them has moved.
  */
 export type StepKey =
-  | "hall"
   | "exams"
   | "roster"
   | "lockers"
   | "candidates"
   | "checkin"
   | "security"
-  | "seating"
   | "live"
   | "duty"
   | "incidents"
@@ -96,14 +94,13 @@ export const PLACES: Place[] = [
     key: "hall",
     wing: "hall",
     title: "The Exam Hall",
-    hint: "ID · seats · live",
+    hint: "Admin · live exams",
     tone: ["oklch(0.8 0.11 275)", "oklch(0.64 0.15 272)"],
     steps: [
-      // The whole room on one page; the three steps open one part full size.
-      { key: "hall", href: "/hall", label: "The hall", sub: "Everything at once" },
-      { key: "security", href: "/admin", label: "Security & ID", sub: "Admin room · materials", n: 6 },
-      { key: "seating", href: "/lab", label: "Seating", sub: "Lab", n: 7 },
-      { key: "live", href: "/floor", label: "Live exams", sub: "Live floor", n: 8 },
+      // The admin room is one page: call, frisking gate, seat. Live exams is
+      // the only other place in the hall.
+      { key: "security", href: "/admin", label: "Admin", sub: "Call · frisking · seat", n: 6 },
+      { key: "live", href: "/floor", label: "Live exams", sub: "Who is testing", n: 7 },
     ],
   },
   {

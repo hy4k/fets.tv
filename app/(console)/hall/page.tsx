@@ -1,7 +1,6 @@
-import { HallScreen } from "@/components/screens/HallScreen";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "The Exam Hall" };
-
-export default function HallPage() {
-  return <HallScreen />;
+// The hall is the admin room now; old links and bookmarks land there.
+export default function Page() {
+  redirect("/admin");
 }
