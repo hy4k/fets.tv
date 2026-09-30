@@ -6,7 +6,7 @@ export function Toasts() {
   const { toasts } = useConsole();
 
   return (
-    <div className="pointer-events-none fixed right-[18px] bottom-[18px] z-50 flex w-[min(360px,calc(100vw-36px))] flex-col gap-[8px]">
+    <div className="pointer-events-none fixed right-[18px] bottom-[76px] z-50 flex w-[min(360px,calc(100vw-36px))] flex-col gap-[8px]">
       {toasts.map((t) => (
         <div
           key={t.id}

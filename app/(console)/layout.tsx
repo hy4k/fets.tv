@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { DataGaps } from "@/components/console/DataGaps";
+import { DeskChat } from "@/components/console/DeskChat";
 import { PlaceShell } from "@/components/console/PlaceShell";
 import { PlaceTabs } from "@/components/console/PlaceTabs";
 import { SpaceBar } from "@/components/console/SpaceBar";
@@ -253,6 +254,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
           <DataGaps />
           {children}
         </main>
+        <DeskChat />
         <Toasts />
       </PlaceShell>
     </ConsoleProvider>
