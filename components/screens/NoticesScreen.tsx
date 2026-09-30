@@ -1,12 +1,20 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { DisplayBoard } from "@/components/display/DisplayBoard";
 import { useConsole } from "@/lib/console-data";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { clockAt, fullName } from "@/lib/format";
 import { useNow } from "@/lib/use-clock";
-import type { NoticeMediaKind, NoticeTemplate, NoticeTone } from "@/lib/types";
+import {
+  NOTICE_BACKGROUNDS,
+  NOTICE_COLOURS,
+  NOTICE_FONTS,
+  NOTICE_SHAPES,
+  NOTICE_SIZES,
+  type NoticeStyle,
+} from "@/lib/notice-style";
+import type { NoticeMediaKind, NoticePreset, NoticeTemplate, NoticeTone } from "@/lib/types";
 
 const HOLDS = [
   { label: "Until I remove it", minutes: null },
@@ -53,6 +61,82 @@ export function NoticesScreen() {
   const [preview, setPreview] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+
+  // The look of a custom message, and the messages kept to be used again.
+  const [style, setStyle] = useState<NoticeStyle>({});
+  const [presets, setPresets] = useState<NoticePreset[]>([]);
+  const [presetName, setPresetName] = useState("");
+  const [retry, setRetry] = useState(0);
+
+  const loadPresets = useCallback(async () => {
+    const { data, error } = await supabaseBrowser()
+      .from("notice_presets" as never)
+      .select("*")
+      .eq("center_id", center.id)
+      .order("label");
+    // A failed read keeps the list already on screen rather than emptying it,
+    // and tries once more shortly.
+    if (error) {
+      setTimeout(() => setRetry((n) => n + 1), 5000);
+      return;
+    }
+    setPresets((data ?? []) as unknown as NoticePreset[]);
+  }, [center.id]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (retry > 0) void loadPresets();
+  }, [retry, loadPresets]);
+
+  // Saved on another console shows up here too.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadPresets();
+    const channel = supabaseBrowser()
+      .channel(`notice-presets-${center.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "notice_presets", filter: `center_id=eq.${center.id}` }, () => void loadPresets())
+      // A delete carries only the id, so the centre filter never matches it.
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "notice_presets" }, () => void loadPresets())
+      .subscribe();
+    return () => {
+      void supabaseBrowser().removeChannel(channel);
+    };
+  }, [loadPresets, center.id]);
+
+  function editPreset(p: NoticePreset) {
+    setMode("custom");
+    setTemplateId("");
+    setValues({});
+    setBody(p.body);
+    setTone(p.tone);
+    setStyle(p.style ?? {});
+    setPresetName(p.label);
+    chooseFile(null);
+    if (fileInput.current) fileInput.current.value = "";
+  }
+
+  async function savePreset() {
+    const ok = await rpc(
+      "fets_save_notice_preset",
+      { p_center: center.id, p_label: presetName, p_body: draft, p_tone: tone, p_style: style },
+      `Saved as "${presetName.trim()}"`,
+    );
+    if (ok) void loadPresets();
+  }
+
+  async function removePreset(p: NoticePreset) {
+    const ok = await rpc("fets_delete_notice_preset", { p_preset: p.id }, `"${p.label}" removed`);
+    if (ok) void loadPresets();
+  }
+
+  async function putUp(p: NoticePreset) {
+    setBusy(true);
+    await rpc(
+      "fets_post_custom_notice",
+      { p_center: center.id, p_body: p.body, p_tone: p.tone, p_expires_minutes: holdMinutes, p_style: p.style ?? {} },
+      "The message is on the TV",
+    );
+    setBusy(false);
+  }
 
   const template = noticeTemplates.find((t) => t.id === templateId) ?? null;
   const called = candidates.find((c) => c.id === call?.candidate_id) ?? null;
@@ -118,6 +202,8 @@ export function NoticesScreen() {
     setValues({});
     setBody("");
     setTone("info");
+    setStyle({});
+    setPresetName("");
     chooseFile(null);
     if (fileInput.current) fileInput.current.value = "";
   }
@@ -172,6 +258,7 @@ export function NoticesScreen() {
           p_media_path: mediaPath,
           p_media_kind: mediaKind,
           p_expires_minutes: holdMinutes,
+          p_style: style,
         },
         "The message is on the TV",
       );
@@ -246,6 +333,58 @@ export function NoticesScreen() {
           </button>
         ))}
       </div>
+
+      {presets.length > 0 && (
+        <section className="flex shrink-0 flex-col gap-[12px] rounded-[20px] border border-edge-mid panel-bg p-[18px]">
+          <span className="text-[16px] font-semibold">Saved messages</span>
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-[10px]">
+            {presets.map((p) => (
+              <div key={p.id} className="flex flex-col gap-[10px] rounded-[16px] border border-edge bg-panel-soft p-[13px]">
+                <span className="flex items-baseline gap-[8px]">
+                  <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold">{p.label}</span>
+                  <button
+                    type="button"
+                    disabled={!canCall}
+                    onClick={() => void removePreset(p)}
+                    aria-label={`Remove ${p.label}`}
+                    className="cursor-pointer px-[4px] text-[15px] text-fg-faint hover:text-rust disabled:opacity-40"
+                  >
+                    ×
+                  </button>
+                </span>
+                <span
+                  className="line-clamp-2 rounded-[10px] px-[10px] py-[8px] text-[13px] leading-[1.35]"
+                  style={{
+                    background: NOTICE_BACKGROUNDS[p.style?.background ?? "tone"].css ?? "var(--color-panel)",
+                    fontFamily: p.style?.font ? NOTICE_FONTS[p.style.font].family : undefined,
+                    color: p.style?.color ?? (p.style?.background === "paper" ? "#1a1a1f" : undefined),
+                    fontWeight: p.style?.bold ? 700 : undefined,
+                  }}
+                >
+                  {p.body}
+                </span>
+                <span className="flex gap-[8px]">
+                  <button
+                    type="button"
+                    onClick={() => editPreset(p)}
+                    className="flex-1 cursor-pointer rounded-[10px] border border-edge px-[10px] py-[8px] text-[12px] font-semibold text-fg-muted hover:border-edge-warm"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!canCall || busy}
+                    onClick={() => void putUp(p)}
+                    className="flex-1 cursor-pointer rounded-[10px] gold-bg px-[10px] py-[8px] text-[12px] font-bold text-[#1a1512] disabled:opacity-40"
+                  >
+                    Put on the TV
+                  </button>
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {mode === "template" && (
         <Step n="1" title="Pick a message">
@@ -341,6 +480,8 @@ export function NoticesScreen() {
                   </div>
                 </div>
 
+                <StylePicker style={style} onChange={setStyle} />
+
                 <div className="flex flex-col gap-[8px]">
                   <span className="text-[12px] text-fg-muted">
                     A picture, clip or file{" "}
@@ -433,6 +574,7 @@ export function NoticesScreen() {
                         tone: mode === "custom" ? tone : (template?.tone ?? "info"),
                         mediaUrl: preview,
                         mediaKind: file ? kindOf(file.type) : null,
+                        style: mode === "custom" ? style : null,
                       }
                     : null
                 }
@@ -476,6 +618,30 @@ export function NoticesScreen() {
                 {busy ? "Sending…" : "Put it on the TV"}
               </button>
 
+              {mode === "custom" && canCall && (
+                <div className="flex flex-col gap-[8px] rounded-[14px] border border-edge-soft bg-panel-soft/50 p-[12px]">
+                  <span className="text-[12px] text-fg-muted">Save it to use again</span>
+                  <div className="flex gap-[8px]">
+                    <input
+                      value={presetName}
+                      onChange={(e) => setPresetName(e.target.value)}
+                      maxLength={60}
+                      placeholder="A name, like Phones off"
+                      className="min-w-0 flex-1 rounded-[11px] border border-edge-strong bg-panel-soft px-[12px] py-[10px] text-[13px] outline-none focus:border-accent/50"
+                    />
+                    <button
+                      type="button"
+                      disabled={!presetName.trim() || !draft.trim() || tooLong}
+                      onClick={() => void savePreset()}
+                      className="cursor-pointer rounded-[11px] border border-accent/50 px-[14px] text-[12.5px] font-semibold text-accent disabled:opacity-40"
+                    >
+                      Save
+                    </button>
+                  </div>
+                  <span className="text-[11px] text-fg-faint">Saves the words and the look. The same name replaces the old one.</span>
+                </div>
+              )}
+
               {!canCall && (
                 <p className="text-[12.5px] text-gold">
                   Only staff can put a message on the TV.
@@ -505,5 +671,122 @@ function Step({ n, title, children }: { n: string; title: string; children: Reac
       </div>
       {children}
     </section>
+  );
+}
+
+/** Font, size, colour, background, shape, alignment and weight, from a short list. */
+function StylePicker({ style, onChange }: { style: NoticeStyle; onChange: (s: NoticeStyle) => void }) {
+  const set = <K extends keyof NoticeStyle>(k: K, v: NoticeStyle[K] | undefined) => {
+    const next = { ...style, [k]: v };
+    if (v === undefined) delete next[k];
+    onChange(next);
+  };
+  const chip = (on: boolean) =>
+    `cursor-pointer rounded-[11px] border px-[12px] py-[8px] text-[12.5px] font-semibold transition-colors ${
+      on ? "border-gold/55 bg-gold/12 text-gold-bright" : "border-edge bg-panel-soft text-fg-muted hover:border-edge-warm"
+    }`;
+
+  return (
+    <div className="flex flex-col gap-[14px] rounded-[16px] border border-edge-soft bg-panel-soft/40 p-[14px]">
+      <span className="flex items-center gap-[10px] text-[12px] text-fg-muted">
+        How it looks
+        <span className="flex-1" />
+        {Object.keys(style).length > 0 && (
+          <button type="button" onClick={() => onChange({})} className="cursor-pointer text-[11.5px] text-fg-faint hover:text-fg">
+            Reset
+          </button>
+        )}
+      </span>
+
+      <Row label="Font">
+        {(Object.keys(NOTICE_FONTS) as (keyof typeof NOTICE_FONTS)[]).map((f) => (
+          <button
+            key={f}
+            type="button"
+            onClick={() => set("font", style.font === f ? undefined : f)}
+            style={{ fontFamily: NOTICE_FONTS[f].family }}
+            className={chip((style.font ?? "serif") === f)}
+          >
+            {NOTICE_FONTS[f].label}
+          </button>
+        ))}
+      </Row>
+
+      <Row label="Size">
+        {(Object.keys(NOTICE_SIZES) as (keyof typeof NOTICE_SIZES)[]).map((z) => (
+          <button key={z} type="button" onClick={() => set("size", z === "l" ? undefined : z)} className={chip((style.size ?? "l") === z)}>
+            {NOTICE_SIZES[z].label}
+          </button>
+        ))}
+        <button type="button" onClick={() => set("bold", style.bold ? undefined : true)} className={chip(!!style.bold)}>
+          Bold
+        </button>
+        <button type="button" onClick={() => set("align", style.align === "left" ? undefined : "left")} className={chip(style.align === "left")}>
+          Left aligned
+        </button>
+      </Row>
+
+      <Row label="Colour">
+        <button type="button" onClick={() => set("color", undefined)} className={chip(!style.color)}>
+          Auto
+        </button>
+        {NOTICE_COLOURS.map((c) => (
+          <button
+            key={c}
+            type="button"
+            aria-label={`Text colour ${c}`}
+            aria-pressed={style.color === c}
+            onClick={() => set("color", c)}
+            style={{ background: c }}
+            className={`h-[34px] w-[34px] cursor-pointer rounded-full border-2 ${style.color === c ? "border-gold" : "border-edge-strong"}`}
+          />
+        ))}
+      </Row>
+
+      <Row label="Background">
+        {(Object.keys(NOTICE_BACKGROUNDS) as (keyof typeof NOTICE_BACKGROUNDS)[]).map((b) => {
+          const on = (style.background ?? "tone") === b;
+          return (
+            <button
+              key={b}
+              type="button"
+              onClick={() => set("background", b === "tone" ? undefined : b)}
+              className={`flex w-[84px] cursor-pointer flex-col items-stretch gap-[5px] rounded-[12px] border p-[5px] text-[11px] font-semibold ${
+                on ? "border-gold/60 text-gold-bright" : "border-edge text-fg-muted hover:border-edge-warm"
+              }`}
+            >
+              <span
+                className="h-[34px] rounded-[8px] border border-white/10"
+                style={{ background: NOTICE_BACKGROUNDS[b].css ?? "linear-gradient(135deg, oklch(0.78 0.14 268 / 0.3), oklch(0.83 0.16 82 / 0.3))" }}
+              />
+              {NOTICE_BACKGROUNDS[b].label}
+            </button>
+          );
+        })}
+      </Row>
+
+      <Row label="Shape">
+        {(Object.keys(NOTICE_SHAPES) as (keyof typeof NOTICE_SHAPES)[]).map((sh) => (
+          <button
+            key={sh}
+            type="button"
+            onClick={() => set("shape", sh === "rounded" ? undefined : sh)}
+            style={{ borderRadius: NOTICE_SHAPES[sh].radius === "44px" ? "18px" : NOTICE_SHAPES[sh].radius === "6px" ? "4px" : "11px" }}
+            className={chip((style.shape ?? "rounded") === sh)}
+          >
+            {NOTICE_SHAPES[sh].label}
+          </button>
+        ))}
+      </Row>
+    </div>
+  );
+}
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-[7px] sm:flex-row sm:items-start sm:gap-[14px]">
+      <span className="w-[86px] shrink-0 pt-[8px] font-mono text-[10.5px] tracking-[0.12em] text-fg-faint uppercase">{label}</span>
+      <div className="flex flex-wrap gap-[7px]">{children}</div>
+    </div>
   );
 }

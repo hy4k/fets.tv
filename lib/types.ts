@@ -139,6 +139,20 @@ export type DisplayNotice = {
   created_at: string;
   cleared_at: string | null;
   cleared_by: string | null;
+  /** How it looks on the TV; see lib/notice-style. Empty means the board's own look. */
+  style?: import("@/lib/notice-style").NoticeStyle | null;
+};
+
+/** A message kept to be put up again, with its look. */
+export type NoticePreset = {
+  id: string;
+  center_id: string;
+  label: string;
+  body: string;
+  tone: NoticeTone;
+  style: import("@/lib/notice-style").NoticeStyle;
+  created_by: string | null;
+  created_at: string;
 };
 
 export type CandidateBreak = {
@@ -518,6 +532,7 @@ export type DisplayState = {
     media_url?: string | null;
     media_kind: NoticeMediaKind | null;
     posted_at: string;
+    style?: import("@/lib/notice-style").NoticeStyle | null;
   } | null;
   next: { public_token: string; name: string | null; scheduled_at: string | null }[];
   server_time: string;
