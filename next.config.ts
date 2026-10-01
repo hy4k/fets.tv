@@ -13,7 +13,8 @@ const nextConfig: NextConfig = {
   // The console used to live under /tv. Hall TVs and staff bookmarks still
   // point there (fets.online/tv/display/hall1), so send them to the same page
   // at the root. "/tv" on its own is now the staff TV-screen page, so only
-  // paths beneath it move.
+  // paths beneath it move — which is why no console page may live under
+  // /tv/ (the home screen is /home-screen, not /tv/home).
   async redirects() {
     if (basePath) return [];
     return [{ source: "/tv/:path+", destination: "/:path+", permanent: false }];
