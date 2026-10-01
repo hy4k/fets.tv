@@ -296,7 +296,7 @@ function FloorCard({
             <span className="truncate font-mono text-[10.5px] text-fg-faint">
               {[
                 refOf(candidate),
-                programme?.code,
+                programme?.code ?? candidate.live_exam_name ?? "Exam not set",
                 `${candidate.exam_duration_minutes ?? "?"} min`,
               ]
                 .filter(Boolean)
