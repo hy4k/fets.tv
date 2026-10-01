@@ -1,0 +1,14 @@
+[Unit]
+Description=Pull the checked fets.live roster into fets.online
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/fets-roster-sync.env
+ExecStart=/usr/bin/node /opt/fets-online-sync/pull-live-roster.mjs
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+TimeoutStartSec=240

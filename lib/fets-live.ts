@@ -268,7 +268,7 @@ export async function readFetsLiveRoster(provider: Provider, date: string, centr
   return "reason" in got ? { connected: false, reason: got.reason } : rosterFrom(got.rows, provider, date);
 }
 
-async function readTable<T>(
+export async function readTable<T>(
   table: string,
   centre: string,
   query: Record<string, string>,
@@ -293,9 +293,18 @@ async function readTable<T>(
   if (key.startsWith("eyJ")) headers.Authorization = `Bearer ${key}`;
 
   try {
-    const res = await fetch(`${url}/rest/v1/${table}?${q}`, { headers, cache: "no-store" });
-    if (!res.ok) return { reason: `fets.live refused the read (${res.status}).` };
-    return { rows: (await res.json()) as T[] };
+    const rows: T[] = [];
+    for (let offset = 0; offset <= 5000; offset += 1000) {
+      q.set("limit", "1000");
+      q.set("offset", String(offset));
+      const res = await fetch(`${url}/rest/v1/${table}?${q}`, { headers, cache: "no-store", signal: AbortSignal.timeout(20000) });
+      if (!res.ok) return { reason: `fets.live refused the read (${res.status}).` };
+      const page = await res.json() as T[];
+      rows.push(...page);
+      if (rows.length > 5000) return { reason: "More than 5000 rows; review the source before syncing." };
+      if (page.length < 1000) return { rows };
+    }
+    return { reason: "Roster pagination did not complete." };
   } catch {
     return { reason: "Could not reach fets.live." };
   }

@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily FETS roster pull at 06:00 IST
+
+[Timer]
+OnCalendar=*-*-* 00:30:00 UTC
+Persistent=true
+Unit=fets-roster-sync.service
+
+[Install]
+WantedBy=timers.target

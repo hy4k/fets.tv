@@ -12,6 +12,7 @@ services:
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
       FETS_LIVE_SUPABASE_URL: ${FETS_LIVE_SUPABASE_URL}
       FETS_LIVE_SUPABASE_KEY: ${FETS_LIVE_SUPABASE_KEY}
+      FETS_ROSTER_CRON_SECRET: ${FETS_ROSTER_CRON_SECRET}
     restart: unless-stopped
     # nginx on the host is the front door for fets.online and proxies here,
     # like the other apps on this server (3020, 3021, 3023). Bound to

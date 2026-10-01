@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
-import { CandidateDetailsDialog } from "@/components/screens/CandidateDetailsDialog";
 import { LockerKeyDialog } from "@/components/screens/LockersScreen";
 import { MaterialsPanel } from "@/components/screens/MaterialsPanel";
 import { Drawer } from "@/components/ui/Drawer";
@@ -30,7 +29,6 @@ export function FrontOfficeScreen() {
   const [query, setQuery] = useState("");
   const [checkingInId, setCheckingInId] = useState<string | null>(null);
   const [signingOutId, setSigningOutId] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
   // Opened by itself the moment a check-in lands: the key is the next thing.
   const [keyForId, setKeyForId] = useState<string | null>(null);
 
@@ -153,7 +151,7 @@ export function FrontOfficeScreen() {
         <button
           type="button"
           disabled={!canFrontOffice}
-          onClick={() => setAdding(true)}
+          onClick={() => window.open("https://fets.live/calendar", "_blank", "noopener,noreferrer")}
           className="shrink-0 cursor-pointer rounded-[14px] border border-edge-warm px-[16px] py-[12px] text-[13px] font-semibold text-fg-muted hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
         >
           + Walk-in candidate
@@ -200,7 +198,6 @@ export function FrontOfficeScreen() {
         </div>
       </Drawer>
 
-      {adding && <CandidateDetailsDialog open candidate={null} onClose={() => setAdding(false)} />}
 
       {checkingIn && (
         <CheckInDialog

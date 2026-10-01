@@ -7,6 +7,8 @@ import { createServerClient } from "@supabase/ssr";
 const PUBLIC_PATHS = ["/", "/login", "/display", "/api/display"];
 
 export async function proxy(request: NextRequest) {
+  // The cron route validates its own constant-time server secret; it has no browser session.
+  if (request.nextUrl.pathname === "/api/fets-live/roster/cron") return NextResponse.next({ request });
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(

@@ -48,7 +48,6 @@ export function CandidatesScreen() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<FilterKey>("all");
   const [editing, setEditing] = useState<Candidate | null>(null);
-  const [adding, setAdding] = useState(false);
 
   const counts = useMemo(() => {
     const out = {} as Record<FilterKey, number>;
@@ -107,7 +106,7 @@ export function CandidatesScreen() {
         <button
           type="button"
           disabled={!canFrontOffice}
-          onClick={() => setAdding(true)}
+          onClick={() => window.open("https://fets.live/calendar", "_blank", "noopener,noreferrer")}
           className="shrink-0 cursor-pointer rounded-[14px] gold-bg px-[18px] py-[12px] text-[13.5px] font-bold text-[#1a1512] disabled:cursor-not-allowed disabled:opacity-40"
         >
           + Add by hand
@@ -203,7 +202,6 @@ export function CandidatesScreen() {
         </p>
       )}
 
-      {adding && <CandidateDetailsDialog open candidate={null} onClose={() => setAdding(false)} />}
       {editing && (
         <CandidateDetailsDialog
           key={editing.id}

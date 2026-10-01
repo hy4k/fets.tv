@@ -629,6 +629,10 @@ export type Database = {
         Returns: Candidate;
       };
       fets_sync_workstations: { Args: { p_center: string }; Returns: number };
+      fets_sync_live_roster: {
+        Args: { p_center: string; p_day: string; p_rows: unknown[] };
+        Returns: Record<string, unknown>;
+      };
       fets_sync_roster: {
         Args: {
           p_center: string;

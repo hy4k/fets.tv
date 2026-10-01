@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { basePath } from "@/lib/base-path";
 import { useConsole } from "@/lib/console-data";
-import { liveProviderOf } from "@/lib/fets-live";
+
 import { todayInZone } from "@/lib/format";
 
 /** How often a day brought in from fets.live is checked for late bookings. */
@@ -19,10 +19,11 @@ export const RESYNC_MS = 5 * 60 * 1000;
  */
 export function RosterAutoSync() {
   const { center, session, profile, notify, refresh } = useConsole();
-  const provider = liveProviderOf(session?.source_filename);
+
   const today = session?.exam_date === todayInZone(center.timezone);
-  const on = !!provider && today && profile.role !== "viewer";
+  const on = today && ["admin", "tca", "front_office"].includes(profile.role);
   const busy = useRef(false);
+  const lastError = useRef("");
 
   useEffect(() => {
     if (!on) return;
@@ -33,9 +34,14 @@ export function RosterAutoSync() {
         const res = await fetch(`${basePath}/api/fets-live/roster`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ provider }),
+
         });
         const body = await res.json().catch(() => null);
+        if (!res.ok) {
+          const message = body?.error ?? "Roster update failed. Open Roster to retry.";
+          if (lastError.current !== message) notify(message, "error");
+          lastError.current = message;
+        } else { lastError.current = ""; }
         if (res.ok && body?.inserted > 0) {
           notify(`${body.inserted} new booking${body.inserted === 1 ? "" : "s"} from fets.live`);
           await refresh();
@@ -50,7 +56,7 @@ export function RosterAutoSync() {
     }
     const timer = setInterval(sync, RESYNC_MS);
     return () => clearInterval(timer);
-  }, [on, provider, notify, refresh]);
+  }, [on, notify, refresh]);
 
   return null;
 }

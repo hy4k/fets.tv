@@ -2,8 +2,8 @@ import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/types";
 
 /**
- * Service-role client. Only the public-display path uses it: the TV never talks
- * to Postgres itself, so the safe projection is built here on the server.
+ * Server-only service client for public display projections and authenticated roster sync.
+ * Never import this module into a browser component.
  */
 export function supabaseService() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
