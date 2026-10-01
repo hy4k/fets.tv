@@ -18,7 +18,7 @@ type Centre = { id: string; name: string; site_code: string; timezone: string };
  * is never left unwatched by somebody who has wandered off to the other
  * centre's screen.
  */
-export function CentreSwitcher() {
+export function CentreSwitcher({ size = "sm" }: { size?: "sm" | "lg" }) {
   const { center, profile, notify } = useConsole();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -79,14 +79,24 @@ export function CentreSwitcher() {
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="flex cursor-pointer items-center gap-[7px] rounded-[9px] border border-edge-strong bg-panel-soft/70 py-[3px] pr-[8px] pl-[7px] font-mono text-[10.5px] text-fg-muted transition-colors hover:border-accent/50 hover:text-fg disabled:cursor-default disabled:hover:border-edge-strong"
+        title={may ? "Switch centre" : undefined}
+        className={`flex cursor-pointer items-center border border-edge-strong font-mono text-fg-muted transition-colors hover:border-accent/50 hover:text-fg disabled:cursor-default disabled:hover:border-edge-strong ${
+          size === "lg"
+            ? "gap-[9px] rounded-[13px] bg-panel-soft/80 py-[8px] pr-[12px] pl-[11px] text-[11px]"
+            : "gap-[7px] rounded-[9px] bg-panel-soft/70 py-[3px] pr-[8px] pl-[7px] text-[10.5px]"
+        }`}
       >
+        {size === "lg" && (
+          <span className="hidden flex-col items-start leading-none md:flex">
+            <span className="font-mono text-[8.5px] tracking-[0.18em] text-fg-faint uppercase">Centre</span>
+          </span>
+        )}
         <span
-          className={`h-[7px] w-[7px] rounded-full ${pending || busy ? "animate-ping" : ""}`}
+          className={`rounded-full ${size === "lg" ? "h-[9px] w-[9px]" : "h-[7px] w-[7px]"} ${pending || busy ? "animate-ping" : ""}`}
           style={{ background: `linear-gradient(140deg, ${look.tone[0]}, ${look.tone[1]})` }}
         />
         <span
-          className="bg-clip-text font-semibold text-transparent"
+          className={`bg-clip-text font-semibold text-transparent ${size === "lg" ? "font-sans text-[15px] tracking-[0.06em] uppercase" : ""}`}
           style={{ backgroundImage: `linear-gradient(90deg, ${look.tone[0]}, ${look.tone[1]})` }}
         >
           {label}

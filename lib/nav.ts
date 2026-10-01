@@ -111,7 +111,7 @@ export const PLACES: Place[] = [
     // The hall TV is used all day, so it is not filed under records any more.
     key: "screen",
     wing: "more",
-    title: "Hall TV",
+    title: "The Hall TV",
     hint: "Screen · messages",
     tone: ["oklch(0.78 0.15 355)", "oklch(0.64 0.18 10)"],
     steps: [
@@ -122,7 +122,7 @@ export const PLACES: Place[] = [
   {
     key: "office",
     wing: "more",
-    title: "Office",
+    title: "The Office",
     hint: "Past days · report · setup",
     tone: ["oklch(0.82 0.11 155)", "oklch(0.66 0.12 170)"],
     steps: [
