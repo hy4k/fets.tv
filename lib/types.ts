@@ -541,7 +541,17 @@ export type DisplayState = {
   next: { public_token: string; name: string | null; scheduled_at: string | null }[];
   /** The room at rest: exams running now and the seats taken and free. */
   floor?: BoardFloor | null;
+  /** How the centre set the home screen; null until somebody does. */
+  home?: BoardHome | null;
   server_time: string;
+};
+
+export type BoardHome = {
+  layout: "room" | "welcome" | "both";
+  title: string;
+  subtitle: string;
+  show_exams: boolean;
+  show_early: boolean;
 };
 
 export type BoardFloor = {

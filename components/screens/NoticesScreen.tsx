@@ -49,7 +49,7 @@ export function NoticesScreen() {
     useConsole();
   const now = useNow();
 
-  const [mode, setMode] = useState<"template" | "custom">("template");
+  const [mode, setMode] = useState<"saved" | "template" | "custom">("saved");
   const [templateId, setTemplateId] = useState("");
   const [values, setValues] = useState<Record<string, string>>({});
   const [body, setBody] = useState("");
@@ -309,13 +309,15 @@ export function NoticesScreen() {
         )}
       </div>
 
-      <div className="flex shrink-0 gap-[8px]">
+      {/* Three ways to put words up, as three plain choices. */}
+      <div className="grid shrink-0 grid-cols-1 gap-[10px] sm:grid-cols-3">
         {(
           [
-            ["template", "Use a standard message"],
-            ["custom", "Write your own"],
+            ["saved", "Saved messages", presets.length ? `${presets.length} ready to put up` : "Yours, kept to use again"],
+            ["template", "Standard messages", "The usual notices, fill in a time"],
+            ["custom", "Write your own", "Words, colours, a picture or clip"],
           ] as const
-        ).map(([key, label]) => (
+        ).map(([key, label, hint]) => (
           <button
             key={key}
             type="button"
@@ -323,20 +325,40 @@ export function NoticesScreen() {
               setMode(key);
               reset();
             }}
-            className={`cursor-pointer rounded-[13px] border px-[16px] py-[11px] text-[13.5px] font-semibold transition-colors ${
+            className={`cursor-pointer rounded-[16px] border px-[16px] py-[13px] text-left transition-all ${
               mode === key
-                ? "border-accent/50 bg-accent/10 text-fg"
-                : "border-edge bg-panel-soft text-fg-muted hover:border-edge-warm"
+                ? "border-transparent bg-[linear-gradient(120deg,oklch(0.72_0.2_355),oklch(0.62_0.22_310)_55%,oklch(0.6_0.2_285))] text-white shadow-[0_14px_34px_-18px_oklch(0.65_0.22_330/0.9)]"
+                : "border-edge bg-panel-soft text-fg-muted hover:border-[oklch(0.72_0.18_340/0.6)] hover:text-fg"
             }`}
           >
-            {label}
+            <span className="block text-[14.5px] font-bold">{label}</span>
+            <span className={`block text-[11.5px] ${mode === key ? "text-white/80" : "text-fg-faint"}`}>{hint}</span>
           </button>
         ))}
       </div>
 
-      {presets.length > 0 && (
+      {mode === "saved" && presets.length === 0 && (
+        <section className="flex shrink-0 flex-col items-start gap-[10px] rounded-[20px] border border-dashed border-edge-strong p-[22px]">
+          <span className="text-[15px] font-semibold">No saved messages yet</span>
+          <span className="text-[13px] text-fg-muted">
+            Write one under <b>Write your own</b>, give it a name and press Save. It will wait here, one tap from the TV.
+          </span>
+          <button
+            type="button"
+            onClick={() => setMode("custom")}
+            className="cursor-pointer rounded-[12px] border border-edge-warm px-[14px] py-[9px] text-[13px] font-semibold"
+          >
+            Write your own →
+          </button>
+        </section>
+      )}
+
+      {mode === "saved" && presets.length > 0 && (
         <section className="flex shrink-0 flex-col gap-[12px] rounded-[20px] border border-edge-mid panel-bg p-[18px]">
-          <span className="text-[16px] font-semibold">Saved messages</span>
+          <span className="flex items-baseline gap-[10px]">
+            <span className="text-[16px] font-semibold">Saved messages</span>
+            <span className="text-[12px] text-fg-faint">Put one up as it is, or edit it first</span>
+          </span>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-[10px]">
             {presets.map((p) => (
               <div key={p.id} className="flex flex-col gap-[10px] rounded-[16px] border border-edge bg-panel-soft p-[13px]">

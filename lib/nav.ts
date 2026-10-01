@@ -20,6 +20,7 @@ export type StepKey =
   | "history"
   | "report"
   | "tv"
+  | "home"
   | "messages"
   | "setup";
 
@@ -112,10 +113,11 @@ export const PLACES: Place[] = [
     key: "screen",
     wing: "more",
     title: "The Hall TV",
-    hint: "Screen · messages",
+    hint: "Screen · home · messages",
     tone: ["oklch(0.78 0.15 355)", "oklch(0.64 0.18 10)"],
     steps: [
-      { key: "tv", href: "/tv", label: "TV screen", sub: "What the hall sees" },
+      { key: "tv", href: "/tv", label: "TV screen", sub: "What the hall sees now" },
+      { key: "home", href: "/tv/home", label: "Home screen", sub: "Welcome and layout" },
       { key: "messages", href: "/notices", label: "Messages", sub: "Put on the TV" },
     ],
   },
@@ -147,9 +149,12 @@ function matches(step: Step, pathname: string) {
 
 /** The place and step a path belongs to, or nulls for a path the rail does not know. */
 export function locate(pathname: string): { place: Place | null; step: Step | null } {
+  // The longest address wins, so /tv/home is the home screen, not /tv.
+  let best: { place: Place | null; step: Step | null } = { place: null, step: null };
   for (const place of PLACES) {
-    const step = place.steps.find((s) => matches(s, pathname));
-    if (step) return { place, step };
+    for (const step of place.steps) {
+      if (matches(step, pathname) && (!best.step || step.href.length > best.step.href.length)) best = { place, step };
+    }
   }
-  return { place: null, step: null };
+  return best;
 }
