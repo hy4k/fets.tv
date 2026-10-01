@@ -19,11 +19,14 @@ export function CandidateDetailsDialog({
   open,
   candidate,
   onClose,
+  onLockerKey,
 }: {
   open: boolean;
   /** Null means a new candidate. */
   candidate: Candidate | null;
   onClose: () => void;
+  /** Opens the key board for this candidate; shown once they are checked in. */
+  onLockerKey?: () => void;
 }) {
   const { center, rpc, canFrontOffice } = useConsole();
   const editing = candidate !== null;
@@ -32,6 +35,7 @@ export function CandidateDetailsDialog({
   const atDesk = usePathname() === "/front-office";
 
   const [name, setName] = useState(candidate ? fullName(candidate) : "");
+  const [number, setNumber] = useState(candidate?.roster_number ?? "");
   const [part, setPart] = useState(candidate?.part ?? "");
   const [phone, setPhone] = useState(candidate?.phone ?? "");
   const [place, setPlace] = useState(candidate?.place ?? "");
@@ -49,6 +53,20 @@ export function CandidateDetailsDialog({
     const cut = trimmed.indexOf(" ");
     const first = cut === -1 ? trimmed : trimmed.slice(0, cut);
     const last = cut === -1 ? "" : trimmed.slice(cut + 1).trim();
+
+    // The confirmation number has its own check (no two alike today), so it
+    // is saved first and the rest only if it went through.
+    if (editing && number.trim() && number.trim() !== candidate.roster_number) {
+      const fixed = await rpc(
+        "fets_set_confirmation_number",
+        { p_candidate: candidate.id, p_number: number.trim() },
+        "Confirmation number saved",
+      );
+      if (!fixed) {
+        setBusy(false);
+        return;
+      }
+    }
 
     const ok = editing
       ? await rpc(
@@ -134,6 +152,16 @@ export function CandidateDetailsDialog({
           />
         </Field>
 
+        {editing && (
+          <Field label="Confirmation no." hint="From the exam provider">
+            <input
+              value={number}
+              onChange={(e) => setNumber(e.target.value)}
+              className="w-full rounded-[12px] border border-edge-strong bg-panel-soft px-[14px] py-[13px] font-mono text-[16px] outline-none placeholder:text-fg-faint focus:border-accent/50"
+            />
+          </Field>
+        )}
+
         <Field label="Part">
           <div className="flex flex-wrap gap-[8px]">
             {PARTS.map((p) => (
@@ -150,12 +178,13 @@ export function CandidateDetailsDialog({
                 {p}
               </button>
             ))}
-            {part !== "" && !PARTS.includes(part) && (
-              <span className="rounded-[12px] border border-edge-warm bg-panel-soft px-[16px] py-[11px] text-[13px]">
-                {part}
-              </span>
-            )}
           </div>
+          <input
+            value={part}
+            onChange={(e) => setPart(e.target.value)}
+            placeholder="Or type it: Listening, MCQ, Part A…"
+            className="w-full rounded-[12px] border border-edge-strong bg-panel-soft px-[14px] py-[11px] text-[14px] outline-none placeholder:text-fg-faint focus:border-accent/50"
+          />
         </Field>
 
         <Field label="Contact number" hint="Leave blank if it is not known yet">
@@ -176,6 +205,25 @@ export function CandidateDetailsDialog({
             className="w-full rounded-[12px] border border-edge-strong bg-panel-soft px-[14px] py-[13px] text-[16px] outline-none placeholder:text-fg-faint focus:border-accent/50"
           />
         </Field>
+
+        {editing && onLockerKey && candidate.check_in_at && !["completed", "signed_out", "no_show"].includes(candidate.status) && (
+          <div className="flex items-center gap-[12px] rounded-[14px] border border-gold/35 bg-gold/8 px-[14px] py-[11px]">
+            <span className="min-w-0 flex-1">
+              <span className="block text-[11.5px] font-semibold text-fg-dim">Locker key</span>
+              <span className="block font-mono text-[15px] font-semibold text-gold-bright">
+                {candidate.locker_key ?? "None yet"}
+              </span>
+            </span>
+            <button
+              type="button"
+              disabled={!canFrontOffice}
+              onClick={onLockerKey}
+              className="cursor-pointer rounded-[12px] border border-gold/50 px-[14px] py-[9px] text-[13px] font-semibold text-gold-bright hover:border-gold disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {candidate.locker_key ? "Change key" : "Give a key"}
+            </button>
+          </div>
+        )}
 
         {!canFrontOffice && (
           <p className="text-[12.5px] text-gold">

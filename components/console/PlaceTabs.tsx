@@ -23,7 +23,7 @@ export function PlaceTabs() {
   // The Admin is one page: no tab row.
   if (!place || place.key === "hall") return null;
   const steps = place.steps.filter((s) => !s.staffOnly || profile.role !== "viewer");
-  const onward = place.key === "lobby" ? { href: "/candidates", label: "The Check-in" } : place.key === "arrivals" ? { href: "/admin", label: "The Admin" } : null;
+  const onward = place.key === "lobby" ? { href: "/front-office", label: "The Check-in" } : place.key === "arrivals" ? { href: "/admin", label: "The Admin" } : null;
 
   return (
     <nav

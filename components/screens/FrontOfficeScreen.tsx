@@ -4,14 +4,12 @@ import { useMemo, useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { LockerKeyDialog } from "@/components/screens/LockersScreen";
 import { MaterialsPanel } from "@/components/screens/MaterialsPanel";
-import { Drawer } from "@/components/ui/Drawer";
-import { useDrawers } from "@/lib/drawer-store";
+import { CandidateDetailsDialog } from "@/components/screens/CandidateDetailsDialog";
 import { useConsole } from "@/lib/console-data";
 import {
   WAITING_TO_CHECK_IN,
   clockAt,
   fullName,
-  initials,
   joinedLate,
   lateFirst,
   statusChip,
@@ -19,33 +17,70 @@ import {
 } from "@/lib/format";
 import { type Candidate, stillHeld } from "@/lib/types";
 
+const FILTERS = [
+  { key: "all", label: "Everyone" },
+  { key: "waiting", label: "To check in" },
+  { key: "inside", label: "Inside" },
+  { key: "done", label: "Finished" },
+  { key: "no_show", label: "No show" },
+  { key: "incomplete", label: "Missing details" },
+] as const;
+
+type FilterKey = (typeof FILTERS)[number]["key"];
+
+function matches(c: Candidate, filter: FilterKey) {
+  if (filter === "all") return true;
+  if (filter === "incomplete") return !c.part || !c.phone || !c.place;
+  if (filter === "waiting") return WAITING_TO_CHECK_IN.includes(c.status);
+  if (filter === "inside")
+    return ["waiting", "frisking", "biometrics", "assigned", "lab_entry", "testing"].includes(c.status);
+  if (filter === "done") return ["completed", "signed_out"].includes(c.status);
+  return c.status === "no_show";
+}
+
+/** The columns from md up: action first, so the button is the first thing seen. */
+const COLUMNS = "112px minmax(0,1.5fr) minmax(0,1.1fr) 64px 124px 76px 112px 40px";
+
 /**
- * The desk, as one flow rather than a page of controls. The roster is the page;
- * checking somebody in starts from their own row and finishes in a pop-up that
- * closes behind you. Nothing is parked at the bottom waiting to be noticed.
+ * The Check-in: everyone booked today, every detail about them, and the one
+ * button that matters at the front of each row.
+ *
+ * This used to be three pages — the list, the check-in, the locker key. Now
+ * the list is the check-in: press Check in, look at the ID, and the key board
+ * opens by itself. Any detail, including the key, stays editable all day from
+ * the row's own edit button.
  */
 export function FrontOfficeScreen() {
-  const { candidates, center, canFrontOffice, session } = useConsole();
-  const { open, toggle } = useDrawers("front-office", { recent: false });
+  const { candidates, canFrontOffice, session } = useConsole();
   const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<FilterKey>("all");
   const [checkingInId, setCheckingInId] = useState<string | null>(null);
   const [signingOutId, setSigningOutId] = useState<string | null>(null);
-  // Opened by itself the moment a check-in lands: the key is the next thing.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  // Opened by itself the moment a check-in lands, and from the key chip.
   const [keyForId, setKeyForId] = useState<string | null>(null);
+
+  const counts = useMemo(() => {
+    const out = {} as Record<FilterKey, number>;
+    for (const f of FILTERS) out[f.key] = candidates.filter((c) => matches(c, f.key)).length;
+    return out;
+  }, [candidates]);
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
     // Walk-ins and late bookings first while they wait, so none is missed.
     return lateFirst(candidates, session)
+      .filter((c) => matches(c, filter))
       .filter(
         (c) =>
           !q ||
           fullName(c).toLowerCase().includes(q) ||
           c.roster_number.toLowerCase().includes(q) ||
-          c.public_token.toLowerCase().includes(q),
-      )
-      .slice(0, 120);
-  }, [candidates, query, session]);
+          (c.phone ?? "").includes(q) ||
+          (c.locker_key ?? "").toLowerCase().includes(q),
+      );
+  }, [candidates, filter, query, session]);
 
   const lateWaiting = useMemo(
     () => lateFirst(candidates, session).filter((c) => WAITING_TO_CHECK_IN.includes(c.status) && joinedLate(c, session)),
@@ -54,14 +89,8 @@ export function FrontOfficeScreen() {
 
   const checkingIn = candidates.find((c) => c.id === checkingInId) ?? null;
   const signingOut = candidates.find((c) => c.id === signingOutId) ?? null;
+  const editing = candidates.find((c) => c.id === editingId) ?? null;
   const keyFor = candidates.find((c) => c.id === keyForId) ?? null;
-  const recent = candidates
-    .filter((c) => c.check_in_at)
-    .sort((a, b) => (a.check_in_at! < b.check_in_at! ? 1 : -1))
-    .slice(0, 8);
-
-  const toCheckIn = candidates.filter((c) => WAITING_TO_CHECK_IN.includes(c.status)).length;
-  const toSignOut = candidates.filter((c) => c.status === "completed").length;
 
   if (!session) return <EmptyRoster />;
 
@@ -90,8 +119,8 @@ export function FrontOfficeScreen() {
                 onClick={() => setCheckingInId(c.id)}
                 className="flex cursor-pointer items-center gap-[9px] rounded-[12px] border border-gold/50 bg-panel px-[12px] py-[8px] text-left hover:border-gold disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <span className="font-mono text-[11px] text-gold">{refOf(c)}</span>
                 <span className="max-w-[180px] truncate text-[13px] font-semibold">{fullName(c)}</span>
+                <span className="font-mono text-[11px] text-gold">{refOf(c)}</span>
                 <span className="rounded-[8px] gold-bg px-[8px] py-[3px] text-[11px] font-bold text-[#1a1512]">Check in</span>
               </button>
             ))}
@@ -104,11 +133,10 @@ export function FrontOfficeScreen() {
 
       <div className="flex shrink-0 flex-wrap items-center gap-[12px]">
         <span className="min-w-0">
-          <span className="block text-[15px] font-semibold">Check-in &amp; sign-out</span>
+          <span className="block text-[15px] font-semibold">{session.exam_name}</span>
           <span className="block text-[12px] text-fg-faint">
-            {toCheckIn} still to check in
-            {toSignOut > 0 && ` · ${toSignOut} waiting to sign out`}
-            {` · ${candidates.filter((c) => c.status === "signed_out").length} gone home`}
+            {candidates.length} booked · {counts.waiting} still to check in
+            {` · ${candidates.filter((c) => c.status === "completed").length} to sign out`}
           </span>
         </span>
         <span className="flex-1" />
@@ -117,21 +145,52 @@ export function FrontOfficeScreen() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Confirmation no · name"
+            placeholder="Name · confirmation no · phone · key"
             className="min-w-0 flex-1 border-0 bg-transparent text-[15px] outline-none placeholder:text-fg-faint"
           />
         </div>
         <button
           type="button"
           disabled={!canFrontOffice}
-          onClick={() => window.open("https://fets.live/calendar", "_blank", "noopener,noreferrer")}
+          onClick={() => setAdding(true)}
           className="shrink-0 cursor-pointer rounded-[14px] border border-edge-warm px-[16px] py-[12px] text-[13px] font-semibold text-fg-muted hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
         >
           + Walk-in candidate
         </button>
       </div>
 
+      <div className="flex shrink-0 flex-wrap gap-[8px]">
+        {FILTERS.map((f) => (
+          <button
+            key={f.key}
+            type="button"
+            onClick={() => setFilter(f.key)}
+            className={`cursor-pointer rounded-[12px] border px-[13px] py-[8px] text-[12.5px] font-semibold transition-colors ${
+              filter === f.key
+                ? "border-accent/50 bg-accent/10 text-fg"
+                : "border-edge bg-panel-soft text-fg-muted hover:border-edge-warm"
+            }`}
+          >
+            {f.label}
+            <span className="ml-[7px] font-mono text-[11.5px] text-fg-faint">{counts[f.key]}</span>
+          </button>
+        ))}
+      </div>
+
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[20px] border border-edge-mid panel-bg">
+        <div
+          style={{ gridTemplateColumns: COLUMNS }}
+          className="hidden shrink-0 gap-[12px] border-b border-edge-soft px-[16px] py-[12px] text-[11px] font-semibold text-fg-dim lg:grid"
+        >
+          <span />
+          <span>Name · confirmation no.</span>
+          <span>Exam · part</span>
+          <span>Time</span>
+          <span>Contact</span>
+          <span>Locker</span>
+          <span>Status</span>
+          <span />
+        </div>
         <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
           {results.map((c) => (
             <RosterRow
@@ -139,38 +198,17 @@ export function FrontOfficeScreen() {
               candidate={c}
               onCheckIn={() => setCheckingInId(c.id)}
               onSignOut={() => setSigningOutId(c.id)}
+              onEdit={() => setEditingId(c.id)}
+              onKey={() => setKeyForId(c.id)}
             />
           ))}
           {results.length === 0 && (
             <p className="p-[28px] text-center text-[13px] text-fg-faint">
-              Nobody matches “{query}”
+              {query ? `Nobody matches “${query}”` : "Nobody in this group."}
             </p>
           )}
         </div>
       </div>
-
-      <Drawer label="Recent check-ins" meta={recent.length} open={open.recent} onToggle={toggle("recent")}>
-        <div className="grid shrink-0 grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-[10px]">
-          {recent.map((c) => (
-            <div
-              key={c.id}
-              className="flex items-center gap-[10px] rounded-[14px] border border-edge bg-panel-soft p-[11px]"
-            >
-              <span className="font-mono text-[12px] font-semibold whitespace-nowrap">
-                {refOf(c)}
-              </span>
-              <span className="min-w-0 flex-1 truncate text-[12px] text-fg-muted">{fullName(c)}</span>
-              <span className="font-mono text-[10px] text-fg-faint">
-                {clockAt(c.check_in_at, center.timezone)}
-              </span>
-            </div>
-          ))}
-          {recent.length === 0 && (
-            <p className="font-mono text-[11px] text-fg-faint">Nobody has checked in yet.</p>
-          )}
-        </div>
-      </Drawer>
-
 
       {checkingIn && (
         <CheckInDialog
@@ -179,14 +217,28 @@ export function FrontOfficeScreen() {
           onClose={() => setCheckingInId(null)}
           onCheckedIn={() => {
             setCheckingInId(null);
-            setKeyForId(checkingIn.id);
+            // The key board follows at once, unless they already hold one.
+            if (!checkingIn.locker_key) setKeyForId(checkingIn.id);
           }}
         />
       )}
 
-      {keyFor && !keyFor.locker_key && (
-        <LockerKeyDialog key={keyFor.id} candidate={keyFor} onClose={() => setKeyForId(null)} />
+      {keyFor && <LockerKeyDialog key={keyFor.id} candidate={keyFor} onClose={() => setKeyForId(null)} />}
+
+      {editing && (
+        <CandidateDetailsDialog
+          key={editing.id}
+          open
+          candidate={editing}
+          onClose={() => setEditingId(null)}
+          onLockerKey={() => {
+            setEditingId(null);
+            setKeyForId(editing.id);
+          }}
+        />
       )}
+
+      {adding && <CandidateDetailsDialog open candidate={null} onClose={() => setAdding(false)} />}
 
       {signingOut && (
         <SignOutDialog
@@ -199,87 +251,137 @@ export function FrontOfficeScreen() {
   );
 }
 
-/** One person on the roster. The button says what happens next to them. */
+/** One person: the next action first, then everything known about them. */
 function RosterRow({
   candidate,
   onCheckIn,
   onSignOut,
+  onEdit,
+  onKey,
 }: {
   candidate: Candidate;
   onCheckIn: () => void;
   onSignOut: () => void;
+  onEdit: () => void;
+  onKey: () => void;
 }) {
-  const { canFrontOffice, materials, session } = useConsole();
+  const { canFrontOffice, materials, session, center, programmes } = useConsole();
   const chip = statusChip(candidate);
   const pending = WAITING_TO_CHECK_IN.includes(candidate.status);
   const late = pending && joinedLate(candidate, session);
   const leaving = candidate.status === "completed";
+  const gone = ["signed_out", "no_show"].includes(candidate.status);
+  const keyable = !!candidate.check_in_at && !gone && candidate.status !== "completed";
   const holding = materials
     .filter((m) => m.candidate_id === candidate.id)
     .reduce((n, m) => n + stillHeld(m), 0);
+  const exam =
+    programmes.find((p) => p.id === candidate.programme_id)?.name ?? candidate.live_exam_name ?? null;
 
   return (
     <div
-      className={`flex items-center gap-[12px] border-b border-edge-soft/60 px-[14px] py-[11px] md:px-[18px] md:py-[12px] ${
+      style={{ gridTemplateColumns: COLUMNS }}
+      className={`flex flex-wrap items-center gap-x-[12px] gap-y-[8px] border-b border-edge-soft/60 px-[14px] py-[11px] lg:grid lg:px-[16px] ${
         late ? "bg-gold/6 shadow-[inset_3px_0_0_var(--color-gold)]" : ""
-      }`}
+      } ${gone ? "opacity-60" : ""}`}
     >
-      <span className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-[12px] border border-edge-strong bg-[#1f1f27] font-mono text-[11px] font-semibold">
-        {initials(fullName(candidate))}
+      {/* The action, first, so the eye lands on it. */}
+      <span className="order-last w-full lg:order-none lg:w-auto">
+        {pending ? (
+          <button
+            type="button"
+            disabled={!canFrontOffice}
+            onClick={onCheckIn}
+            className="w-full cursor-pointer rounded-[12px] gold-bg px-[12px] py-[10px] text-[13px] font-bold text-[#1a1512] disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Check in
+          </button>
+        ) : leaving ? (
+          <button
+            type="button"
+            disabled={!canFrontOffice}
+            onClick={onSignOut}
+            className="w-full cursor-pointer rounded-[12px] bg-[linear-gradient(145deg,oklch(0.83_0.16_158),oklch(0.72_0.15_165))] px-[12px] py-[10px] text-[13px] font-bold text-[#0c1711] disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Sign out
+          </button>
+        ) : (
+          <span className="hidden text-center font-mono text-[11px] text-fg-faint lg:block">
+            {candidate.check_in_at ? `in ${clockAt(candidate.check_in_at, center.timezone)}` : "—"}
+          </span>
+        )}
       </span>
 
-      <span className="block min-w-0 flex-1">
+      <span className="block min-w-0 flex-1 lg:flex-none">
         <span className="flex min-w-0 items-center gap-[8px]">
-          <span className="truncate text-[14px] font-semibold">{fullName(candidate)}</span>
+          <span className="truncate text-[14.5px] font-semibold">{fullName(candidate)}</span>
           {late && (
             <span className="shrink-0 rounded-[7px] border border-gold/50 px-[6px] py-[1px] text-[9.5px] font-bold tracking-[0.08em] text-gold uppercase">
               Added late
             </span>
           )}
         </span>
-        <span className="block truncate font-mono text-[10.5px] text-fg-faint">
-          {[refOf(candidate), candidate.part].filter(Boolean).join(" · ")}
-        </span>
+        <span className="block truncate font-mono text-[11px] text-fg-faint">{refOf(candidate)}</span>
       </span>
 
-      <span
-        className={`shrink-0 rounded-[9px] px-[10px] py-[6px] text-[10.5px] font-bold tracking-[0.06em] uppercase ${chip.className}`}
+      <span className="hidden min-w-0 lg:block">
+        <span className="block truncate text-[12.5px] text-fg-muted">{exam ?? <Blank />}</span>
+        <span className="block truncate text-[11px] text-fg-faint">{candidate.part ?? ""}</span>
+      </span>
+
+      <span className="hidden font-mono text-[12px] text-fg-muted lg:block">
+        {candidate.scheduled_at ? clockAt(candidate.scheduled_at, center.timezone) : <Blank />}
+      </span>
+
+      <span className="hidden truncate font-mono text-[12px] text-fg-muted lg:block">{candidate.phone ?? <Blank />}</span>
+
+      <span className="shrink-0">
+        {keyable ? (
+          <button
+            type="button"
+            disabled={!canFrontOffice}
+            onClick={onKey}
+            title="Change the locker key"
+            className={`cursor-pointer rounded-[9px] border px-[9px] py-[5px] font-mono text-[11.5px] font-semibold disabled:cursor-not-allowed ${
+              candidate.locker_key
+                ? "border-gold/40 bg-gold/10 text-gold-bright hover:border-gold"
+                : "border-dashed border-rust/50 text-rust hover:border-rust"
+            }`}
+          >
+            {candidate.locker_key ?? "Key?"}
+          </button>
+        ) : (
+          <span className="font-mono text-[11.5px] text-fg-faint">{candidate.locker_key ?? ""}</span>
+        )}
+      </span>
+
+      <span className="flex shrink-0 items-center gap-[6px]">
+        <span className={`rounded-[9px] px-[9px] py-[5px] text-[10.5px] font-bold tracking-[0.05em] uppercase ${chip.className}`}>
+          {chip.label}
+        </span>
+        {holding > 0 && !pending && (
+          <span title="Still holding something" className="font-mono text-[10.5px] font-semibold text-gold-bright">
+            {holding} out
+          </span>
+        )}
+      </span>
+
+      <button
+        type="button"
+        disabled={!canFrontOffice}
+        onClick={onEdit}
+        title="Edit details"
+        aria-label={`Edit ${fullName(candidate)}`}
+        className="flex h-[34px] w-[34px] shrink-0 cursor-pointer items-center justify-center rounded-[10px] border border-edge text-[14px] text-fg-dim hover:border-edge-warm hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
       >
-        {chip.label}
-      </span>
-
-      {holding > 0 && !pending && (
-        <span
-          title="Still holding something"
-          className="hidden shrink-0 rounded-[9px] border border-gold/40 bg-gold/10 px-[9px] py-[5px] font-mono text-[10.5px] font-semibold text-gold-bright sm:block"
-        >
-          {holding} out
-        </span>
-      )}
-
-      {pending && (
-        <button
-          type="button"
-          disabled={!canFrontOffice}
-          onClick={onCheckIn}
-          className="shrink-0 cursor-pointer rounded-[12px] gold-bg px-[16px] py-[10px] text-[13px] font-bold text-[#1a1512] disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          Check in
-        </button>
-      )}
-
-      {leaving && (
-        <button
-          type="button"
-          disabled={!canFrontOffice}
-          onClick={onSignOut}
-          className="shrink-0 cursor-pointer rounded-[12px] bg-[linear-gradient(145deg,oklch(0.83_0.16_158),oklch(0.72_0.15_165))] px-[16px] py-[10px] text-[13px] font-bold text-[#0c1711] disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          Sign out
-        </button>
-      )}
+        ✎
+      </button>
     </div>
   );
+}
+
+function Blank() {
+  return <span className="text-[11.5px] text-fg-faint italic">—</span>;
 }
 
 /**

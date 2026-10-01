@@ -13,8 +13,6 @@
 export type StepKey =
   | "exams"
   | "roster"
-  | "lockers"
-  | "candidates"
   | "checkin"
   | "security"
   | "live"
@@ -81,13 +79,10 @@ export const PLACES: Place[] = [
     key: "arrivals",
     wing: "front",
     title: "The Check-in",
-    hint: "List · check-in · keys",
+    hint: "Everyone · check-in · key",
     tone: ["oklch(0.82 0.12 190)", "oklch(0.68 0.13 215)"],
-    steps: [
-      { key: "candidates", href: "/candidates", label: "Candidates", sub: "Everyone booked today", n: 3 },
-      { key: "checkin", href: "/front-office", label: "Check-in", sub: "ID and name", n: 4 },
-      { key: "lockers", href: "/lockers", label: "Locker key", sub: "Issue a key or Nil", n: 5 },
-    ],
+    // One page: the list is the check-in, and the key board opens after it.
+    steps: [{ key: "checkin", href: "/front-office", label: "Check-in", sub: "Everyone booked today", n: 3 }],
   },
   {
     // The admin room, up to the moment a candidate has a seat: call, the
@@ -97,7 +92,7 @@ export const PLACES: Place[] = [
     title: "The Admin",
     hint: "Call · frisking · seat",
     tone: ["oklch(0.8 0.11 275)", "oklch(0.64 0.15 272)"],
-    steps: [{ key: "security", href: "/admin", label: "Admin", sub: "Call · frisking · seat", n: 6 }],
+    steps: [{ key: "security", href: "/admin", label: "Admin", sub: "Call · security · seat", n: 4 }],
   },
   {
     // The testing room: who is sitting, how long they have left, and what went
@@ -108,7 +103,7 @@ export const PLACES: Place[] = [
     hint: "Live exams · incidents",
     tone: ["oklch(0.86 0.06 85)", "oklch(0.72 0.08 70)"],
     steps: [
-      { key: "live", href: "/floor", label: "Live exams", sub: "Who is testing", n: 7 },
+      { key: "live", href: "/floor", label: "Live exams", sub: "Who is testing", n: 5 },
       { key: "incidents", href: "/incidents", label: "Incidents", sub: "What went wrong" },
     ],
   },

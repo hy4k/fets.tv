@@ -22,9 +22,8 @@ export function useStepBadges(): Partial<Record<StepKey, number>> {
     : 0;
 
   return {
-    candidates: candidates.length,
-    lockers: keyless,
-    checkin: call?.candidate_id ? 1 : 0,
+    // Somebody called and not yet sent in, or checked in without a key.
+    checkin: (call?.candidate_id ? 1 : 0) + keyless,
     security: waiting,
     live: testing + openBreaks.length,
     incidents: openIncidents,
@@ -33,4 +32,4 @@ export function useStepBadges(): Partial<Record<StepKey, number>> {
 }
 
 /** Only these count toward the number on a place: things somebody must act on. */
-export const URGENT: StepKey[] = ["checkin", "lockers", "security", "incidents"];
+export const URGENT: StepKey[] = ["checkin", "security", "incidents"];
