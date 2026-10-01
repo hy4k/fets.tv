@@ -85,13 +85,14 @@ export function AdminRoomScreen() {
     materials.filter((m) => m.candidate_id === c.id).reduce((sum, m) => sum + stillHeld(m), 0);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-[12px] overflow-y-auto">
+    // Four stages, four colours, in the order a candidate moves through them:
+    // gold to call, sky while waiting, violet at the gate, mint to seat. On a
+    // wide screen the first two stand on the left and the last two on the
+    // right, so the room reads at a glance.
+    <div className="grid min-h-0 flex-1 auto-rows-min grid-cols-1 gap-[14px] overflow-y-auto lg:grid-cols-2 lg:items-start">
+      <div className="flex min-w-0 flex-col gap-[14px]">
       {/* The call, always here. */}
-      <section className="shrink-0 rounded-[22px] border border-edge-mid panel-bg p-[16px]">
-        <div className="mb-[12px] flex items-center gap-[10px]">
-          <span className="text-[11px] font-bold tracking-[0.16em] text-fg-dim uppercase">Admin · the call</span>
-          <span className="h-px flex-1 bg-edge-soft" />
-          {isAdmin && (
+      <Stage n={1} hue={80} title="The call" right={isAdmin && (
             <button
               type="button"
               onClick={() => setOverriding(true)}
@@ -99,8 +100,7 @@ export function AdminRoomScreen() {
             >
               Override
             </button>
-          )}
-        </div>
+          )}>
         <button
           type="button"
           disabled={!canCall || !next || awaitingEntry}
@@ -126,31 +126,24 @@ export function AdminRoomScreen() {
             ? `${pending.length} waiting${keyless ? ` · ${keyless} without a locker key` : ""}`
             : "Everyone checked in has been called."}
         </p>
-      </section>
+      </Stage>
 
       {/* The queue, numbered the way the hall counts it. */}
-      <section className="flex min-h-[180px] flex-1 flex-col overflow-hidden rounded-[22px] border border-edge-mid panel-bg">
-        <div className="flex shrink-0 items-center gap-[10px] border-b border-edge-soft px-[16px] py-[12px]">
-          <span className="text-[11px] font-bold tracking-[0.13em] text-fg-dim uppercase">Waiting to be called</span>
-          <span className="h-px min-w-[12px] flex-1 bg-edge-soft" />
-          <span className="font-mono text-[13px] font-semibold text-gold">{pending.length}</span>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
+      <Stage n={2} hue={225} title="Waiting to be called" right={<Count n={pending.length} hue={225} />} flush>
+        <div className="max-h-[56vh] overflow-x-hidden overflow-y-auto">
           {pending.map((c, i) => (
             <div key={c.id} className="flex items-center gap-[11px] border-b border-edge-soft/60 px-[14px] py-[11px] md:px-[16px]">
               <span
                 className={`flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[10px] font-mono text-[12px] font-bold ${
-                  i === 0 ? "bg-gold text-[#1a1512]" : "bg-panel-soft text-fg-dim"
+                  i === 0 ? "bg-[oklch(0.8_0.11_225)] text-[#0d1420]" : "bg-panel-soft text-fg-dim"
                 }`}
               >
                 {i + 1}
               </span>
-              <span className="w-[74px] shrink-0 font-mono text-[12.5px] font-semibold">{refOf(c)}</span>
               <span className="block min-w-0 flex-1">
-                <span className="block truncate text-[13.5px] font-semibold">{fullName(c)}</span>
-                <span className="block truncate font-mono text-[10px] text-fg-faint">
-                  {c.roster_number} ·{" "}
+                <span className="block truncate text-[14px] font-semibold">{fullName(c)}</span>
+                <span className="block truncate font-mono text-[10.5px] text-fg-faint">
+                  {refOf(c)} ·{" "}
                   {c.locker_key ? (
                     `KEY ${c.locker_key === "NIL" ? "Nil" : c.locker_key}`
                   ) : (
@@ -190,24 +183,24 @@ export function AdminRoomScreen() {
             </p>
           )}
         </div>
-      </section>
+      </Stage>
+      </div>
+
+      <div className="flex min-w-0 flex-col gap-[14px]">
 
       {/* Called: on the way to the gate. The front desk marks each one in. */}
-      {onTheWay.length > 0 && (
-        <section className="relative shrink-0 overflow-hidden rounded-[22px] border border-accent/40 bg-[linear-gradient(135deg,oklch(0.36_0.09_275/0.55),oklch(0.2_0.03_275/0.7))] p-[16px] shadow-[0_18px_50px_-24px_oklch(0.6_0.15_275/0.6)] md:px-[22px]">
-          <div className="pointer-events-none absolute -top-[60px] -right-[40px] h-[160px] w-[160px] rounded-full bg-accent/25 blur-[50px]" />
-          <div className="relative flex items-center gap-[9px]">
-            <span className="relative flex h-[10px] w-[10px]">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-70" />
-              <span className="relative inline-flex h-[10px] w-[10px] rounded-full bg-accent" />
-            </span>
-            <span className="font-mono text-[12px] font-bold tracking-[0.2em] text-accent uppercase">{GATE}</span>
-            <span className="h-px flex-1 bg-accent/20" />
-            <span className="font-mono text-[12px] text-fg-dim">
-              {onTheWay.length} of {MAX_ON_THE_WAY} on their way
-            </span>
-          </div>
-          <div className="relative mt-[12px] flex flex-col gap-[8px]">
+      <Stage
+        n={3}
+        hue={290}
+        title={GATE}
+        live={onTheWay.length > 0}
+        right={<span className="font-mono text-[12px] text-fg-dim">{onTheWay.length} of {MAX_ON_THE_WAY} on their way</span>}
+      >
+        {onTheWay.length === 0 ? (
+          <p className="py-[10px] text-center text-[12.5px] text-fg-faint">Nobody called yet. Call from the list on the left.</p>
+        ) : (
+        <>
+          <div className="flex flex-col gap-[8px]">
             {onTheWay.map((c, i) => (
               <div key={c.id} className="flex flex-wrap items-center gap-x-[16px] gap-y-[8px] rounded-[16px] border border-edge-soft bg-ink/35 px-[14px] py-[10px]">
                 <span className={`min-w-0 truncate font-display leading-none ${i === 0 ? "text-[26px]" : "text-[20px] text-fg-muted"}`}>
@@ -243,28 +236,28 @@ export function AdminRoomScreen() {
               </div>
             ))}
           </div>
-          <p className="relative mt-[10px] text-[12px] text-fg-dim">The front office marks each one in; then they can be seated here.</p>
-        </section>
-      )}
+          <p className="mt-[10px] text-[12px] text-fg-dim">The front office sends each one in; then they can be seated below.</p>
+        </>
+        )}
+      </Stage>
 
       {/* In: the same place becomes their seat. */}
-      {toSeat.length > 0 && (
-        <section className="shrink-0 rounded-[22px] border border-mint/35 bg-[linear-gradient(135deg,oklch(0.36_0.08_165/0.4),oklch(0.19_0.02_165/0.7))] p-[16px] md:px-[22px]">
-          <div className="flex items-center gap-[10px]">
-            <span className="font-mono text-[12px] font-bold tracking-[0.2em] text-mint uppercase">Assign a seat</span>
-            <span className="h-px flex-1 bg-mint/20" />
-            <span className="font-mono text-[12px] text-fg-dim">
-              {toSeat.length} to seat · {freeSeats} free
-            </span>
-          </div>
-          <div className="mt-[12px] flex flex-col gap-[8px]">
+      <Stage
+        n={4}
+        hue={160}
+        title="Assign a seat"
+        right={<span className="font-mono text-[12px] text-fg-dim">{toSeat.length} to seat · {freeSeats} free</span>}
+      >
+        {toSeat.length === 0 ? (
+          <p className="py-[10px] text-center text-[12.5px] text-fg-faint">Nobody to seat. They appear here once sent in.</p>
+        ) : (
+          <div className="flex flex-col gap-[8px]">
             {toSeat.map((c) => (
               <div key={c.id} className="rounded-[16px] border border-edge-soft bg-ink/35 p-[12px]">
                 <div className="flex flex-wrap items-center gap-x-[14px] gap-y-[8px]">
-                  <span className="font-mono text-[18px] font-semibold">{refOf(c)}</span>
-                  <span className="min-w-0 truncate text-[15px] font-semibold">{fullName(c)}</span>
+                  <span className="min-w-0 truncate text-[16px] font-semibold">{fullName(c)}</span>
                   <span className="font-mono text-[11px] text-fg-faint">
-                    {[c.part, c.locker_key && `KEY ${c.locker_key === "NIL" ? "Nil" : c.locker_key}`].filter(Boolean).join(" · ")}
+                    {[refOf(c), c.part, c.locker_key && `KEY ${c.locker_key === "NIL" ? "Nil" : c.locker_key}`].filter(Boolean).join(" · ")}
                   </span>
                   <span className="flex-1" />
                   {seating?.id !== c.id && (
@@ -286,8 +279,9 @@ export function AdminRoomScreen() {
               </div>
             ))}
           </div>
-        </section>
-      )}
+        )}
+      </Stage>
+      </div>
 
       {issuing && (
         <Dialog
@@ -379,3 +373,68 @@ function OverridePanel() {
     </div>
   );
 }
+
+/**
+ * One stage of the admin room: a numbered, coloured card. The hue runs through
+ * the border, the wash behind it and the number, so the four never blur into
+ * one grey list.
+ */
+function Stage({
+  n,
+  hue,
+  title,
+  right,
+  live = false,
+  flush = false,
+  children,
+}: {
+  n: number;
+  hue: number;
+  title: string;
+  right?: React.ReactNode;
+  /** Something is happening here now: the number pulses. */
+  live?: boolean;
+  /** The body runs edge to edge, for a list. */
+  flush?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <section
+      style={{
+        borderColor: `oklch(0.72 0.12 ${hue} / 0.45)`,
+        background: `linear-gradient(160deg, oklch(0.32 0.07 ${hue} / 0.5), oklch(0.17 0.02 ${hue} / 0.8) 55%)`,
+        boxShadow: `0 20px 50px -30px oklch(0.6 0.14 ${hue} / 0.7), inset 0 1px 0 oklch(0.9 0.05 ${hue} / 0.12)`,
+      }}
+      className="relative flex min-w-0 flex-col overflow-hidden rounded-[22px] border"
+    >
+      <div
+        style={{ borderColor: `oklch(0.72 0.12 ${hue} / 0.25)` }}
+        className="flex shrink-0 items-center gap-[10px] border-b px-[16px] py-[12px] md:px-[18px]"
+      >
+        <span
+          style={{ background: `oklch(0.8 0.12 ${hue})` }}
+          className={`relative flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-[9px] font-mono text-[12.5px] font-bold text-[#101015] ${
+            live ? "motion-safe:animate-pulse" : ""
+          }`}
+        >
+          {n}
+        </span>
+        <span style={{ color: `oklch(0.86 0.1 ${hue})` }} className="text-[12px] font-bold tracking-[0.16em] uppercase">
+          {title}
+        </span>
+        <span className="flex-1" />
+        {right}
+      </div>
+      <div className={flush ? "" : "p-[14px] md:px-[18px]"}>{children}</div>
+    </section>
+  );
+}
+
+function Count({ n, hue }: { n: number; hue: number }) {
+  return (
+    <span style={{ color: `oklch(0.86 0.1 ${hue})` }} className="font-mono text-[15px] font-semibold">
+      {n}
+    </span>
+  );
+}
+
