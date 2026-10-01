@@ -84,6 +84,8 @@ export type Candidate = {
   exam_duration_minutes: number | null;
   exam_expected_end: string | null;
   exam_finished_at: string | null;
+  /** The exam as fets.live names it, when the day came from there. */
+  live_exam_name?: string | null;
   created_at: string;
 };
 
