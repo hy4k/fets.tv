@@ -117,7 +117,7 @@ export const PLACES: Place[] = [
     tone: ["oklch(0.78 0.15 355)", "oklch(0.64 0.18 10)"],
     steps: [
       { key: "tv", href: "/tv", label: "TV screen", sub: "What the hall sees now" },
-      { key: "home", href: "/tv/home", label: "Home screen", sub: "Welcome and layout" },
+      { key: "home", href: "/home-screen", label: "Home screen", sub: "Welcome and layout" },
       { key: "messages", href: "/notices", label: "Messages", sub: "Put on the TV" },
     ],
   },
@@ -149,7 +149,7 @@ function matches(step: Step, pathname: string) {
 
 /** The place and step a path belongs to, or nulls for a path the rail does not know. */
 export function locate(pathname: string): { place: Place | null; step: Step | null } {
-  // The longest address wins, so /tv/home is the home screen, not /tv.
+  // The longest address wins, so a page nested under another resolves to itself.
   let best: { place: Place | null; step: Step | null } = { place: null, step: null };
   for (const place of PLACES) {
     for (const step of place.steps) {
