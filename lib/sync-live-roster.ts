@@ -3,8 +3,17 @@ import { reconcileRoster } from './roster-reconcile';
 import { supabaseService } from './supabase/service';
 import { todayInZone } from './format';
 
-export async function syncLiveRoster(center: { id: string; name: string }) {
-  const date = todayInZone('Asia/Kolkata');
+/**
+ * Pull one day from fets.live into this centre's list. Today becomes (or tops
+ * up) the live list; a later day is prepared as a draft and today is left
+ * alone. Only staff start this — nothing pulls on its own unless the host's
+ * morning timer is switched on with FETS_ROSTER_AUTO=on.
+ */
+export async function syncLiveRoster(center: { id: string; name: string }, day?: string) {
+  const today = todayInZone('Asia/Kolkata');
+  const date = day ?? today;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(`${date}T00:00:00Z`))) throw Error('Pick a valid date');
+  if (date < today) throw Error('A past day cannot be pulled');
   const next = new Date(Date.parse(`${date}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
   const [candidates, calendar] = await Promise.all([
     readTable<LiveCandidate>('candidates', center.name, {
