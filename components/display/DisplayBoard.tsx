@@ -3,7 +3,7 @@
 import { useClock } from "@/lib/use-clock";
 import { LogoMark } from "@/components/brand/Logo";
 import { centreLook, shortName } from "@/lib/centres";
-import type { BoardFloor } from "@/lib/types";
+import type { BoardFloor, BoardHome } from "@/lib/types";
 import { cleanStyle, NOTICE_BACKGROUNDS, NOTICE_FONTS, NOTICE_SHAPES, NOTICE_SIZES, type NoticeStyle } from "@/lib/notice-style";
 
 export type BoardCall = {
@@ -77,6 +77,7 @@ export function DisplayBoard({
   next,
   earlier = [],
   floor = null,
+  home = null,
   notice = null,
   nonce = 0,
   siteLabel,
@@ -91,6 +92,8 @@ export function DisplayBoard({
   earlier?: { token: string; name: string | null }[];
   /** What is happening in the room, for the idle screen. */
   floor?: BoardFloor | null;
+  /** The centre's home screen: welcome line and what to show under it. */
+  home?: BoardHome | null;
   notice?: BoardNotice;
   nonce?: number;
   siteLabel?: string;
@@ -227,8 +230,8 @@ export function DisplayBoard({
                 </span>
               )}
             </>
-          ) : floor && floor.seats_total > 0 ? (
-            <IdleFloor floor={floor} tone={look.tone} />
+          ) : (home && home.layout !== "room") || (floor && floor.seats_total > 0) ? (
+            <IdleHome home={home} floor={floor} centre={centre} tone={look.tone} />
           ) : (
             <>
               <span className="shrink-0 font-serif text-[clamp(14px,min(5.2cqw,7.5cqh),84px)] leading-[1.05] text-fg">
@@ -332,22 +335,104 @@ export function DisplayBoard({
  * exams running now. When a seat is free, somebody here early for a later slot
  * is told plainly they may ask to go in sooner.
  */
-function IdleFloor({ floor, tone }: { floor: BoardFloor; tone: [string, string] }) {
+/**
+ * The home screen, as the centre set it: a welcome alone, the room alone, or
+ * the welcome over the room. Unset, it is the room.
+ */
+function IdleHome({
+  home,
+  floor,
+  centre,
+  tone,
+}: {
+  home: BoardHome | null;
+  floor: BoardFloor | null;
+  centre?: string | null;
+  tone: [string, string];
+}) {
+  const layout = home?.layout ?? "room";
+  const title = home?.title?.trim() || `Welcome to FETS${centre ? ` ${shortName(centre)}` : ""}`;
+  const subtitle = home?.subtitle?.trim() ?? "";
+  const room = layout !== "welcome" && floor && floor.seats_total > 0;
+  const welcome = layout !== "room" || !room;
+
+  return (
+    <div className="flex w-full min-w-0 flex-1 flex-col items-center justify-center gap-[3cqh]">
+      {welcome && (
+        <div className="flex max-w-[88cqw] flex-col items-center gap-[1.4cqh] text-center">
+          <span
+            className={`bg-clip-text font-serif leading-[1.02] text-transparent ${
+              room ? "text-[clamp(16px,min(5.4cqw,8cqh),92px)]" : "text-[clamp(22px,min(8.5cqw,13cqh),150px)]"
+            }`}
+            style={{ backgroundImage: `linear-gradient(100deg, #f6efe4, ${tone[0]} 55%, ${tone[1]})` }}
+          >
+            {title}
+          </span>
+          {subtitle && (
+            <span
+              className={`max-w-[60ch] whitespace-pre-line text-fg-muted ${
+                room ? "text-[clamp(9px,min(2cqw,3.4cqh),32px)]" : "text-[clamp(11px,min(3cqw,5cqh),48px)]"
+              } leading-[1.3]`}
+            >
+              {subtitle}
+            </span>
+          )}
+        </div>
+      )}
+      {room && (
+        <IdleFloor
+          floor={floor!}
+          tone={tone}
+          compact={welcome}
+          showExams={home?.show_exams ?? true}
+          showEarly={home?.show_early ?? true}
+        />
+      )}
+    </div>
+  );
+}
+
+function IdleFloor({
+  floor,
+  tone,
+  compact = false,
+  showExams = true,
+  showEarly = true,
+}: {
+  floor: BoardFloor;
+  tone: [string, string];
+  /** Under a welcome line: a little smaller. */
+  compact?: boolean;
+  showExams?: boolean;
+  showEarly?: boolean;
+}) {
   const { seats_total: total, seats_in_use: used, seats_free: free, exams } = floor;
   const share = total > 0 ? used / total : 0;
   // A ring drawn as a conic gradient: taken in the centre's metal, free dark.
   const ring = `conic-gradient(${tone[0]} 0 ${share * 360}deg, rgba(255,255,255,0.07) ${share * 360}deg 360deg)`;
 
   return (
-    <div className="flex w-full min-w-0 flex-1 flex-col items-center justify-center gap-[3cqh]">
+    <div className="flex w-full min-w-0 flex-col items-center justify-center gap-[3cqh]">
       <div className="flex w-full flex-wrap items-center justify-center gap-x-[5cqw] gap-y-[3cqh]">
         <div
           style={{ background: ring }}
-          className="relative flex aspect-square w-[clamp(90px,min(26cqw,44cqh),420px)] shrink-0 items-center justify-center rounded-full"
+          className={`relative flex aspect-square shrink-0 items-center justify-center rounded-full ${
+            compact ? "w-[clamp(70px,min(18cqw,30cqh),300px)]" : "w-[clamp(90px,min(26cqw,44cqh),420px)]"
+          }`}
         >
           <div className="absolute inset-[9%] flex flex-col items-center justify-center rounded-full bg-[linear-gradient(165deg,#1b1714,#121010)] shadow-[inset_0_2px_10px_rgba(0,0,0,0.6)]">
-            <span className="font-serif text-[clamp(28px,min(10cqw,17cqh),170px)] leading-[0.9] text-fg tabular-nums">{free}</span>
-            <span className="mt-[0.8cqh] font-mono text-[clamp(7px,1.3cqw,20px)] tracking-[0.18em] text-fg-muted uppercase">
+            <span
+              className={`font-serif leading-[0.9] text-fg tabular-nums ${
+                compact ? "text-[clamp(22px,min(7cqw,12cqh),120px)]" : "text-[clamp(28px,min(10cqw,17cqh),170px)]"
+              }`}
+            >
+              {free}
+            </span>
+            <span
+              className={`mt-[0.8cqh] font-mono text-fg-muted uppercase ${
+                compact ? "text-[clamp(5px,0.85cqw,13px)] tracking-[0.12em]" : "text-[clamp(7px,1.3cqw,20px)] tracking-[0.18em]"
+              }`}
+            >
               seats free
             </span>
           </div>
@@ -360,7 +445,7 @@ function IdleFloor({ floor, tone }: { floor: BoardFloor; tone: [string, string] 
               of {total} seats in use
             </span>
           </div>
-          {exams.length > 0 ? (
+          {!showExams ? null : exams.length > 0 ? (
             <div className="flex flex-col gap-[1cqh]">
               <span className="font-mono text-[clamp(7px,1.2cqw,18px)] tracking-[0.2em] text-fg-faint uppercase">Exams in progress</span>
               <div className="flex max-w-[48cqw] flex-wrap gap-[0.8cqw]">
@@ -383,6 +468,7 @@ function IdleFloor({ floor, tone }: { floor: BoardFloor; tone: [string, string] 
         </div>
       </div>
 
+      {showEarly && (
       <span
         style={free > 0 ? { borderColor: tone[0], background: `color-mix(in oklab, ${tone[0]} 12%, transparent)` } : undefined}
         className={`max-w-[70cqw] rounded-[18px] border px-[clamp(10px,2cqw,32px)] py-[clamp(6px,1.4cqh,20px)] text-center text-[clamp(9px,min(2cqw,3.4cqh),32px)] leading-[1.3] ${
@@ -393,6 +479,7 @@ function IdleFloor({ floor, tone }: { floor: BoardFloor; tone: [string, string] 
           ? "Here early for a later exam? Seats are free now — ask at the front desk about going in early."
           : "Every seat is in use. Please take a seat — you will be called by name."}
       </span>
+      )}
     </div>
   );
 }

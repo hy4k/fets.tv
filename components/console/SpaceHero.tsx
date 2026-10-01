@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { basePath } from "@/lib/base-path";
@@ -137,7 +138,7 @@ function Fig({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Band({ place }: { place: Place; pathname: string }) {
+function Band({ place, pathname }: { place: Place; pathname: string }) {
   const { center, candidates, rules } = useConsole();
   const clock = useClock(center.timezone);
 
@@ -183,6 +184,39 @@ function Band({ place }: { place: Place; pathname: string }) {
         <span className="font-mono text-[38px] leading-none font-medium tabular-nums md:text-[48px]">{clock}</span>
       )}
       {place.key === "lab" && <DutyTimer />}
+      {place.key === "screen" && <ScreenSwitch place={place} pathname={pathname} />}
     </section>
   );
 }
+
+/**
+ * The Hall TV's three pages as bright pills in the banner itself: what the
+ * hall sees now, the home screen, and messages. Rose to violet, so it reads
+ * as the TV's own control rather than one more grey tab row.
+ */
+function ScreenSwitch({ place, pathname }: { place: Place; pathname: string }) {
+  const here = locate(pathname).step?.key;
+  return (
+    <nav aria-label="Hall TV pages" className="flex w-full basis-full flex-wrap gap-[8px]">
+      {place.steps.map((s) => {
+        const on = s.key === here;
+        return (
+          <Link
+            key={s.key}
+            href={s.href}
+            aria-current={on ? "page" : undefined}
+            className={`flex min-w-[150px] flex-1 flex-col rounded-[16px] border px-[16px] py-[11px] transition-all sm:flex-none ${
+              on
+                ? "border-transparent bg-[linear-gradient(120deg,oklch(0.72_0.2_355),oklch(0.62_0.22_310)_55%,oklch(0.6_0.2_285))] text-white shadow-[0_14px_34px_-16px_oklch(0.65_0.22_330/0.9)]"
+                : "border-[oklch(0.72_0.18_340/0.35)] bg-[oklch(0.3_0.08_340/0.25)] text-fg-muted hover:border-[oklch(0.72_0.18_340/0.7)] hover:text-fg"
+            }`}
+          >
+            <span className="text-[14.5px] font-bold">{s.label}</span>
+            <span className={`text-[11.5px] ${on ? "text-white/80" : "text-fg-faint"}`}>{s.sub}</span>
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
