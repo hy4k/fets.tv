@@ -3,6 +3,7 @@
 import { useClock } from "@/lib/use-clock";
 import { LogoMark } from "@/components/brand/Logo";
 import { centreLook, shortName } from "@/lib/centres";
+import type { BoardFloor } from "@/lib/types";
 import { cleanStyle, NOTICE_BACKGROUNDS, NOTICE_FONTS, NOTICE_SHAPES, NOTICE_SIZES, type NoticeStyle } from "@/lib/notice-style";
 
 export type BoardCall = {
@@ -14,6 +15,8 @@ export type BoardCall = {
 
 /** Hues for the also-called boxes: teal, violet, coral, sky. */
 const CALLED_HUES = [175, 300, 30, 235];
+
+export type { BoardFloor } from "@/lib/types";
 
 export type BoardNext = { token: string; name: string | null };
 
@@ -73,6 +76,7 @@ export function DisplayBoard({
   call,
   next,
   earlier = [],
+  floor = null,
   notice = null,
   nonce = 0,
   siteLabel,
@@ -85,6 +89,8 @@ export function DisplayBoard({
   next: BoardNext[];
   /** Called before the big one and not yet in: small, but readable across the hall. */
   earlier?: { token: string; name: string | null }[];
+  /** What is happening in the room, for the idle screen. */
+  floor?: BoardFloor | null;
   notice?: BoardNotice;
   nonce?: number;
   siteLabel?: string;
@@ -221,6 +227,8 @@ export function DisplayBoard({
                 </span>
               )}
             </>
+          ) : floor && floor.seats_total > 0 ? (
+            <IdleFloor floor={floor} tone={look.tone} />
           ) : (
             <>
               <span className="shrink-0 font-serif text-[clamp(14px,min(5.2cqw,7.5cqh),84px)] leading-[1.05] text-fg">
@@ -318,3 +326,74 @@ export function DisplayBoard({
     </div>
   );
 }
+
+/**
+ * The hall at rest: the seats free, large, the seats taken beside them, and the
+ * exams running now. When a seat is free, somebody here early for a later slot
+ * is told plainly they may ask to go in sooner.
+ */
+function IdleFloor({ floor, tone }: { floor: BoardFloor; tone: [string, string] }) {
+  const { seats_total: total, seats_in_use: used, seats_free: free, exams } = floor;
+  const share = total > 0 ? used / total : 0;
+  // A ring drawn as a conic gradient: taken in the centre's metal, free dark.
+  const ring = `conic-gradient(${tone[0]} 0 ${share * 360}deg, rgba(255,255,255,0.07) ${share * 360}deg 360deg)`;
+
+  return (
+    <div className="flex w-full min-w-0 flex-1 flex-col items-center justify-center gap-[3cqh]">
+      <div className="flex w-full flex-wrap items-center justify-center gap-x-[5cqw] gap-y-[3cqh]">
+        <div
+          style={{ background: ring }}
+          className="relative flex aspect-square w-[clamp(90px,min(26cqw,44cqh),420px)] shrink-0 items-center justify-center rounded-full"
+        >
+          <div className="absolute inset-[9%] flex flex-col items-center justify-center rounded-full bg-[linear-gradient(165deg,#1b1714,#121010)] shadow-[inset_0_2px_10px_rgba(0,0,0,0.6)]">
+            <span className="font-serif text-[clamp(28px,min(10cqw,17cqh),170px)] leading-[0.9] text-fg tabular-nums">{free}</span>
+            <span className="mt-[0.8cqh] font-mono text-[clamp(7px,1.3cqw,20px)] tracking-[0.18em] text-fg-muted uppercase">
+              seats free
+            </span>
+          </div>
+        </div>
+
+        <div className="flex min-w-0 flex-col gap-[2cqh] text-left">
+          <div className="flex items-baseline gap-[1.4cqw]">
+            <span className="font-serif text-[clamp(20px,min(6cqw,10cqh),100px)] leading-none tabular-nums text-fg">{used}</span>
+            <span className="text-[clamp(9px,min(1.9cqw,3.2cqh),30px)] text-fg-muted">
+              of {total} seats in use
+            </span>
+          </div>
+          {exams.length > 0 ? (
+            <div className="flex flex-col gap-[1cqh]">
+              <span className="font-mono text-[clamp(7px,1.2cqw,18px)] tracking-[0.2em] text-fg-faint uppercase">Exams in progress</span>
+              <div className="flex max-w-[48cqw] flex-wrap gap-[0.8cqw]">
+                {exams.slice(0, 6).map((e) => (
+                  <span
+                    key={e.name}
+                    className="flex items-baseline gap-[0.7cqw] rounded-[14px] border border-edge-strong bg-panel/70 px-[clamp(8px,1.3cqw,20px)] py-[clamp(4px,0.9cqh,12px)]"
+                  >
+                    <span className="max-w-[26cqw] overflow-hidden text-[clamp(9px,min(1.8cqw,3cqh),28px)] font-semibold text-ellipsis whitespace-nowrap text-fg">
+                      {e.name}
+                    </span>
+                    <span className="font-mono text-[clamp(8px,1.4cqw,22px)] text-fg-muted">{e.testing}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <span className="text-[clamp(9px,min(1.8cqw,3cqh),28px)] text-fg-muted">No exam is running right now</span>
+          )}
+        </div>
+      </div>
+
+      <span
+        style={free > 0 ? { borderColor: tone[0], background: `color-mix(in oklab, ${tone[0]} 12%, transparent)` } : undefined}
+        className={`max-w-[70cqw] rounded-[18px] border px-[clamp(10px,2cqw,32px)] py-[clamp(6px,1.4cqh,20px)] text-center text-[clamp(9px,min(2cqw,3.4cqh),32px)] leading-[1.3] ${
+          free > 0 ? "text-fg" : "border-edge text-fg-muted"
+        }`}
+      >
+        {free > 0
+          ? "Here early for a later exam? Seats are free now — ask at the front desk about going in early."
+          : "Every seat is in use. Please take a seat — you will be called by name."}
+      </span>
+    </div>
+  );
+}
+

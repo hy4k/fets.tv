@@ -8,7 +8,7 @@ import { useNow } from "@/lib/use-clock";
 import { clockAt, fullName, refOf } from "@/lib/format";
 
 export function TvPreviewScreen() {
-  const { candidates, center, call, displays, notice } = useConsole();
+  const { candidates, center, call, displays, notice, workstations, programmes } = useConsole();
   const { open, toggle } = useDrawers("tv", { displays: false });
   const now = useNow();
 
@@ -20,9 +20,25 @@ export function TvPreviewScreen() {
     .slice(0, 4)
     .map((c) => ({ token: refOf(c), name: showName ? fullName(c) : null }));
 
+  // The same room numbers the TV works out for itself.
+  const seats = workstations.filter((w) => w.lab_id && w.status !== "fault");
+  const running = new Map<string, number>();
+  for (const c of candidates) {
+    if (!c.exam_started_at || c.exam_finished_at || ["completed", "signed_out", "no_show"].includes(c.status)) continue;
+    const name = programmes.find((p) => p.id === c.programme_id)?.name ?? c.live_exam_name ?? "Exam";
+    running.set(name, (running.get(name) ?? 0) + 1);
+  }
+  const floor = {
+    exams: [...running].map(([name, testing]) => ({ name, testing })).sort((a, b) => b.testing - a.testing),
+    seats_total: seats.length,
+    seats_in_use: seats.filter((w) => w.status === "assigned" || w.status === "active").length,
+    seats_free: seats.filter((w) => w.status === "free").length,
+  };
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-[14px]">
       <DisplayBoard
+        floor={floor}
         className="flex-1"
         hallLabel={displays[0]?.hall_label ?? "HALL 1"}
         timezone={center.timezone}

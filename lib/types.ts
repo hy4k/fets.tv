@@ -539,7 +539,16 @@ export type DisplayState = {
     style?: import("@/lib/notice-style").NoticeStyle | null;
   } | null;
   next: { public_token: string; name: string | null; scheduled_at: string | null }[];
+  /** The room at rest: exams running now and the seats taken and free. */
+  floor?: BoardFloor | null;
   server_time: string;
+};
+
+export type BoardFloor = {
+  exams: { name: string; testing: number }[];
+  seats_total: number;
+  seats_in_use: number;
+  seats_free: number;
 };
 
 export type RosterRow = {
