@@ -7,6 +7,7 @@ import { shortName } from "@/lib/centres";
 import { useConsole } from "@/lib/console-data";
 import type { DayTotals } from "@/lib/fets-live";
 import { clockAt, isTesting, todayInZone } from "@/lib/format";
+import { DutyTimer } from "./DutyTimer";
 import { locate, type Place } from "@/lib/nav";
 import { useClock, useNow } from "@/lib/use-clock";
 
@@ -181,6 +182,7 @@ function Band({ place }: { place: Place; pathname: string }) {
       {(place.key === "hall" || place.key === "lab") && (
         <span className="font-mono text-[38px] leading-none font-medium tabular-nums md:text-[48px]">{clock}</span>
       )}
+      {place.key === "lab" && <DutyTimer />}
     </section>
   );
 }
