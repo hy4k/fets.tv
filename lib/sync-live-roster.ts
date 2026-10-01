@@ -23,5 +23,7 @@ export async function syncLiveRoster(center: { id: string; name: string }) {
   if (checked.issues.length) throw Error(checked.issues.slice(0, 8).join(' '));
   const { data, error } = await supabaseService().rpc('fets_sync_live_roster', { p_center: center.id, p_day: date, p_rows: checked.rows });
   if (error) throw Error(error.code === 'PGRST202' ? 'Install the fets.online roster sync migration before pulling candidates.' : error.message);
+  const retained = Number((data as Record<string, unknown>)?.retained || 0);
+  if (retained > 0) checked.warnings.push(`${retained} existing candidates are not in the current fets.live roster. They were retained with their exam-day progress; review the source roster.`);
   return { ...(data as Record<string, unknown>), found: checked.rows.length, warnings: checked.warnings, date };
 }

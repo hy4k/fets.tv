@@ -4,7 +4,7 @@ import { createServerClient } from "@supabase/ssr";
 // The hall TV and its event stream authenticate with the display key, not a
 // session. "/" is the front door and has to be readable by somebody who has
 // not signed in yet — it is matched exactly, so nothing beneath it is opened.
-const PUBLIC_PATHS = ["/", "/login", "/display", "/api/display"];
+const PUBLIC_PATHS = ["/", "/login", "/display", "/api/display", "/release.json"];
 
 export async function proxy(request: NextRequest) {
   // The cron route validates its own constant-time server secret; it has no browser session.

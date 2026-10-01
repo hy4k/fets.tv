@@ -5,8 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-EnvironmentFile=/etc/fets-roster-sync.env
-ExecStart=/usr/bin/node /opt/fets-online-sync/pull-live-roster.mjs
+ExecStart=/usr/bin/docker exec --env FETS_ROSTER_SYNC_URL=http://127.0.0.1:3000/api/fets-live/roster/cron fets-tv-fets-tv-1 node /app/scripts/pull-live-roster.mjs
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
