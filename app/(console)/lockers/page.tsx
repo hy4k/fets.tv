@@ -1,5 +1,6 @@
-import { LockersScreen } from "@/components/screens/LockersScreen";
+import { redirect } from "next/navigation";
 
+// The list, the check-in and the locker key are one page now.
 export default function Page() {
-  return <LockersScreen />;
+  redirect("/front-office");
 }
