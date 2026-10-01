@@ -15,6 +15,7 @@ import {
   joinedLate,
   lateFirst,
   statusChip,
+  refOf,
 } from "@/lib/format";
 import { type Candidate, stillHeld } from "@/lib/types";
 
@@ -89,7 +90,7 @@ export function FrontOfficeScreen() {
                 onClick={() => setCheckingInId(c.id)}
                 className="flex cursor-pointer items-center gap-[9px] rounded-[12px] border border-gold/50 bg-panel px-[12px] py-[8px] text-left hover:border-gold disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <span className="font-mono text-[11px] text-gold">{c.public_token}</span>
+                <span className="font-mono text-[11px] text-gold">{refOf(c)}</span>
                 <span className="max-w-[180px] truncate text-[13px] font-semibold">{fullName(c)}</span>
                 <span className="rounded-[8px] gold-bg px-[8px] py-[3px] text-[11px] font-bold text-[#1a1512]">Check in</span>
               </button>
@@ -116,7 +117,7 @@ export function FrontOfficeScreen() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Roster no · name · token"
+            placeholder="Confirmation no · name"
             className="min-w-0 flex-1 border-0 bg-transparent text-[15px] outline-none placeholder:text-fg-faint"
           />
         </div>
@@ -156,7 +157,7 @@ export function FrontOfficeScreen() {
               className="flex items-center gap-[10px] rounded-[14px] border border-edge bg-panel-soft p-[11px]"
             >
               <span className="font-mono text-[12px] font-semibold whitespace-nowrap">
-                {c.public_token}
+                {refOf(c)}
               </span>
               <span className="min-w-0 flex-1 truncate text-[12px] text-fg-muted">{fullName(c)}</span>
               <span className="font-mono text-[10px] text-fg-faint">
@@ -237,7 +238,7 @@ function RosterRow({
           )}
         </span>
         <span className="block truncate font-mono text-[10.5px] text-fg-faint">
-          {[candidate.public_token, candidate.roster_number, candidate.part].filter(Boolean).join(" · ")}
+          {[refOf(candidate), candidate.part].filter(Boolean).join(" · ")}
         </span>
       </span>
 
@@ -313,16 +314,15 @@ function CheckInDialog({
       "fets_check_in_one",
       { p_candidate: candidate.id, p_name_note: mismatch ? note.trim() : null },
       mismatch
-        ? `${candidate.public_token} checked in · name note saved for the report`
-        : `${candidate.public_token} checked in`,
+        ? `${refOf(candidate)} checked in · name note saved for the report`
+        : `${refOf(candidate)} checked in`,
     );
     setBusy(false);
     if (ok) onCheckedIn();
   }
 
   const details: [string, string | null][] = [
-    ["Token", candidate.public_token],
-    ["Roster no.", candidate.roster_number],
+    ["Confirmation no.", candidate.roster_number],
     ["Exam part", candidate.part],
     ["Scheduled", candidate.scheduled_at ? clockAt(candidate.scheduled_at, center.timezone) : null],
     ["Contact", candidate.phone],
@@ -412,7 +412,7 @@ function CheckInDialog({
               const ok = await rpc(
                 "fets_mark_no_show",
                 { p_candidate: candidate.id, p_note: "Marked at front office" },
-                `${candidate.public_token} marked no show`,
+                `${refOf(candidate)} marked no show`,
               );
               if (ok) onClose();
             }}
@@ -446,7 +446,7 @@ function SignOutDialog({ candidate, onClose }: { candidate: Candidate; onClose: 
       open
       title={fullName(candidate)}
       subtitle={[
-        candidate.public_token,
+        refOf(candidate),
         candidate.roster_number,
         `finished ${clockAt(candidate.completed_at, center.timezone)}`,
       ]
@@ -462,7 +462,7 @@ function SignOutDialog({ candidate, onClose }: { candidate: Candidate; onClose: 
               const ok = await rpc(
                 "fets_sign_out",
                 { p_candidate: candidate.id, p_note: "Signed out at the front desk" },
-                `${candidate.public_token} signed out`,
+                `${refOf(candidate)} signed out`,
               );
               if (ok) onClose();
             }}
@@ -472,7 +472,7 @@ function SignOutDialog({ candidate, onClose }: { candidate: Candidate; onClose: 
                 : "cursor-not-allowed bg-[#1d1d25] text-fg-dim"
             }`}
           >
-            {ready ? `Sign out ${candidate.public_token}` : "Take everything back first"}
+            {ready ? `Sign out ${refOf(candidate)}` : "Take everything back first"}
           </button>
           <button
             type="button"

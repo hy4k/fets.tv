@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { CPR_FORMATS, entryText, minutesLate, writeEntry, type CprFormat, type Values } from "@/lib/cpr";
 import { useConsole } from "@/lib/console-data";
-import { clockAt, fullName, instantFromZonedTime, nowInZone } from "@/lib/format";
+import { clockAt, fullName, instantFromZonedTime, nowInZone, refOf } from "@/lib/format";
 import type { Candidate } from "@/lib/types";
 
 /**
@@ -68,7 +68,7 @@ export function CprComposer({ canAdd }: { canAdd: boolean }) {
     const logged = (await rpcRead("fets_log_incident", {
       p_center: center.id,
       p_kind: format.incident,
-      p_summary: candidate ? `${format.title} · ${candidate.public_token}` : format.title,
+      p_summary: candidate ? `${format.title} · ${refOf(candidate)}` : format.title,
       p_severity: format.severity,
       p_detail: entry.additional,
       p_candidate: candidate?.id ?? null,
@@ -110,7 +110,7 @@ export function CprComposer({ canAdd }: { canAdd: boolean }) {
               onClick={() => choose("late_able", c.id)}
               className="cursor-pointer rounded-[9px] border border-gold/35 bg-gold/8 px-[9px] py-[4px] font-mono text-[11px] text-gold-bright hover:border-gold/60"
             >
-              {c.public_token} · {m} min
+              {refOf(c)} · {m} min
             </button>
           ))}
         </div>
@@ -128,7 +128,7 @@ export function CprComposer({ canAdd }: { canAdd: boolean }) {
               <option value="">Not about one candidate</option>
               {candidates.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.public_token} · {fullName(c)}
+                  {refOf(c)} · {fullName(c)}
                 </option>
               ))}
             </select>

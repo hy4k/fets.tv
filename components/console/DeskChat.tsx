@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useConsole } from "@/lib/console-data";
-import { clockAt, fullName, instantFromZonedTime, todayInZone } from "@/lib/format";
+import { clockAt, fullName, instantFromZonedTime, todayInZone, refOf } from "@/lib/format";
 import { locate } from "@/lib/nav";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
@@ -290,7 +290,7 @@ export function DeskChat() {
                   >
                     {c && (
                       <span className="mb-[4px] block font-mono text-[11px] font-semibold" style={{ color: tone }}>
-                        {c.public_token} · {fullName(c)}
+                        {refOf(c)} · {fullName(c)}
                       </span>
                     )}
                     {m.body}
@@ -346,7 +346,7 @@ export function DeskChat() {
                     .filter((c) => !["signed_out", "no_show"].includes(c.status))
                     .map((c) => (
                       <option key={c.id} value={c.id}>
-                        {c.public_token} · {fullName(c)}
+                        {refOf(c)} · {fullName(c)}
                       </option>
                     ))}
                 </select>

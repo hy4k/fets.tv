@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useConsole } from "@/lib/console-data";
-import { fullName } from "@/lib/format";
+import { fullName, refOf } from "@/lib/format";
 import { locate } from "@/lib/nav";
 
 /** Three rising notes, loud enough to hear across the desk. */
@@ -33,7 +33,7 @@ function ring() {
  * Wherever the front desk is in the console, a new call flashes the whole
  * screen for a moment with the token, rings, and blinks the browser tab; then
  * it stays pinned across the top of the page, one row per candidate on their
- * way, each with its own Entered button. It is not shown in the admin room or
+ * way, each with its own Send to admin button. It is not shown in the admin room or
  * the lab, which made the call or has no part in it.
  */
 export function CallAlert() {
@@ -68,7 +68,7 @@ export function CallAlert() {
     if (!c || c.status !== "waiting") return;
     ring();
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setFlash({ token: c.public_token, name: fullName(c), room: call?.room_label ?? "Frisking · Gate 1" });
+    setFlash({ token: refOf(c), name: fullName(c), room: call?.room_label ?? "Security & Biometrics" });
   }, [call?.id, call?.candidate_id, call?.room_label, candidates, here]);
 
   // The flash is a moment, then the pinned rows carry it.
@@ -85,7 +85,7 @@ export function CallAlert() {
     let on = false;
     const timer = setInterval(() => {
       on = !on;
-      document.title = on ? `● CALLED ${onTheWay[onTheWay.length - 1].public_token}` : base;
+      document.title = on ? `● CALLED ${fullName(onTheWay[onTheWay.length - 1])}` : base;
     }, 900);
     return () => {
       clearInterval(timer);
@@ -111,8 +111,8 @@ export function CallAlert() {
           className="fixed inset-0 z-[80] flex cursor-pointer flex-col items-center justify-center gap-[18px] bg-[radial-gradient(circle_at_50%_40%,oklch(0.55_0.14_165/0.92),oklch(0.2_0.05_165/0.96))] text-[#eafff4] backdrop-blur-sm motion-safe:animate-announce"
         >
           <span className="font-mono text-[16px] font-bold tracking-[0.3em] uppercase opacity-80">Called by the admin room</span>
-          <span className="font-mono text-[clamp(64px,12vw,150px)] leading-none font-semibold">{flash.token}</span>
-          <span className="font-display text-[clamp(28px,4vw,52px)] leading-none">{flash.name}</span>
+          <span className="max-w-[92vw] truncate font-display text-[clamp(56px,10vw,140px)] leading-none">{flash.name}</span>
+          <span className="font-mono text-[clamp(20px,2.6vw,34px)] leading-none font-semibold opacity-85">{flash.token}</span>
           <span className="mt-[8px] rounded-full bg-[#0c1711]/60 px-[22px] py-[10px] text-[18px] font-bold tracking-[0.08em] uppercase">
             Send to {flash.room}
           </span>
@@ -134,19 +134,19 @@ export function CallAlert() {
                   </span>
                   <span className="text-[11px] font-extrabold tracking-[0.18em] uppercase">Send in</span>
                 </span>
-                <span className="font-mono text-[26px] leading-none font-semibold">{c.public_token}</span>
-                <span className="min-w-0 truncate font-display text-[23px] leading-none">{fullName(c)}</span>
+                <span className="min-w-0 truncate font-display text-[26px] leading-none">{fullName(c)}</span>
+                <span className="font-mono text-[13px] leading-none font-semibold opacity-75">{refOf(c)}</span>
                 <span className="flex-1" />
                 <span className="rounded-[10px] bg-[#0c1711]/85 px-[11px] py-[6px] text-[11.5px] font-extrabold tracking-[0.06em] text-mint uppercase">
-                  Frisking · Gate 1
+                  Security &amp; Biometrics
                 </span>
                 <button
                   type="button"
                   disabled={!canFrontOffice || busy === c.id}
-                  onClick={() => void enter(c.id, c.public_token)}
+                  onClick={() => void enter(c.id, refOf(c))}
                   className="min-h-[44px] cursor-pointer rounded-[13px] bg-[#0c1711] px-[20px] py-[10px] text-[14px] font-bold text-[#eafaf1] disabled:opacity-50"
                 >
-                  {busy === c.id ? "…" : "Entered"}
+                  {busy === c.id ? "…" : "Send to admin"}
                 </button>
               </div>
             ))}

@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { useConsole } from "@/lib/console-data";
-import { clockAt, fullName } from "@/lib/format";
+import { clockAt, fullName, refOf } from "@/lib/format";
 import { useNow } from "@/lib/use-clock";
 import type { Incident, IncidentKind, IncidentSeverity } from "@/lib/types";
 
@@ -59,7 +59,7 @@ export function IncidentsScreen() {
     workstations.find((w) => w.id === id)?.seat_code ?? null;
   const personOf = (id: string | null) => {
     const c = candidates.find((x) => x.id === id);
-    return c ? `${c.public_token} · ${fullName(c)}` : null;
+    return c ? `${refOf(c)} · ${fullName(c)}` : null;
   };
 
   function Row({ incident }: { incident: Incident }) {
@@ -329,7 +329,7 @@ function LogDialog({ onClose }: { onClose: () => void }) {
               <option value="">None</option>
               {present.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.public_token} · {fullName(c)}
+                  {refOf(c)} · {fullName(c)}
                 </option>
               ))}
             </select>

@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { useConsole } from "@/lib/console-data";
-import { clockAt, fullName, instantFromZonedTime } from "@/lib/format";
+import { clockAt, fullName, instantFromZonedTime, refOf } from "@/lib/format";
 import { currentSection, sectionsFor, type SectionView } from "@/lib/sections";
 import { useNow } from "@/lib/use-clock";
 import type {
@@ -295,6 +295,7 @@ function FloorCard({
           <span className="mt-[2px] flex min-w-0 items-center gap-[7px]">
             <span className="truncate font-mono text-[10.5px] text-fg-faint">
               {[
+                refOf(candidate),
                 programme?.code ?? candidate.live_exam_name ?? "Exam not set",
                 `${candidate.exam_duration_minutes ?? "?"} min`,
               ]
@@ -362,7 +363,7 @@ function FloorCard({
                 rpc(
                   "fets_break_in",
                   { p_candidate: candidate.id },
-                  `${candidate.public_token} is back from break`,
+                  `${refOf(candidate)} is back from break`,
                 )
               }
               className="flex cursor-pointer items-center gap-[8px] rounded-full border border-[oklch(0.85_0.05_300/0.45)] bg-[linear-gradient(180deg,oklch(0.85_0.05_300/0.28),oklch(0.7_0.05_300/0.12))] px-[16px] py-[8px] text-[12px] font-semibold text-[oklch(0.93_0.03_300)] shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_8px_24px_-10px_oklch(0.8_0.06_295/0.6)] disabled:opacity-40"
@@ -376,7 +377,7 @@ function FloorCard({
                 rpc(
                   "fets_break_out",
                   { p_candidate: candidate.id, p_kind: "scheduled" },
-                  `${candidate.public_token} on break`,
+                  `${refOf(candidate)} on break`,
                 )
               }
             >
@@ -397,7 +398,7 @@ function FloorCard({
               rpc(
                 "fets_confirm_finish",
                 { p_candidate: candidate.id },
-                `${candidate.public_token} finished`,
+                `${refOf(candidate)} finished`,
               )
             }
             className="cursor-pointer rounded-full border border-white/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(226,220,205,0.85))] px-[18px] py-[8px] text-[12px] font-bold text-[#17151a] shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_8px_22px_-10px_rgba(255,240,210,0.5)] disabled:cursor-not-allowed disabled:opacity-30"
@@ -575,7 +576,7 @@ function SectionsDialog({
     <Dialog
       open
       title={fullName(candidate)}
-      subtitle={`${candidate.public_token} \u00b7 started ${clockAt(candidate.exam_started_at, center.timezone)}`}
+      subtitle={`${refOf(candidate)} \u00b7 started ${clockAt(candidate.exam_started_at, center.timezone)}`}
       onClose={onClose}
       width={620}
       footer={
@@ -916,7 +917,7 @@ function TransferDialog({
         p_minutes_lost: lost,
         p_fault_old_seat: faultOld,
       },
-      `${candidate.public_token} moved to ${chosen.seat_code}`,
+      `${refOf(candidate)} moved to ${chosen.seat_code}`,
     );
     setBusy(false);
     if (ok) onClose();

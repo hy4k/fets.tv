@@ -1,4 +1,5 @@
 "use client";
+import { refOf } from "@/lib/format";
 
 import { useMemo, useState } from "react";
 import { useConsole } from "@/lib/console-data";
@@ -29,8 +30,10 @@ export function SeatGrid({ candidate, onDone }: { candidate: Candidate; onDone: 
     [labs, workstations],
   );
 
-  const occupantOf = (w: Workstation) =>
-    candidates.find((c) => c.id === w.current_candidate_id)?.public_token ?? null;
+  const occupantOf = (w: Workstation) => {
+    const c = candidates.find((x) => x.id === w.current_candidate_id);
+    return c ? refOf(c) : null;
+  };
 
   async function repair(seat: Workstation) {
     if (!window.confirm(`${seat.seat_code} is marked faulty. Is it working again?`)) return;
@@ -45,7 +48,7 @@ export function SeatGrid({ candidate, onDone }: { candidate: Candidate; onDone: 
     const ok = await rpc(
       "fets_assign_workstation",
       { p_candidate: candidate.id, p_workstation: chosen.id },
-      `${candidate.public_token} seated at ${chosen.seat_code}`,
+      `${refOf(candidate)} seated at ${chosen.seat_code}`,
     );
     setBusy(false);
     if (ok) onDone();

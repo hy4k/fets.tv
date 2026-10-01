@@ -5,26 +5,25 @@ import { Dialog } from "@/components/ui/Dialog";
 import { MaterialsPanel } from "@/components/screens/MaterialsPanel";
 import { useConsole } from "@/lib/console-data";
 import { SeatGrid } from "@/components/screens/SeatGrid";
-import { CALL_GAP_SECONDS, MAX_ON_THE_WAY, STAGE_LABELS, STAGE_ORDER, fullName } from "@/lib/format";
-import { useNow } from "@/lib/use-clock";
+import { MAX_ON_THE_WAY, STAGE_LABELS, STAGE_ORDER, fullName, refOf } from "@/lib/format";
 import { type Candidate, type CandidateStatus, stillHeld } from "@/lib/types";
 
 /** Everyone who has walked in from the desk but has nowhere to sit yet. */
 const UNSEATED = ["frisking", "biometrics", "assigned"];
 
 /** Where a called candidate goes first. */
-const GATE = "Frisking · Gate 1";
+const GATE = "Security & Biometrics";
 
 /**
  * The admin room, as one page and one flow: call the next person, watch them
  * walk to the frisking gate, then seat them — all from here.
  *
  * The call button stays at the top. Once pressed, the person called is held in
- * a banner at the foot — "Frisking · Gate 1" — until the front desk marks them
+ * a banner at the foot — "Security & Biometrics" — until the front desk marks them
  * in; then the same place becomes their seat: press, pick the seat, confirm.
  */
 export function AdminRoomScreen() {
-  const { candidates, center, call, rpc, isAdmin, canCall, canLab, session, rules, materials, workstations } =
+  const { candidates, center, rpc, isAdmin, canCall, canLab, session, rules, materials, workstations } =
     useConsole();
   const [issuing, setIssuing] = useState<Candidate | null>(null);
   const [overriding, setOverriding] = useState(false);
@@ -51,8 +50,6 @@ export function AdminRoomScreen() {
     [candidates],
   );
 
-  const now = useNow();
-  const called = candidates.find((c) => c.id === call?.candidate_id) ?? null;
 
   // Called and not yet marked in by the front office, newest first. Up to five
   // may be on their way; the newest is the big name on the TV.
@@ -63,11 +60,9 @@ export function AdminRoomScreen() {
         .sort((a, b) => (b.called_at ?? "").localeCompare(a.called_at ?? "")),
     [candidates],
   );
-  // The TV keeps a call large for 45 seconds before the next may replace it.
-  const sinceCall = call?.created_at && now ? (now - Date.parse(call.created_at)) / 1000 : Infinity;
-  const waitFor = onTheWay.length > 0 ? Math.max(0, Math.ceil(CALL_GAP_SECONDS - sinceCall)) : 0;
+  // Up to five may be called back to back; the sixth waits for one to go in.
   const full = onTheWay.length >= MAX_ON_THE_WAY;
-  const awaitingEntry = waitFor > 0 || full;
+  const awaitingEntry = full;
   // The next person who can actually go: somebody still waiting on a locker
   // key keeps their place in the list but does not hold up everyone behind.
   const next = pending.find((c) => !needsKey(c)) ?? null;
@@ -110,7 +105,7 @@ export function AdminRoomScreen() {
           type="button"
           disabled={!canCall || !next || awaitingEntry}
           onClick={() =>
-            next && rpc("fets_call_candidate", { p_candidate: next.id }, `Calling ${next.public_token}`)
+            next && rpc("fets_call_candidate", { p_candidate: next.id }, `Calling ${refOf(next)}`)
           }
           className={`w-full rounded-[16px] px-[22px] py-[18px] text-[16px] font-bold ${
             canCall && next && !awaitingEntry
@@ -119,11 +114,9 @@ export function AdminRoomScreen() {
           }`}
         >
           {full
-            ? `${MAX_ON_THE_WAY} on their way — the front office marks one in first`
-            : waitFor > 0
-              ? `${called?.public_token ?? "Last call"} is on the TV · next call in 0:${String(waitFor).padStart(2, "0")}`
+            ? `${MAX_ON_THE_WAY} on their way — the front office sends one in first`
             : next
-              ? `Call ${next.public_token} · ${fullName(next)}`
+              ? `Call ${fullName(next)} · ${refOf(next)}`
               : keyless > 0
                 ? `${keyless === 1 ? "The one waiting needs" : `All ${keyless} waiting need`} a locker key first`
                 : "Nobody is waiting to be called"}
@@ -153,7 +146,7 @@ export function AdminRoomScreen() {
               >
                 {i + 1}
               </span>
-              <span className="w-[74px] shrink-0 font-mono text-[12.5px] font-semibold">{c.public_token}</span>
+              <span className="w-[74px] shrink-0 font-mono text-[12.5px] font-semibold">{refOf(c)}</span>
               <span className="block min-w-0 flex-1">
                 <span className="block truncate text-[13.5px] font-semibold">{fullName(c)}</span>
                 <span className="block truncate font-mono text-[10px] text-fg-faint">
@@ -181,12 +174,10 @@ export function AdminRoomScreen() {
                   needsKey(c)
                     ? "Issue a locker key or Nil first"
                     : awaitingEntry
-                      ? full
-                        ? `${MAX_ON_THE_WAY} already on their way`
-                        : `Next call in ${waitFor} s`
+                      ? `${MAX_ON_THE_WAY} already on their way`
                       : undefined
                 }
-                onClick={() => rpc("fets_call_candidate", { p_candidate: c.id }, `Calling ${c.public_token}`)}
+                onClick={() => rpc("fets_call_candidate", { p_candidate: c.id }, `Calling ${refOf(c)}`)}
                 className="shrink-0 cursor-pointer rounded-[12px] gold-bg px-[15px] py-[10px] text-[12.5px] font-bold text-[#1a1512] disabled:cursor-not-allowed disabled:opacity-35"
               >
                 Call
@@ -219,17 +210,10 @@ export function AdminRoomScreen() {
           <div className="relative mt-[12px] flex flex-col gap-[8px]">
             {onTheWay.map((c, i) => (
               <div key={c.id} className="flex flex-wrap items-center gap-x-[16px] gap-y-[8px] rounded-[16px] border border-edge-soft bg-ink/35 px-[14px] py-[10px]">
-                <span className={`font-mono leading-none font-semibold ${i === 0 ? "text-[28px]" : "text-[20px] text-fg-muted"}`}>
-                  {c.public_token}
-                </span>
-                <span className={`min-w-0 truncate font-display leading-none ${i === 0 ? "text-[24px]" : "text-[19px] text-fg-muted"}`}>
+                <span className={`min-w-0 truncate font-display leading-none ${i === 0 ? "text-[26px]" : "text-[20px] text-fg-muted"}`}>
                   {fullName(c)}
                 </span>
-                {i === 0 && waitFor > 0 && (
-                  <span className="rounded-full border border-accent/40 px-[10px] py-[3px] font-mono text-[11px] text-accent">
-                    on the TV · {waitFor}s
-                  </span>
-                )}
+                <span className="font-mono text-[12.5px] leading-none text-fg-dim">{refOf(c)}</span>
                 <span className="flex-1" />
                 <span className="flex flex-wrap gap-[8px]">
                   <button
@@ -250,7 +234,7 @@ export function AdminRoomScreen() {
                   <button
                     type="button"
                     disabled={!canCall}
-                    onClick={() => rpc("fets_clear_call", { p_center: center.id, p_candidate: c.id }, `${c.public_token} call cancelled`)}
+                    onClick={() => rpc("fets_clear_call", { p_center: center.id, p_candidate: c.id }, `${refOf(c)} call cancelled`)}
                     className="cursor-pointer rounded-[12px] border border-edge px-[12px] py-[9px] text-[12px] font-semibold text-fg-muted disabled:opacity-40"
                   >
                     Cancel
@@ -277,7 +261,7 @@ export function AdminRoomScreen() {
             {toSeat.map((c) => (
               <div key={c.id} className="rounded-[16px] border border-edge-soft bg-ink/35 p-[12px]">
                 <div className="flex flex-wrap items-center gap-x-[14px] gap-y-[8px]">
-                  <span className="font-mono text-[18px] font-semibold">{c.public_token}</span>
+                  <span className="font-mono text-[18px] font-semibold">{refOf(c)}</span>
                   <span className="min-w-0 truncate text-[15px] font-semibold">{fullName(c)}</span>
                   <span className="font-mono text-[11px] text-fg-faint">
                     {[c.part, c.locker_key && `KEY ${c.locker_key === "NIL" ? "Nil" : c.locker_key}`].filter(Boolean).join(" · ")}
@@ -308,7 +292,7 @@ export function AdminRoomScreen() {
       {issuing && (
         <Dialog
           open
-          title={`Materials · ${issuing.public_token}`}
+          title={`Materials · ${refOf(issuing)}`}
           subtitle={`${fullName(issuing)} · what goes into the hall with them`}
           onClose={() => setIssuing(null)}
           width={480}
@@ -346,7 +330,7 @@ function OverridePanel() {
           <option value="">Select…</option>
           {selectable.map((c) => (
             <option key={c.id} value={c.id}>
-              {c.public_token} · {fullName(c)} · {STAGE_LABELS[c.status]}
+              {refOf(c)} · {fullName(c)} · {STAGE_LABELS[c.status]}
             </option>
           ))}
         </select>

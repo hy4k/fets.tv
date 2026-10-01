@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { CandidateDetailsDialog } from "@/components/screens/CandidateDetailsDialog";
 import { useConsole } from "@/lib/console-data";
-import { clockAt, fullName, lateFirst, statusChip } from "@/lib/format";
+import { clockAt, fullName, lateFirst, statusChip, refOf } from "@/lib/format";
 import type { Candidate } from "@/lib/types";
 
 const FILTERS = [
@@ -159,7 +159,7 @@ export function CandidatesScreen() {
                 {/* From md up these are the report's six columns. Below it, the
                     same six read as a card: who, then what is known about them. */}
                 <span className="mb-[6px] flex items-baseline gap-[10px] md:mb-0 md:block">
-                  <span className="font-mono text-[13px] font-semibold">{c.public_token}</span>
+                  <span className="font-mono text-[13px] font-semibold">{refOf(c)}</span>
                   <span className="font-mono text-[11px] text-fg-faint md:hidden">
                     {c.roster_number}
                   </span>

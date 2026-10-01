@@ -10,7 +10,7 @@ import type {
 // Relative and with the extension so the plain node test runner resolves
 // these at runtime; the `@/` alias only exists inside the bundler.
 import { stillHeld } from "./types.ts";
-import { fullName, isInHall, isToday } from "./format.ts";
+import { fullName, isInHall, isToday, refOf } from "./format.ts";
 
 /** One candidate mid-exam, with the clock the next person inherits. */
 export type SeatedCandidate = {
@@ -94,7 +94,7 @@ export function handoverState(
 
       return {
         id: c.id,
-        token: c.public_token,
+        token: refOf(c),
         name: fullName(c),
         seat: c.workstation_id ? (seatOf.get(c.workstation_id) ?? null) : null,
         endsAt: expected !== null && Number.isFinite(expected) ? expected : null,
@@ -114,7 +114,7 @@ export function handoverState(
     .map<MaterialOut>((x) => {
       const c = byId.get(x.m.candidate_id);
       return {
-        token: c?.public_token ?? "—",
+        token: (c ? refOf(c) : undefined) ?? "—",
         name: c ? fullName(c) : "Unknown",
         // The centre's own word for it, not the column value. "other" carries
         // its own label; anything else is named by its kind.
