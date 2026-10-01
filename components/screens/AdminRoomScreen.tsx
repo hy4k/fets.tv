@@ -5,7 +5,8 @@ import { Dialog } from "@/components/ui/Dialog";
 import { MaterialsPanel } from "@/components/screens/MaterialsPanel";
 import { useConsole } from "@/lib/console-data";
 import { SeatGrid } from "@/components/screens/SeatGrid";
-import { STAGE_LABELS, STAGE_ORDER, fullName } from "@/lib/format";
+import { CALL_GAP_SECONDS, MAX_ON_THE_WAY, STAGE_LABELS, STAGE_ORDER, fullName } from "@/lib/format";
+import { useNow } from "@/lib/use-clock";
 import { type Candidate, type CandidateStatus, stillHeld } from "@/lib/types";
 
 /** Everyone who has walked in from the desk but has nowhere to sit yet. */
@@ -50,11 +51,23 @@ export function AdminRoomScreen() {
     [candidates],
   );
 
+  const now = useNow();
   const called = candidates.find((c) => c.id === call?.candidate_id) ?? null;
 
-  // Somebody was called and has not walked in yet. Until they do, calling the
-  // next person would put two tokens in the hall's head at once.
-  const awaitingEntry = called !== null && called.status === "waiting";
+  // Called and not yet marked in by the front office, newest first. Up to five
+  // may be on their way; the newest is the big name on the TV.
+  const onTheWay = useMemo(
+    () =>
+      candidates
+        .filter((c) => c.status === "waiting" && c.called_at)
+        .sort((a, b) => (b.called_at ?? "").localeCompare(a.called_at ?? "")),
+    [candidates],
+  );
+  // The TV keeps a call large for 45 seconds before the next may replace it.
+  const sinceCall = call?.created_at && now ? (now - Date.parse(call.created_at)) / 1000 : Infinity;
+  const waitFor = onTheWay.length > 0 ? Math.max(0, Math.ceil(CALL_GAP_SECONDS - sinceCall)) : 0;
+  const full = onTheWay.length >= MAX_ON_THE_WAY;
+  const awaitingEntry = waitFor > 0 || full;
   // The next person who can actually go: somebody still waiting on a locker
   // key keeps their place in the list but does not hold up everyone behind.
   const next = pending.find((c) => !needsKey(c)) ?? null;
@@ -105,8 +118,10 @@ export function AdminRoomScreen() {
               : "cursor-not-allowed bg-[#1d1d25] text-fg-dim"
           }`}
         >
-          {awaitingEntry
-            ? `${called.public_token} is on the way to ${GATE}`
+          {full
+            ? `${MAX_ON_THE_WAY} on their way — the front office marks one in first`
+            : waitFor > 0
+              ? `${called?.public_token ?? "Last call"} is on the TV · next call in 0:${String(waitFor).padStart(2, "0")}`
             : next
               ? `Call ${next.public_token} · ${fullName(next)}`
               : keyless > 0
@@ -166,7 +181,9 @@ export function AdminRoomScreen() {
                   needsKey(c)
                     ? "Issue a locker key or Nil first"
                     : awaitingEntry
-                      ? `Waiting for ${called.public_token} to reach ${GATE}`
+                      ? full
+                        ? `${MAX_ON_THE_WAY} already on their way`
+                        : `Next call in ${waitFor} s`
                       : undefined
                 }
                 onClick={() => rpc("fets_call_candidate", { p_candidate: c.id }, `Calling ${c.public_token}`)}
@@ -184,48 +201,65 @@ export function AdminRoomScreen() {
         </div>
       </section>
 
-      {/* Called: on the way to the gate. The front desk marks them in. */}
-      {awaitingEntry && (
+      {/* Called: on the way to the gate. The front desk marks each one in. */}
+      {onTheWay.length > 0 && (
         <section className="relative shrink-0 overflow-hidden rounded-[22px] border border-accent/40 bg-[linear-gradient(135deg,oklch(0.36_0.09_275/0.55),oklch(0.2_0.03_275/0.7))] p-[16px] shadow-[0_18px_50px_-24px_oklch(0.6_0.15_275/0.6)] md:px-[22px]">
           <div className="pointer-events-none absolute -top-[60px] -right-[40px] h-[160px] w-[160px] rounded-full bg-accent/25 blur-[50px]" />
-          <div className="relative flex flex-wrap items-center gap-x-[18px] gap-y-[10px]">
-            <span className="flex items-center gap-[9px]">
-              <span className="relative flex h-[10px] w-[10px]">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-70" />
-                <span className="relative inline-flex h-[10px] w-[10px] rounded-full bg-accent" />
-              </span>
-              <span className="font-mono text-[12px] font-bold tracking-[0.2em] text-accent uppercase">{GATE}</span>
+          <div className="relative flex items-center gap-[9px]">
+            <span className="relative flex h-[10px] w-[10px]">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-70" />
+              <span className="relative inline-flex h-[10px] w-[10px] rounded-full bg-accent" />
             </span>
-            <span className="font-mono text-[clamp(24px,3.4vw,34px)] leading-none font-semibold">{called.public_token}</span>
-            <span className="min-w-0 truncate font-display text-[26px] leading-none">{fullName(called)}</span>
-            <span className="flex-1" />
-            <span className="flex flex-wrap gap-[8px]">
-              <button
-                type="button"
-                onClick={() => setIssuing(called)}
-                className="cursor-pointer rounded-[12px] border border-edge-warm bg-ink/40 px-[13px] py-[10px] text-[12.5px] font-semibold"
-              >
-                Materials
-              </button>
-              <button
-                type="button"
-                disabled={!canCall}
-                onClick={() => rpc("fets_recall", { p_center: center.id })}
-                className="cursor-pointer rounded-[12px] border border-edge-warm bg-ink/40 px-[13px] py-[10px] text-[12.5px] font-semibold disabled:opacity-40"
-              >
-                Call again
-              </button>
-              <button
-                type="button"
-                disabled={!canCall}
-                onClick={() => rpc("fets_clear_call", { p_center: center.id }, "Call cleared")}
-                className="cursor-pointer rounded-[12px] border border-edge px-[13px] py-[10px] text-[12.5px] font-semibold text-fg-muted disabled:opacity-40"
-              >
-                Cancel call
-              </button>
+            <span className="font-mono text-[12px] font-bold tracking-[0.2em] text-accent uppercase">{GATE}</span>
+            <span className="h-px flex-1 bg-accent/20" />
+            <span className="font-mono text-[12px] text-fg-dim">
+              {onTheWay.length} of {MAX_ON_THE_WAY} on their way
             </span>
           </div>
-          <p className="relative mt-[10px] text-[12px] text-fg-dim">The front office marks them in at the desk; then they can be seated here.</p>
+          <div className="relative mt-[12px] flex flex-col gap-[8px]">
+            {onTheWay.map((c, i) => (
+              <div key={c.id} className="flex flex-wrap items-center gap-x-[16px] gap-y-[8px] rounded-[16px] border border-edge-soft bg-ink/35 px-[14px] py-[10px]">
+                <span className={`font-mono leading-none font-semibold ${i === 0 ? "text-[28px]" : "text-[20px] text-fg-muted"}`}>
+                  {c.public_token}
+                </span>
+                <span className={`min-w-0 truncate font-display leading-none ${i === 0 ? "text-[24px]" : "text-[19px] text-fg-muted"}`}>
+                  {fullName(c)}
+                </span>
+                {i === 0 && waitFor > 0 && (
+                  <span className="rounded-full border border-accent/40 px-[10px] py-[3px] font-mono text-[11px] text-accent">
+                    on the TV · {waitFor}s
+                  </span>
+                )}
+                <span className="flex-1" />
+                <span className="flex flex-wrap gap-[8px]">
+                  <button
+                    type="button"
+                    onClick={() => setIssuing(c)}
+                    className="cursor-pointer rounded-[12px] border border-edge-warm bg-ink/40 px-[12px] py-[9px] text-[12px] font-semibold"
+                  >
+                    Materials
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!canCall}
+                    onClick={() => rpc("fets_recall", { p_center: center.id, p_candidate: c.id })}
+                    className="cursor-pointer rounded-[12px] border border-edge-warm bg-ink/40 px-[12px] py-[9px] text-[12px] font-semibold disabled:opacity-40"
+                  >
+                    Call again
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!canCall}
+                    onClick={() => rpc("fets_clear_call", { p_center: center.id, p_candidate: c.id }, `${c.public_token} call cancelled`)}
+                    className="cursor-pointer rounded-[12px] border border-edge px-[12px] py-[9px] text-[12px] font-semibold text-fg-muted disabled:opacity-40"
+                  >
+                    Cancel
+                  </button>
+                </span>
+              </div>
+            ))}
+          </div>
+          <p className="relative mt-[10px] text-[12px] text-fg-dim">The front office marks each one in; then they can be seated here.</p>
         </section>
       )}
 

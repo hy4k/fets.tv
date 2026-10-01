@@ -524,6 +524,8 @@ export type DisplayState = {
     nonce: number;
     updated_at: string;
   } | null;
+  /** Called earlier and still on their way: shown small under the big call. */
+  earlier?: { token: string; name: string | null; room: string | null; updated_at: string }[];
   notice: {
     body: string;
     tone: NoticeTone;
