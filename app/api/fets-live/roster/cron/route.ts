@@ -9,6 +9,9 @@ export async function POST(request: Request) {
   const received = request.headers.get('authorization') ?? '';
   const expected = `Bearer ${secret}`;
   if (!secret || Buffer.byteLength(received) !== Buffer.byteLength(expected) || !timingSafeEqual(Buffer.from(received), Buffer.from(expected))) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  // Pulling is the staff's decision now. The host timer may still call this
+  // every morning; unless switched back on, it is told so and does nothing.
+  if (process.env.FETS_ROSTER_AUTO !== 'on') return Response.json({ skipped: 'Automatic roster pulls are off; staff pull from the Roster page.' });
   const { data: centers, error } = await supabaseService().from('centers').select('id,name').eq('active', true);
   if (error) return Response.json({ error: 'Could not read centres' }, { status: 503 });
   const results = [];
