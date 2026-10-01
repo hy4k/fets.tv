@@ -32,6 +32,13 @@ export function SeatGrid({ candidate, onDone }: { candidate: Candidate; onDone: 
   const occupantOf = (w: Workstation) =>
     candidates.find((c) => c.id === w.current_candidate_id)?.public_token ?? null;
 
+  async function repair(seat: Workstation) {
+    if (!window.confirm(`${seat.seat_code} is marked faulty. Is it working again?`)) return;
+    setBusy(true);
+    await rpc("fets_set_workstation_status", { p_workstation: seat.id, p_status: "free" }, `${seat.seat_code} is back in use`);
+    setBusy(false);
+  }
+
   async function confirm() {
     if (!chosen) return;
     setBusy(true);
@@ -62,26 +69,27 @@ export function SeatGrid({ candidate, onDone }: { candidate: Candidate; onDone: 
             </div>
             <div className="grid grid-cols-[repeat(auto-fill,minmax(50px,1fr))] gap-[6px]">
               {seats.map((seat) => {
+                const faulty = seat.status === "fault";
                 const taken = seat.status !== "free";
                 const picked = chosen?.id === seat.id;
                 return (
                   <button
                     key={seat.id}
                     type="button"
-                    disabled={taken || !canLab || busy}
+                    disabled={(taken && !faulty) || !canLab || busy}
                     title={
-                      seat.status === "fault"
-                        ? "Marked faulty"
+                      faulty
+                        ? "Marked faulty — tap if it works again"
                         : taken
                           ? `Taken by ${occupantOf(seat) ?? "somebody"}`
                           : seat.seat_code
                     }
-                    onClick={() => setChosen(seat)}
+                    onClick={() => (faulty ? void repair(seat) : setChosen(seat))}
                     className={`aspect-square rounded-[11px] border font-mono text-[12.5px] font-semibold transition-colors ${
                       picked
                         ? "border-mint bg-mint/25 text-mint shadow-[0_0_0_3px_oklch(0.8_0.15_160/0.18)]"
                         : seat.status === "fault"
-                          ? "cursor-not-allowed border-rust/35 bg-rust/8 text-rust/60"
+                          ? "cursor-pointer border-rust/35 bg-rust/8 text-rust/70 hover:border-rust"
                           : taken
                             ? "cursor-not-allowed border-edge bg-panel text-fg-faint/40"
                             : "cursor-pointer border-edge-warm bg-panel-soft text-fg-muted hover:border-accent hover:text-fg"
@@ -116,7 +124,7 @@ export function SeatGrid({ candidate, onDone }: { candidate: Candidate; onDone: 
         >
           Cancel
         </button>
-        <span className="text-[11.5px] text-fg-faint">Dim is taken, red is faulty.</span>
+        <span className="text-[11.5px] text-fg-faint">Dim is taken. Red is faulty — tap it if it works again.</span>
       </div>
     </div>
   );

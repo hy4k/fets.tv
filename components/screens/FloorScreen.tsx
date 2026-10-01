@@ -876,7 +876,7 @@ function TransferDialog({
   const [toSeat, setToSeat] = useState("");
   const [reason, setReason] = useState("");
   const [minutes, setMinutes] = useState("0");
-  const [faultOld, setFaultOld] = useState(true);
+  const [faultOld, setFaultOld] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const free = useMemo(
