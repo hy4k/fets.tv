@@ -295,8 +295,7 @@ function FloorCard({
           <span className="mt-[2px] flex min-w-0 items-center gap-[7px]">
             <span className="truncate font-mono text-[10.5px] text-fg-faint">
               {[
-                candidate.public_token,
-                programme?.code,
+                programme?.code ?? candidate.live_exam_name ?? "Exam not set",
                 `${candidate.exam_duration_minutes ?? "?"} min`,
               ]
                 .filter(Boolean)
