@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { DisplayBoard } from "@/components/display/DisplayBoard";
 import { useConsole } from "@/lib/console-data";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { clockAt, fullName } from "@/lib/format";
+import { clockAt, fullName, refOf } from "@/lib/format";
 import { useNow } from "@/lib/use-clock";
 import {
   NOTICE_BACKGROUNDS,
@@ -560,7 +560,7 @@ export function NoticesScreen() {
                 call={
                   called
                     ? {
-                        token: called.public_token,
+                        token: refOf(called),
                         name: center.show_name_on_tv ? fullName(called) : null,
                         room: call?.room_label ?? null,
                         instruction: call?.instruction ?? null,
@@ -582,7 +582,7 @@ export function NoticesScreen() {
                   .filter((c) => c.status === "waiting" && !c.called_at)
                   .slice(0, 3)
                   .map((c) => ({
-                    token: c.public_token,
+                    token: refOf(c),
                     name: center.show_name_on_tv ? fullName(c) : null,
                   }))}
               />

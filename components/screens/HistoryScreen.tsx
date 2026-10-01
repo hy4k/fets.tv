@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { useConsole } from "@/lib/console-data";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { clockAt, fullName, statusChip } from "@/lib/format";
+import { clockAt, fullName, statusChip, refOf } from "@/lib/format";
 import type { Candidate, ExamSession } from "@/lib/types";
 
 /** The report's own columns, the same six the working list shows. */
@@ -253,7 +253,7 @@ function DayDialog({ day, onClose }: { day: ExamSession; onClose: () => void }) 
             style={{ gridTemplateColumns: COLUMNS }}
             className="block border-b border-edge-soft/60 py-[11px] md:grid md:items-center md:gap-[12px]"
           >
-            <span className="font-mono text-[12.5px] font-semibold">{c.public_token}</span>
+            <span className="font-mono text-[12.5px] font-semibold">{refOf(c)}</span>
             <span className="block min-w-0 truncate text-[13.5px]">{fullName(c)}</span>
             <span className="truncate text-[12.5px] text-fg-muted">{c.part ?? "—"}</span>
             <span className="truncate text-[12.5px] text-fg-muted">{c.place ?? "—"}</span>

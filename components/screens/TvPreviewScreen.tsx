@@ -5,7 +5,7 @@ import { Drawer } from "@/components/ui/Drawer";
 import { useDrawers } from "@/lib/drawer-store";
 import { useConsole } from "@/lib/console-data";
 import { useNow } from "@/lib/use-clock";
-import { clockAt, fullName } from "@/lib/format";
+import { clockAt, fullName, refOf } from "@/lib/format";
 
 export function TvPreviewScreen() {
   const { candidates, center, call, displays, notice } = useConsole();
@@ -18,7 +18,7 @@ export function TvPreviewScreen() {
   const next = candidates
     .filter((c) => c.status === "waiting" && !c.called_at)
     .slice(0, 4)
-    .map((c) => ({ token: c.public_token, name: showName ? fullName(c) : null }));
+    .map((c) => ({ token: refOf(c), name: showName ? fullName(c) : null }));
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-[14px]">
@@ -33,7 +33,7 @@ export function TvPreviewScreen() {
         call={
           called
             ? {
-                token: called.public_token,
+                token: refOf(called),
                 name: showName ? fullName(called) : null,
                 room: call?.room_label ?? null,
                 instruction: call?.instruction ?? null,
@@ -45,7 +45,7 @@ export function TvPreviewScreen() {
           .filter((c) => c.status === "waiting" && c.called_at && c.id !== called?.id)
           .sort((a, b) => (b.called_at ?? "").localeCompare(a.called_at ?? ""))
           .slice(0, 4)
-          .map((c) => ({ token: c.public_token, name: showName ? fullName(c) : null }))}
+          .map((c) => ({ token: refOf(c), name: showName ? fullName(c) : null }))}
       />
 
       <Drawer

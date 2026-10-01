@@ -4,7 +4,7 @@ import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Dialog } from "@/components/ui/Dialog";
 import { useConsole } from "@/lib/console-data";
-import { fullName } from "@/lib/format";
+import { fullName, refOf } from "@/lib/format";
 import type { Candidate } from "@/lib/types";
 
 const PARTS = ["PART 1", "PART 2"];
@@ -89,7 +89,7 @@ export function CandidateDetailsDialog({
       title={editing ? "Edit details" : "Add a walk-in candidate"}
       subtitle={
         editing
-          ? `${candidate.public_token} · ${candidate.roster_number}`
+          ? `Confirmation ${refOf(candidate)}`
           : "For somebody who is not on the uploaded list"
       }
       onClose={onClose}

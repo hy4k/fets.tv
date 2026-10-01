@@ -249,7 +249,7 @@ test("a break shows against the person who is on it, and nobody else", () => {
 
 test("only what is still held is outstanding, and returned or written-off is not", () => {
   const s = run({
-    candidates: [candidate({ id: "c1", public_token: "C-9" })],
+    candidates: [candidate({ id: "c1", public_token: "C-9", roster_number: "PRO-42" })],
     materials: [
       material({ id: "held", issued_count: 3, returned_count: 1 }),
       material({ id: "back", kind: "pencil", issued_count: 1, returned_count: 1 }),
@@ -259,7 +259,7 @@ test("only what is still held is outstanding, and returned or written-off is not
 
   assert.equal(s.materialsOut.length, 1);
   assert.deepEqual(s.materialsOut[0], {
-    token: "C-9",
+    token: "PRO-42",
     name: "Asha Menon",
     label: "Scratch sheet",
     count: 2,

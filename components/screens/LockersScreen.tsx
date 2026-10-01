@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { useConsole } from "@/lib/console-data";
-import { fullName } from "@/lib/format";
+import { fullName, refOf } from "@/lib/format";
 import type { Candidate } from "@/lib/types";
 
 // Out of the building. A candidate who has finished but not signed out still
@@ -129,7 +129,7 @@ function Head({ label, count, tone }: { label: string; count: number; tone: stri
 function Row({ c, children }: { c: Candidate; children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-[12px] border-b border-edge-soft/60 px-[14px] py-[10px] last:border-b-0 md:px-[16px]">
-      <span className="w-[64px] shrink-0 font-mono text-[12.5px] font-semibold">{c.public_token}</span>
+      <span className="w-[64px] shrink-0 font-mono text-[12.5px] font-semibold">{refOf(c)}</span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[13.5px] font-semibold">{fullName(c)}</span>
         <span className="block truncate font-mono text-[10.5px] text-fg-faint">
@@ -170,13 +170,13 @@ function KeyPicker({
   onClose: () => void;
 }) {
   const { rpc } = useConsole();
-  const holders = new Map(inUse.filter((c) => c.locker_key !== "NIL").map((c) => [c.locker_key!, c.public_token]));
+  const holders = new Map(inUse.filter((c) => c.locker_key !== "NIL").map((c) => [c.locker_key!, refOf(c)]));
 
   async function give(key: string) {
     const ok = await rpc(
       "fets_assign_locker",
       { p_candidate: candidate.id, p_key: key },
-      key === "NIL" ? `${candidate.public_token} · no locker needed` : `${key} to ${candidate.public_token}`,
+      key === "NIL" ? `${refOf(candidate)} · no locker needed` : `${key} to ${refOf(candidate)}`,
     );
     if (ok) onClose();
   }
@@ -184,7 +184,7 @@ function KeyPicker({
   return (
     <Dialog
       open
-      title={`Key for ${candidate.public_token}`}
+      title={`Key for ${refOf(candidate)}`}
       subtitle={`${fullName(candidate)} · a dimmed key is already out`}
       onClose={onClose}
       width={520}

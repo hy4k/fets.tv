@@ -34,8 +34,15 @@ export function fullName(c: Pick<Candidate, "first_name" | "last_name">) {
   return `${c.first_name} ${c.last_name}`.trim();
 }
 
-/** How long a call stays large on the TV before the next may be called. */
-export const CALL_GAP_SECONDS = 45;
+/**
+ * How a candidate is known at the desk and on the TV: the confirmation number
+ * the exam provider gave them. The internal FETS token is only a fallback for
+ * the rare walk-in with no number.
+ */
+export function refOf(c: Pick<Candidate, "roster_number" | "public_token">) {
+  return c.roster_number?.trim() || c.public_token;
+}
+
 
 /** How many called candidates may be on their way to the gate at once. */
 export const MAX_ON_THE_WAY = 5;

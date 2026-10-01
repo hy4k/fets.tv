@@ -12,6 +12,9 @@ export type BoardCall = {
   instruction: string | null;
 } | null;
 
+/** Hues for the also-called boxes: teal, violet, coral, sky. */
+const CALLED_HUES = [175, 300, 30, 235];
+
 export type BoardNext = { token: string; name: string | null };
 
 export type BoardNotice = {
@@ -57,9 +60,10 @@ const NOTICE_TONE = {
 
 /**
  * The hall TV. Read from three to ten metres by people who are anxious and are
- * scanning for one thing: their own token. So the board has two distinct
+ * scanning for one thing: their own name. So the board has two distinct
  * states — calm while idle, unmissable while calling — rather than one layout
- * that shouts either way. Nothing internal (roster numbers, phone, place,
+ * that shouts either way. Beyond the name, only the provider's confirmation
+ * number is shown — nothing else internal (phone, place,
  * stage names) reaches this screen; it renders only what the display
  * projection hands it.
  */
@@ -132,13 +136,22 @@ export function DisplayBoard({
             Now calling
           </span>
 
-          <span className="shrink-0 overflow-hidden font-mono text-[clamp(20px,min(12.5cqw,17cqh),230px)] leading-[0.92] font-semibold tracking-[-0.035em] text-ellipsis whitespace-nowrap">
-            {call.token}
+          {/* The name is what people listen for; the confirmation number
+              under it settles two people with the same name. With others
+              also called, the big name steps down a little to give them room. */}
+          <span
+            className={`max-w-full shrink-0 overflow-hidden font-serif leading-[0.98] text-ellipsis whitespace-nowrap ${
+              earlier.length > 0
+                ? "text-[clamp(18px,min(8cqw,11cqh),150px)]"
+                : "text-[clamp(20px,min(10.5cqw,15cqh),200px)]"
+            }`}
+          >
+            {call.name ?? call.token}
           </span>
 
           {call.name && (
-            <span className="shrink-0 overflow-hidden font-serif text-[clamp(12px,min(4.6cqw,6.5cqh),76px)] leading-[1.05] text-ellipsis whitespace-nowrap">
-              {call.name}
+            <span className="shrink-0 font-mono text-[clamp(9px,min(2.4cqw,3.6cqh),38px)] leading-none font-semibold tracking-[0.04em] opacity-75">
+              {call.token}
             </span>
           )}
 
@@ -214,7 +227,7 @@ export function DisplayBoard({
                 Please take a seat
               </span>
               <span className="max-w-[34ch] text-[clamp(8px,min(1.8cqw,3.2cqh),28px)] leading-[1.35] text-fg-muted">
-                You will be called by your token number
+                You will be called by name
               </span>
             </>
           )}
@@ -229,23 +242,32 @@ export function DisplayBoard({
       )}
 
       {call && earlier.length > 0 && (
-        <section aria-label="Also called" className="flex shrink-0 flex-wrap items-center gap-[clamp(5px,1cqw,16px)]">
-          <span className="text-[clamp(6px,1.05cqw,15px)] font-extrabold tracking-[0.2em] text-gold uppercase">
+        <section aria-label="Also called" className="flex shrink-0 flex-col gap-[0.9cqh]">
+          <span className="text-[clamp(7px,1.2cqw,18px)] font-extrabold tracking-[0.2em] text-fg-muted uppercase">
             Also called · please proceed
           </span>
-          {earlier.map((e) => (
-            <span
-              key={e.token}
-              className="flex items-baseline gap-[clamp(5px,0.8cqw,12px)] rounded-[16px] border border-gold/45 bg-gold/10 px-[clamp(8px,1.3cqw,20px)] py-[clamp(4px,0.9cqh,12px)]"
-            >
-              <span className="font-mono text-[clamp(12px,min(2.4cqw,4.4cqh),38px)] leading-none font-semibold text-gold-bright">
-                {e.token}
-              </span>
-              {e.name && (
-                <span className="font-serif text-[clamp(9px,1.6cqw,26px)] leading-none text-fg">{e.name}</span>
-              )}
-            </span>
-          ))}
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(clamp(90px,20cqw,320px),1fr))] gap-[clamp(5px,1cqw,16px)]">
+            {earlier.map((e, i) => {
+              const hue = CALLED_HUES[i % CALLED_HUES.length];
+              return (
+                <div
+                  key={e.token}
+                  style={{
+                    background: `linear-gradient(150deg, oklch(0.5 0.13 ${hue} / 0.55), oklch(0.28 0.07 ${hue} / 0.7))`,
+                    borderColor: `oklch(0.75 0.13 ${hue} / 0.6)`,
+                  }}
+                  className="flex min-w-0 flex-col gap-[0.5cqh] rounded-[18px] border px-[clamp(8px,1.5cqw,24px)] py-[clamp(6px,1.4cqh,20px)]"
+                >
+                  <span className="overflow-hidden font-serif text-[clamp(12px,min(3.4cqw,5.4cqh),56px)] leading-[1.05] text-ellipsis whitespace-nowrap text-fg">
+                    {e.name ?? e.token}
+                  </span>
+                  {e.name && (
+                    <span className="font-mono text-[clamp(7px,1.3cqw,20px)] leading-none text-fg/75">{e.token}</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </section>
       )}
 
@@ -280,12 +302,12 @@ export function DisplayBoard({
                 key={t.token}
                 className="rounded-[18px] border border-edge-mid bg-panel px-[clamp(6px,1.2cqw,18px)] py-[clamp(5px,1.1cqh,16px)]"
               >
-                <span className="block overflow-hidden font-mono text-[clamp(11px,min(2.6cqw,4.6cqh),40px)] leading-[1.1] font-semibold text-ellipsis whitespace-nowrap">
-                  {t.token}
+                <span className="block overflow-hidden font-serif text-[clamp(10px,min(2.2cqw,4cqh),34px)] leading-[1.15] text-ellipsis whitespace-nowrap">
+                  {t.name ?? t.token}
                 </span>
                 {t.name && (
-                  <span className="block overflow-hidden font-serif text-[clamp(8px,1.5cqw,24px)] leading-[1.2] text-fg-muted text-ellipsis whitespace-nowrap">
-                    {t.name}
+                  <span className="block overflow-hidden font-mono text-[clamp(7px,1.2cqw,18px)] leading-[1.2] text-fg-muted text-ellipsis whitespace-nowrap">
+                    {t.token}
                   </span>
                 )}
               </div>
