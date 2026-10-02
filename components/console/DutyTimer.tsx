@@ -1,7 +1,19 @@
 "use client";
 
+import { useState } from "react";
+import { basePath } from "@/lib/base-path";
 import { useConsole } from "@/lib/console-data";
-import { DVR_MINUTES, WALK_MINUTES, dutyLogCsv, dutySpan, marks, nextMark, twoDigit, type DutyCheck } from "@/lib/duty-timer";
+import {
+  DVR_MINUTES,
+  WALK_MINUTES,
+  dutyLogCsv,
+  dutySpan,
+  marks,
+  nextMark,
+  twoDigit,
+  type DutyCheck,
+  type DutyRota,
+} from "@/lib/duty-timer";
 import { clockAt, todayInZone } from "@/lib/format";
 import type { Candidate } from "@/lib/types";
 import { useNow } from "@/lib/use-clock";
@@ -15,18 +27,32 @@ const WALK = { ink: "oklch(0.88 0.13 85)", glow: "oklch(0.85 0.14 85 / 0.75)" };
  * It fills from the first exam start to the last expected finish. Gold marks
  * above the glass are the ten-minute floor walks, cyan marks below are the
  * six-minute DVR checks; two counters say how long until the next of each.
- * Nothing is logged here — the export at the end gives the day's sheet.
+ * Nothing is logged here — the export at the end gives the day's sheet, with
+ * who was on duty for each mark taken from the fets.live rota.
  */
 export function DutyTimer() {
-  const { candidates, walkthroughs, center, session } = useConsole();
+  const { candidates, walkthroughs, center, session, notify } = useConsole();
   return (
     <DutyTimerView
       candidates={candidates}
       checks={walkthroughs}
       timezone={center.timezone}
       date={session?.exam_date ?? todayInZone(center.timezone)}
+      notify={notify}
     />
   );
+}
+
+/** The day's rota from fets.live, or why there is none. */
+async function loadRota(date: string): Promise<{ rota: DutyRota | null; reason?: string }> {
+  try {
+    const res = await fetch(`${basePath}/api/fets-live/duty-rota?date=${date}`, { cache: "no-store" });
+    const body = await res.json();
+    if (!res.ok) return { rota: null, reason: body.error ?? "Could not read the fets.live rota." };
+    return body.connected ? { rota: body.rota } : { rota: null, reason: body.reason };
+  } catch {
+    return { rota: null, reason: "Could not reach fets.live." };
+  }
 }
 
 export function DutyTimerView({
@@ -34,13 +60,16 @@ export function DutyTimerView({
   checks,
   timezone,
   date,
+  notify,
 }: {
   candidates: Candidate[];
   checks: DutyCheck[];
   timezone: string;
   date: string;
+  notify?: (message: string) => void;
 }) {
   const now = useNow();
+  const [exporting, setExporting] = useState(false);
   const { start, end } = dutySpan(candidates);
 
   if (now === 0) return null;
@@ -53,8 +82,13 @@ export function DutyTimerView({
   const dvr = running ? nextMark(start, end, DVR_MINUTES, now) : null;
   const walk = running ? nextMark(start, end, WALK_MINUTES, now) : null;
 
-  function exportLog() {
-    const csv = dutyLogCsv({ start, end, checks, date, timezone });
+  async function exportLog() {
+    setExporting(true);
+    const { rota, reason } = await loadRota(date);
+    setExporting(false);
+    // The sheet still goes out without the rota; the on-duty column is blank.
+    if (!rota && reason) notify?.(`Exported without rota names: ${reason}`);
+    const csv = dutyLogCsv({ start, end, checks, date, timezone, rota });
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const a = document.createElement("a");
     a.href = url;
@@ -78,11 +112,11 @@ export function DutyTimerView({
         </span>
         <button
           type="button"
-          disabled={!running}
-          onClick={exportLog}
+          disabled={!running || exporting}
+          onClick={() => void exportLog()}
           className="cursor-pointer rounded-[12px] border border-accent/30 bg-ink/50 px-[14px] py-[8px] text-[12.5px] font-semibold text-fg-muted hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
         >
-          Export the day&apos;s log
+          {exporting ? "Reading the rota…" : "Export the day’s log"}
         </button>
       </div>
 

@@ -1,3 +1,5 @@
+import type { DutyRota } from "./duty-timer";
+
 /**
  * The day's schedule from the fets.live calendar.
  *
@@ -307,5 +309,73 @@ export async function readTable<T>(
     return { reason: "Roster pagination did not complete." };
   } catch {
     return { reason: "Could not reach fets.live." };
+  }
+}
+
+/**
+ * The day's published duty rota at this centre, from fets.live's
+ * `centre_day_plans` (six 90-minute blocks, who has the floor and the DVR in
+ * each, break cover) with any cover arranged on the day
+ * (`centre_duty_changes`) and the staff names. A draft plan is not a rota:
+ * until it is published this says so and the export leaves the column blank.
+ */
+export async function readDutyRota(
+  date: string,
+  centre: string,
+): Promise<{ connected: true; rota: DutyRota } | { connected: false; reason: string }> {
+  const url = process.env.FETS_LIVE_SUPABASE_URL?.replace(/\/+$/, "").replace(/\/rest\/v1$/, "");
+  const key = process.env.FETS_LIVE_SUPABASE_KEY;
+  if (!url || !key) return { connected: false, reason: "fets.live is not connected yet." };
+  if (!isSecretKey(key)) return { connected: false, reason: "The fets.live key is a public key; fets.live needs a secret key." };
+  const branch = branchOf(centre);
+  if (!branch) return { connected: false, reason: `fets.live has nothing for ${centre || "this centre"}.` };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { connected: false, reason: "Pick a valid date." };
+
+  const headers: Record<string, string> = { apikey: key };
+  if (key.startsWith("eyJ")) headers.Authorization = `Bearer ${key}`;
+  const get = async <T>(table: string, query: Record<string, string>) => {
+    const res = await fetch(`${url}/rest/v1/${table}?${new URLSearchParams(query)}`, {
+      headers,
+      cache: "no-store",
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok) throw Error(`fets.live refused the read (${res.status}).`);
+    return (await res.json()) as T[];
+  };
+
+  try {
+    const [plan] = await get<{ id: string; plan: { blocks?: unknown; breaks?: unknown } }>("centre_day_plans", {
+      select: "id,plan",
+      branch: `eq.${branch}`,
+      day: `eq.${date}`,
+      status: "eq.published",
+      limit: "1",
+    });
+    if (!plan) return { connected: false, reason: "No published duty rota in fets.live for this day." };
+
+    const blocks = (Array.isArray(plan.plan?.blocks) ? plan.plan.blocks : []) as DutyRota["blocks"];
+    const breaks = (Array.isArray(plan.plan?.breaks) ? plan.plan.breaks : []) as DutyRota["breaks"];
+    const changes = await get<DutyRota["changes"][number]>("centre_duty_changes", {
+      select: "block,lane,staff_id,starts,ends",
+      plan_id: `eq.${plan.id}`,
+      kind: "eq.coverage",
+      order: "created_at.desc,id.desc",
+    });
+
+    const ids = new Set<string>();
+    for (const b of blocks) for (const id of [b.owners?.floor, b.owners?.control]) if (id) ids.add(id);
+    for (const b of breaks) if (b.cover) ids.add(b.cover);
+    for (const c of changes) if (c.staff_id) ids.add(c.staff_id);
+    const names: Record<string, string> = {};
+    if (ids.size) {
+      const staff = await get<{ id: string; full_name: string | null }>("staff_profiles", {
+        select: "id,full_name",
+        id: `in.(${[...ids].join(",")})`,
+      });
+      for (const s of staff) if (s.full_name) names[s.id] = s.full_name.trim();
+    }
+    return { connected: true, rota: { blocks, breaks, changes, names } };
+  } catch (e) {
+    return { connected: false, reason: e instanceof Error && e.message.startsWith("fets.live") ? e.message : "Could not reach fets.live." };
   }
 }
