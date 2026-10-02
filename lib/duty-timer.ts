@@ -4,8 +4,9 @@
  * every ten, both counted from that first start.
  *
  * Nothing is logged here. The page only shows what is due next; the export at
- * the end of the day lists every mark with whoever recorded a check near it,
- * leaving the name blank where nobody did, so it can be signed on paper.
+ * the end of the day lists every mark with who was on duty for it in the
+ * fets.live rota, and whoever recorded a check near it, leaving a name blank
+ * where there is none, so it can be signed on paper.
  *
  * Pure functions, no React: the banner and the export read the same answer.
  */
@@ -71,6 +72,40 @@ export function twoDigit(ms: number) {
 export type DutyCheck = { kind: DutyKind; walked_at: string; walked_by_name: string };
 
 /**
+ * The day's published duty plan from fets.live. Times are minutes from
+ * midnight, IST. The floor lane does the walks, the control lane the DVR.
+ */
+export type DutyRota = {
+  blocks: { start: number; end: number; owners: { floor?: string; control?: string } }[];
+  /** A staff member on a break, and who covers for them. */
+  breaks: { staff: string; cover: string | null; start: number; end: number }[];
+  /** Cover arranged on the day, newest first. */
+  changes: { block: number; lane: string; staff_id: string; starts: number; ends: number }[];
+  /** Profile id → full name. */
+  names: Record<string, string>;
+};
+
+const IST_OFFSET_MINUTES = 330;
+
+/**
+ * Who the rota names for a mark, by fets.live's own rule: cover arranged on
+ * the day first, then break cover, then the block's owner. A check due at a
+ * block's end belongs to that block, so the minute before the mark decides.
+ * Before the first block or after the last there is nobody: blank.
+ */
+export function rotaOwnerAt(rota: DutyRota, kind: DutyKind, at: number): string {
+  const lane = kind === "dvr" ? "control" : "floor";
+  const minute = (((Math.ceil(at / 60000) - 1 + IST_OFFSET_MINUTES) % 1440) + 1440) % 1440;
+  const block = rota.blocks.findIndex((b) => b.start <= minute && minute < b.end);
+  if (block < 0) return "";
+  const owner = rota.blocks[block].owners[lane] ?? "";
+  const change = rota.changes.find((c) => c.block === block && c.lane === lane && c.starts <= minute && minute < c.ends);
+  const onBreak = rota.breaks.find((b) => b.staff === owner && b.cover && b.start <= minute && minute < b.end);
+  const id = change?.staff_id ?? onBreak?.cover ?? owner;
+  return id ? (rota.names[id] ?? "") : "";
+}
+
+/**
  * The day as CSV: one row per mark per track. A check counts for the mark it
  * is nearest to (within half an interval either side). Spreadsheet-safe:
  * every field quoted, and a leading = + - @ neutralised.
@@ -81,8 +116,10 @@ export function dutyLogCsv(input: {
   checks: DutyCheck[];
   date: string;
   timezone: string;
+  /** Leave out when fets.live is not reachable; the column stays blank. */
+  rota?: DutyRota | null;
 }) {
-  const { start, end, checks, date, timezone } = input;
+  const { start, end, checks, date, timezone, rota } = input;
   const time = (ms: number) =>
     new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: timezone }).format(
       new Date(ms),
@@ -93,7 +130,7 @@ export function dutyLogCsv(input: {
     return `"${s.replace(/"/g, '""')}"`;
   };
 
-  const header = ["Date", "Track", "Mark", "Due at", "Checked at", "Staff name", "Signature"];
+  const header = ["Date", "Track", "Mark", "Due at", "On duty (rota)", "Checked at", "Checked by", "Signature"];
   const rows: (string | number)[][] = [];
   if (start !== null && end !== null) {
     for (const [kind, every, label] of [
@@ -106,7 +143,8 @@ export function dutyLogCsv(input: {
         const near = mine
           .filter((x) => x.at >= at - half && x.at < at + half)
           .sort((a, b) => Math.abs(a.at - at) - Math.abs(b.at - at))[0];
-        rows.push([date, label, i + 1, time(at), near ? time(near.at) : "", near?.c.walked_by_name ?? "", ""]);
+        const onDuty = rota ? rotaOwnerAt(rota, kind, at) : "";
+        rows.push([date, label, i + 1, time(at), onDuty, near ? time(near.at) : "", near?.c.walked_by_name ?? "", ""]);
       });
     }
   }
