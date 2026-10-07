@@ -1,0 +1,155 @@
+<title>FETS Floor Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: one narrow reading column — alert first, then the record, then why it matters. */
+:root {
+  --bg: #F3F6F6; --card: #FFFFFF; --ink: #13232A; --muted: #5B6B71; --line: #DCE4E5;
+  --teal: #0F766E; --teal-soft: #E3F1EF; --red: #B42318; --red-soft: #FDECEA; --amber: #A15C07; --amber-soft: #FDF3E1;
+  --display: "Sora", "Segoe UI", system-ui, sans-serif;
+  --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0E1719; --card: #152226; --ink: #E6EEEF; --muted: #93A5AA; --line: #26363A;
+  --teal: #4FC1B4; --teal-soft: #15302D; --red: #FF8A7E; --red-soft: #3A1916; --amber: #F2B45A; --amber-soft: #33240E; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0E1719; --card: #152226; --ink: #E6EEEF; --muted: #93A5AA; --line: #26363A;
+  --teal: #4FC1B4; --teal-soft: #15302D; --red: #FF8A7E; --red-soft: #3A1916; --amber: #F2B45A; --amber-soft: #33240E; color-scheme: dark }
+
+* { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+@media print { body { padding-block: 0; } section, .alert, .note { break-inside: avoid; } }
+body { background: var(--bg); color: var(--ink); font: 16px/1.55 var(--body); padding-inline: 16px; padding-block: 28px 56px; }
+main { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+h1, h2, h3 { font-family: var(--display); line-height: 1.2; text-wrap: balance; margin: 0; }
+p { margin: 0; }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+header { display: flex; flex-direction: column; gap: 6px; }
+.eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+header h1 { font-size: clamp(26px, 5vw, 34px); font-weight: 800; }
+header p { color: var(--muted); }
+
+.alert { border: 2px solid var(--red); background: var(--red-soft); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+.alert h2 { font-size: 20px; color: var(--red); }
+.alert > p { font-weight: 600; }
+.today { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.site { background: var(--card); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.site h3 { font-size: 15px; }
+.site ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.site b { color: var(--red); }
+
+section { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+section h2 { font-size: 18px; }
+.lead { color: var(--muted); font-size: 15px; }
+
+.trend { display: grid; grid-template-columns: 76px 1fr 1fr; gap: 6px 12px; align-items: center; font-size: 14px; }
+.trend .h { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.bar { position: relative; height: 22px; border-radius: 6px; background: var(--bg); overflow: hidden; }
+.bar i { position: absolute; inset: 0 auto 0 0; background: var(--teal); border-radius: 6px; }
+.bar.low i { background: var(--red); }
+.bar.mid i { background: var(--amber); }
+.bar span { position: relative; z-index: 1; display: block; padding: 0 8px; line-height: 22px; font: 700 12px/22px var(--mono); color: var(--ink); }
+.bar:not(.empty) span { color: #FFFFFF; }
+.bar.empty span { color: var(--muted); font-weight: 500; }
+
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 15px; }
+th, td { padding: 9px 8px; border-bottom: 1px solid var(--line); text-align: left; }
+th { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+td.c, th.c { text-align: center; }
+.pill { display: inline-block; min-width: 54px; padding: 2px 8px; border-radius: 999px; font: 700 12.5px/1.6 var(--mono); text-align: center; }
+.ok { background: var(--teal-soft); color: var(--teal); }
+.warn { background: var(--amber-soft); color: var(--amber); }
+.bad { background: var(--red-soft); color: var(--red); }
+
+.note { border-left: 4px solid var(--amber); background: var(--amber-soft); border-radius: 0 12px 12px 0; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+.note h3 { font-size: 15px; color: var(--amber); }
+
+.why { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+.time { display: grid; grid-template-columns: 1fr auto auto; gap: 8px 16px; font-size: 15px; align-items: baseline; }
+.time .h { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+.time .old { color: var(--muted); text-decoration: line-through; }
+.time .new { color: var(--teal); font-weight: 700; }
+.total { border-top: 1px solid var(--line); padding-top: 10px; font-weight: 700; }
+.save { font-family: var(--display); font-size: 22px; color: var(--teal); }
+.small { font-size: 13px; color: var(--muted); }
+footer { text-align: center; font-size: 13px; color: var(--muted); }
+@media (max-width: 480px) { .trend { grid-template-columns: 60px 1fr 1fr; } }
+</style>
+
+<main>
+  <header>
+    <span class="eyebrow">Forun Testing &amp; Educational Services · Calicut &amp; Cochin</span>
+    <h1>Floor report, 1–6 October</h1>
+    <p>How we used fets.online on the exam floor, and what needs to change from tomorrow.</p>
+  </header>
+
+  <div class="alert" role="alert">
+    <h2>Important: today was our weakest day</h2>
+    <p>Candidates are being checked in properly, but the end of the process is being skipped. A candidate who is not signed out still shows as inside the centre.</p>
+    <div class="today">
+      <div class="site">
+        <h3>Calicut · 6 Oct (50 candidates)</h3>
+        <ul>
+          <li><b class="num">3</b> candidates: exam finish not recorded</li>
+          <li><b class="num">14</b> finished but not signed out</li>
+          <li><b class="num">1</b> left at the frisking step</li>
+          <li>The day has <b>not been closed</b></li>
+        </ul>
+      </div>
+      <div class="site">
+        <h3>Cochin · 6 Oct (49 candidates)</h3>
+        <ul>
+          <li><b class="num">26 of 49</b> not signed out — more than half</li>
+          <li>Only <b class="num">47%</b> went through the full process, down from 100% on 4 and 5 Oct</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <section aria-labelledby="trend-h">
+    <h2 id="trend-h">Full process completed, day by day</h2>
+    <p class="lead">Check-in → locker → lab → seat → exam start → exam finish → sign-out, all recorded.</p>
+    <div class="trend">
+      <span class="h">Day</span><span class="h">Calicut</span><span class="h">Cochin</span>
+      <span class="num">1 Oct</span><div class="bar empty"><span>no exams</span></div><div class="bar mid"><i style="width:78%"></i><span>78%</span></div>
+      <span class="num">2 Oct</span><div class="bar"><i style="width:100%"></i><span>100%</span></div><div class="bar"><i style="width:100%"></i><span>100%</span></div>
+      <span class="num">3 Oct</span><div class="bar mid"><i style="width:81%"></i><span>81%</span></div><div class="bar"><i style="width:90%"></i><span>90%</span></div>
+      <span class="num">4 Oct</span><div class="bar low"><i style="width:62%"></i><span>62%</span></div><div class="bar"><i style="width:100%"></i><span>100%</span></div>
+      <span class="num">5 Oct</span><div class="bar"><i style="width:100%"></i><span>100%</span></div><div class="bar"><i style="width:100%"></i><span>100%</span></div>
+      <span class="num">6 Oct</span><div class="bar low"><i style="width:64%"></i><span>64%</span></div><div class="bar low"><i style="width:47%"></i><span>47%</span></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="score-h">
+    <h2 id="score-h">What we did well, and what we skipped</h2>
+    <p class="lead"><b>Both centres, every candidate:</b> check-in, ID check, locker key, TV call, lab entry, seat and exam start. Well done.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Step (1–5 Oct)</th><th class="c">Calicut</th><th class="c">Cochin</th></tr></thead>
+        <tbody>
+          <tr><td>Sign-out recorded</td><td class="c"><span class="pill warn">82%</span></td><td class="c"><span class="pill ok">95%</span></td></tr>
+          <tr><td>Materials issued &amp; returned</td><td class="c"><span class="pill bad">0%</span></td><td class="c"><span class="pill warn">47%</span></td></tr>
+          <tr><td>Phone number added</td><td class="c"><span class="pill warn">60%*</span></td><td class="c"><span class="pill warn">71%</span></td></tr>
+          <tr><td>Place added</td><td class="c"><span class="pill ok">92%</span></td><td class="c"><span class="pill bad">3%</span></td></tr>
+          <tr><td>Walkthrough log, problem reports, handover notes</td><td class="c"><span class="pill bad">never</span></td><td class="c"><span class="pill bad">never</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <h3>* Calicut: 69 phone numbers you added were lost</h3>
+      <p>Between 2 and 6 October you added <b class="num">69</b> missing phone numbers, but the day's list was refreshed from fets.live again and again. Each refresh copied the original blank numbers back over yours, along with exam parts and corrected names. Those numbers cannot be recovered. There is no need to refresh a day's list more than once: no new exams are added on the same day. From the next report onwards, the numbers you add will be kept and counted.</p>
+    </div>
+  </section>
+
+  <section aria-labelledby="ask-h">
+    <h2 id="ask-h">From tomorrow</h2>
+    <ul class="why">
+      <li>Record <b>Sign out</b> for every candidate, right up to the last one of the day.</li>
+      <li>Make sure <b>Close the day</b> goes through before you leave.</li>
+    </ul>
+  </section>
+
+  <footer>Prepared 6 October 2026 from fets.online records.</footer>
+</main>
