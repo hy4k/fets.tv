@@ -37,7 +37,7 @@ export type Step = {
   staffOnly?: boolean;
 };
 
-export type PlaceKey = "lobby" | "arrivals" | "hall" | "lab" | "screen" | "office";
+export type PlaceKey = "lobby" | "arrivals" | "hall" | "lab" | "screen" | "office" | "settings";
 
 /**
  * Which part of the building a place is in. The front desk team works the
@@ -125,13 +125,22 @@ export const PLACES: Place[] = [
     key: "office",
     wing: "more",
     title: "The Office",
-    hint: "Past days · report · setup",
+    hint: "Past days · report",
     tone: ["oklch(0.82 0.11 155)", "oklch(0.66 0.12 170)"],
     steps: [
       { key: "history", href: "/history", label: "Past days", sub: "Closed sessions" },
       { key: "report", href: "/report", label: "Problem report", sub: "For the vendor", staffOnly: true },
-      { key: "setup", href: "/settings/center", label: "Setup", sub: "Centre, exams, staff" },
     ],
+  },
+  {
+    // Setup changes how the console behaves, not what happens today, so it
+    // stands on its own rather than among the day's records.
+    key: "settings",
+    wing: "more",
+    title: "Settings",
+    hint: "Centre · labs and seats · exams",
+    tone: ["oklch(0.82 0.04 250)", "oklch(0.66 0.06 255)"],
+    steps: [{ key: "setup", href: "/settings/center", label: "Settings", sub: "Centre, labs, exams, staff" }],
   },
 ];
 

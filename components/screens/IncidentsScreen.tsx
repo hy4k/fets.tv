@@ -6,6 +6,7 @@ import { useConsole } from "@/lib/console-data";
 import { clockAt, fullName, refOf } from "@/lib/format";
 import { useNow } from "@/lib/use-clock";
 import type { Incident, IncidentKind, IncidentSeverity } from "@/lib/types";
+import { seatName } from "@/lib/seats";
 
 const KINDS: { key: IncidentKind; label: string; hint: string }[] = [
   { key: "workstation", label: "A machine", hint: "Froze, crashed, lost power" },
@@ -55,8 +56,10 @@ export function IncidentsScreen() {
   const open = useMemo(() => incidents.filter((i) => !i.resolved_at), [incidents]);
   const closed = useMemo(() => incidents.filter((i) => i.resolved_at), [incidents]);
 
-  const seatOf = (id: string | null) =>
-    workstations.find((w) => w.id === id)?.seat_code ?? null;
+  const seatOf = (id: string | null) => {
+    const w = workstations.find((x) => x.id === id);
+    return w ? seatName(w) : null;
+  };
   const personOf = (id: string | null) => {
     const c = candidates.find((x) => x.id === id);
     return c ? `${refOf(c)} · ${fullName(c)}` : null;
@@ -311,7 +314,7 @@ function LogDialog({ onClose }: { onClose: () => void }) {
               <option value="">None</option>
               {seats.map((w) => (
                 <option key={w.id} value={w.id}>
-                  {w.seat_code}
+                  {seatName(w)}
                 </option>
               ))}
             </select>

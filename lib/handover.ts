@@ -11,6 +11,7 @@ import type {
 // these at runtime; the `@/` alias only exists inside the bundler.
 import { stillHeld } from "./types.ts";
 import { fullName, isInHall, isToday, refOf } from "./format.ts";
+import { seatName } from "./seats.ts";
 
 /** One candidate mid-exam, with the clock the next person inherits. */
 export type SeatedCandidate = {
@@ -75,7 +76,7 @@ export function handoverState(
 
   const kindLabel = new Map(materialKinds.map((k) => [k.code, k.label]));
 
-  const seatOf = new Map(workstations.map((w) => [w.id, w.seat_code]));
+  const seatOf = new Map(workstations.map((w) => [w.id, seatName(w)]));
   const breakOf = new Map(openBreaks.map((b) => [b.candidate_id, b]));
 
   const seated = candidates

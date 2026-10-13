@@ -21,7 +21,7 @@ export function PlaceTabs() {
   const { profile } = useConsole();
   const { place, step: here } = locate(pathname);
   // The Admin is one page: no tab row. The Hall TV's pages sit in its banner.
-  if (!place || place.key === "hall" || place.key === "screen") return null;
+  if (!place || place.key === "hall" || place.key === "screen" || place.key === "settings") return null;
   const steps = place.steps.filter((s) => !s.staffOnly || profile.role !== "viewer");
   const onward = place.key === "lobby" ? { href: "/front-office", label: "The Check-in" } : place.key === "arrivals" ? { href: "/admin", label: "The Admin" } : null;
 

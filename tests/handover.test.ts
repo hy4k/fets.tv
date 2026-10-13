@@ -195,7 +195,8 @@ test("the seat comes from the workstation, and whoever finishes first is listed 
     s.seated.map((x) => x.id),
     ["soon", "late"],
   );
-  assert.equal(s.seated[0].seat, "L1-06");
+  // Named the way people read it: the desk number, not the code's "L1-06".
+  assert.equal(s.seated[0].seat, "Lab 1 · Seat 6");
   assert.equal(s.seated[0].endsAt, at("2026-09-23T05:30:00Z"));
   assert.equal(s.seated[0].name, "Asha Menon");
 });

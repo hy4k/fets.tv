@@ -34,6 +34,7 @@ const OVERLINE: Record<Place["key"], string> = {
   lab: "Quiet please · exams in progress",
   screen: "What the hall sees",
   office: "The office",
+  settings: "How the console is set up",
 };
 
 function dayLabel(now: number, timezone: string) {
