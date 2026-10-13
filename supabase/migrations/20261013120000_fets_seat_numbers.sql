@@ -75,11 +75,12 @@ begin
     if found then v_changed := v_changed + 1; end if;
   end loop;
 
-  select format('%s has seat %s twice', w.lab_name, public.fets_seat_number(w))
+  -- "A" and "a" are the same seat to a person reading the desk.
+  select format('%s has seat %s twice', min(w.lab_name), min(public.fets_seat_number(w)))
     into v_clash
     from public.workstations w
    where w.center_id = p_center and w.lab_id is not null
-   group by w.lab_id, w.lab_name, lower(public.fets_seat_number(w)), public.fets_seat_number(w)
+   group by w.lab_id, lower(public.fets_seat_number(w))
   having count(*) > 1
    limit 1;
   if v_clash is not null then
