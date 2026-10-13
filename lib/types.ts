@@ -466,7 +466,10 @@ export type Workstation = {
   /** Null on a seat from a retired bank, which the console no longer shows. */
   lab_id: string | null;
   lab_name: string;
+  /** Fixed identity, e.g. "Lab 1-07". People are shown seatName() instead. */
   seat_code: string;
+  /** The number on the desk, set in Setup; null means the code's number. */
+  seat_label?: string | null;
   status: WorkstationStatus;
   current_candidate_id: string | null;
 };

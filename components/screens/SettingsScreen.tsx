@@ -5,11 +5,12 @@ import { Dialog } from "@/components/ui/Dialog";
 import { useConsole } from "@/lib/console-data";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { HEADER_ALIASES } from "@/lib/roster/parse";
-import type { DutyPostKind, ExamProgramme, Lab, ScheduleRules, SectionKind } from "@/lib/types";
+import { seatNumber } from "@/lib/seats";
+import type { DutyPostKind, ExamProgramme, Lab, ScheduleRules, SectionKind, Workstation } from "@/lib/types";
 
 const SECTIONS = [
   { key: "centre", label: "Centre", blurb: "Name, timezone, and what the TV shows" },
-  { key: "labs", label: "Labs and seats", blurb: "How many seats each lab has" },
+  { key: "labs", label: "Labs and seats", blurb: "How many seats each lab has, and their numbers" },
   { key: "exams", label: "Exams", blurb: "Which exams run here, how long, and their parts" },
   { key: "day", label: "The day", blurb: "Start, end, break and how candidates are spread out" },
   { key: "flow", label: "Check in and calling", blurb: "Which steps a candidate passes through" },
@@ -61,7 +62,12 @@ export function SettingsScreen() {
         )}
 
         {section === "centre" && <CentreSection />}
-        {section === "labs" && <LabsSection />}
+        {section === "labs" && (
+          <div className="flex flex-col gap-[28px]">
+            <LabsSection />
+            <SeatNumbersSection />
+          </div>
+        )}
         {section === "exams" && <ExamsSection />}
         {section === "day" && <DaySection />}
         {section === "flow" && <FlowSection />}
@@ -212,6 +218,128 @@ function LabsSection() {
               </button>
             </>
           )}
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+/* ---------------------------------------------------------- seat numbers -- */
+
+/**
+ * The number painted on each desk. A lab that carries on the numbering from
+ * the one before it (seats 23 to 30) is set in one go with "Number from"; any
+ * single seat can still be given its own number.
+ */
+function SeatNumbersSection() {
+  const { center, labs, workstations, rpc, isAdmin } = useConsole();
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [startFrom, setStartFrom] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+
+  const seatsOf = (labId: string) =>
+    workstations
+      .filter((w) => w.lab_id === labId)
+      .sort((a, b) => a.seat_code.localeCompare(b.seat_code, undefined, { numeric: true }));
+  const valueOf = (w: Workstation) => draft[w.id] ?? w.seat_label ?? "";
+  const changed = workstations.filter((w) => draft[w.id] !== undefined && draft[w.id].trim() !== (w.seat_label ?? "").trim());
+
+  function numberFrom(labId: string) {
+    const first = Number(startFrom[labId]);
+    if (!Number.isInteger(first) || first < 0) return;
+    const next = { ...draft };
+    seatsOf(labId).forEach((w, i) => {
+      next[w.id] = String(first + i);
+    });
+    setDraft(next);
+  }
+
+  async function save() {
+    setBusy(true);
+    const ok = await rpc(
+      "fets_set_seat_numbers",
+      { p_center: center.id, p_numbers: changed.map((w) => ({ id: w.id, number: draft[w.id] })) },
+      "Seat numbers saved",
+    );
+    setBusy(false);
+    if (ok) setDraft({});
+  }
+
+  return (
+    <Panel
+      title="Seat numbers"
+      note="The number on each desk, shown everywhere a seat is named: “Lab 1 · Seat 7”. Leave a box empty for the standard number, shown in grey."
+    >
+      {labs.map((lab) => {
+        const seats = seatsOf(lab.id);
+        if (seats.length === 0) return null;
+        return (
+          <div key={lab.id} className="flex flex-col gap-[10px] rounded-[16px] border border-edge bg-panel-soft p-[13px]">
+            <div className="flex flex-wrap items-center gap-[10px]">
+              <span className="text-[14px] font-semibold">{lab.name}</span>
+              <span className="text-[12px] text-fg-faint">
+                {seats.length} seats · now {seatNumber(seats[0])} to {seatNumber(seats[seats.length - 1])}
+              </span>
+              <span className="flex-1" />
+              {isAdmin && (
+                <span className="flex items-center gap-[6px]">
+                  <label htmlFor={`from-${lab.id}`} className="text-[12px] text-fg-dim">
+                    Number from
+                  </label>
+                  <input
+                    id={`from-${lab.id}`}
+                    inputMode="numeric"
+                    value={startFrom[lab.id] ?? ""}
+                    onChange={(e) => setStartFrom({ ...startFrom, [lab.id]: e.target.value })}
+                    placeholder="1"
+                    className="w-[64px] rounded-[10px] border border-edge-strong bg-panel px-[9px] py-[7px] font-mono text-[13px] outline-none focus:border-accent/50"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => numberFrom(lab.id)}
+                    className="cursor-pointer rounded-[10px] border border-edge-warm px-[11px] py-[7px] text-[12px] font-semibold"
+                  >
+                    Fill
+                  </button>
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-[6px]">
+              {seats.map((w) => (
+                <input
+                  key={w.id}
+                  value={valueOf(w)}
+                  maxLength={12}
+                  disabled={!isAdmin}
+                  aria-label={`Number for ${lab.name} seat ${seatNumber({ seat_code: w.seat_code })}`}
+                  placeholder={seatNumber({ seat_code: w.seat_code })}
+                  onChange={(e) => setDraft({ ...draft, [w.id]: e.target.value })}
+                  className={`rounded-[10px] border bg-panel px-[6px] py-[8px] text-center font-mono text-[13.5px] outline-none placeholder:text-fg-faint focus:border-accent/50 disabled:opacity-60 ${
+                    draft[w.id] !== undefined ? "border-accent/50" : "border-edge-strong"
+                  }`}
+                />
+              ))}
+            </div>
+          </div>
+        );
+      })}
+      {isAdmin && changed.length > 0 && (
+        <div className="flex flex-wrap gap-[9px]">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void save()}
+            className="cursor-pointer rounded-[12px] gold-bg px-[18px] py-[11px] text-[13px] font-bold text-[#1a1512] disabled:opacity-40"
+          >
+            {busy ? "Saving…" : `Save ${changed.length} seat number${changed.length === 1 ? "" : "s"}`}
+          </button>
+          <button
+            type="button"
+            onClick={() => setDraft({})}
+            className="cursor-pointer rounded-[12px] border border-edge px-[15px] py-[11px] text-[13px] font-semibold text-fg-muted"
+          >
+            Cancel
+          </button>
         </div>
       )}
     </Panel>

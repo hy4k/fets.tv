@@ -4,6 +4,7 @@ import { refOf } from "@/lib/format";
 import { useMemo, useState } from "react";
 import { useConsole } from "@/lib/console-data";
 import type { Candidate, Workstation } from "@/lib/types";
+import { seatName, seatNumber } from "@/lib/seats";
 
 /**
  * Every seat in the centre, lab by lab, for putting one person in one of them.
@@ -36,9 +37,9 @@ export function SeatGrid({ candidate, onDone }: { candidate: Candidate; onDone: 
   };
 
   async function repair(seat: Workstation) {
-    if (!window.confirm(`${seat.seat_code} is marked faulty. Is it working again?`)) return;
+    if (!window.confirm(`${seatName(seat)} is marked faulty. Is it working again?`)) return;
     setBusy(true);
-    await rpc("fets_set_workstation_status", { p_workstation: seat.id, p_status: "free" }, `${seat.seat_code} is back in use`);
+    await rpc("fets_set_workstation_status", { p_workstation: seat.id, p_status: "free" }, `${seatName(seat)} is back in use`);
     setBusy(false);
   }
 
@@ -48,7 +49,7 @@ export function SeatGrid({ candidate, onDone }: { candidate: Candidate; onDone: 
     const ok = await rpc(
       "fets_assign_workstation",
       { p_candidate: candidate.id, p_workstation: chosen.id },
-      `${refOf(candidate)} seated at ${chosen.seat_code}`,
+      `${refOf(candidate)} seated at ${seatName(chosen)}`,
     );
     setBusy(false);
     if (ok) onDone();
@@ -85,7 +86,7 @@ export function SeatGrid({ candidate, onDone }: { candidate: Candidate; onDone: 
                         ? "Marked faulty — tap if it works again"
                         : taken
                           ? `Taken by ${occupantOf(seat) ?? "somebody"}`
-                          : seat.seat_code
+                          : seatName(seat)
                     }
                     onClick={() => (faulty ? void repair(seat) : setChosen(seat))}
                     className={`aspect-square rounded-[11px] border font-mono text-[12.5px] font-semibold transition-colors ${
@@ -98,7 +99,7 @@ export function SeatGrid({ candidate, onDone }: { candidate: Candidate; onDone: 
                             : "cursor-pointer border-edge-warm bg-panel-soft text-fg-muted hover:border-accent hover:text-fg"
                     }`}
                   >
-                    {seat.seat_code.replace(/^.*-/, "")}
+                    {seatNumber(seat)}
                   </button>
                 );
               })}
@@ -118,7 +119,7 @@ export function SeatGrid({ candidate, onDone }: { candidate: Candidate; onDone: 
               : "cursor-not-allowed bg-[#1d1d25] text-fg-dim"
           }`}
         >
-          {busy ? "Seating…" : chosen ? `Seat at ${chosen.seat_code}` : "Pick a seat"}
+          {busy ? "Seating…" : chosen ? `Seat at ${seatName(chosen)}` : "Pick a seat"}
         </button>
         <button
           type="button"

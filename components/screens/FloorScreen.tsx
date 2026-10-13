@@ -6,6 +6,7 @@ import { useConsole } from "@/lib/console-data";
 import { clockAt, fullName, instantFromZonedTime, refOf } from "@/lib/format";
 import { currentSection, sectionsFor, type SectionView } from "@/lib/sections";
 import { useNow } from "@/lib/use-clock";
+import { seatName, seatNumber } from "@/lib/seats";
 import type {
   Candidate,
   CandidateBreak,
@@ -151,7 +152,7 @@ export function FloorScreen() {
         c.public_token.toLowerCase().includes(q) ||
         (c.phone ?? "").includes(q) ||
         (c.locker_key ?? "").toLowerCase().includes(q) ||
-        seat.seat_code.toLowerCase().includes(q) ||
+        seatName(seat).toLowerCase().includes(q) ||
         (programme?.name ?? c.live_exam_name ?? "").toLowerCase().includes(q),
     );
   }, [seated, query]);
@@ -328,7 +329,7 @@ function FloorCard({
 
       <div className="relative flex flex-wrap items-center gap-x-[14px] gap-y-[8px]">
         <span className="rounded-[12px] border border-white/10 bg-white/[0.05] px-[11px] py-[6px] font-mono text-[12.5px] font-semibold tracking-[0.04em] shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]">
-          {seat.seat_code}
+          {seatName(seat)}
         </span>
         <span className="min-w-0">
           <span className="block truncate font-display text-[22px] leading-[1.05]">
@@ -823,7 +824,7 @@ function AdjustDialog({ row, onClose }: { row: Seated; onClose: () => void }) {
     <Dialog
       open
       title="Correct the clock"
-      subtitle={`${fullName(candidate)} · ${seat.seat_code}`}
+      subtitle={`${fullName(candidate)} · ${seatName(seat)}`}
       onClose={onClose}
       footer={
         <>
@@ -959,7 +960,7 @@ function TransferDialog({
         p_minutes_lost: lost,
         p_fault_old_seat: faultOld,
       },
-      `${refOf(candidate)} moved to ${chosen.seat_code}`,
+      `${refOf(candidate)} moved to ${seatName(chosen)}`,
     );
     setBusy(false);
     if (ok) onClose();
@@ -969,7 +970,7 @@ function TransferDialog({
     <Dialog
       open
       title="Move them to another machine"
-      subtitle={`${fullName(candidate)} · currently at ${seat.seat_code}`}
+      subtitle={`${fullName(candidate)} · currently at ${seatName(seat)}`}
       onClose={onClose}
       width={620}
       footer={
@@ -987,7 +988,7 @@ function TransferDialog({
             {busy
               ? "Moving…"
               : chosen
-                ? `Move to ${chosen.seat_code}`
+                ? `Move to ${seatName(chosen)}`
                 : "Pick a machine above"}
           </button>
           <button
@@ -1031,7 +1032,7 @@ function TransferDialog({
                           : "cursor-pointer border-edge-warm bg-panel-soft text-fg-muted hover:border-gold hover:text-gold-bright"
                       }`}
                     >
-                      {w.seat_code.replace(/^.*-/, "")}
+                      {seatNumber(w)}
                     </button>
                   ))}
                 </div>
@@ -1075,7 +1076,7 @@ function TransferDialog({
         >
           <span className="min-w-0 flex-1">
             <span className="block text-[13.5px] font-semibold">
-              Take {seat.seat_code} out of service
+              Take {seatName(seat)} out of service
             </span>
             <span className="mt-[2px] block text-[12px] leading-[1.45] text-fg-faint">
               On by default. A machine that just failed should not be handed to
