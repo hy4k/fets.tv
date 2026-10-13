@@ -97,6 +97,7 @@ export function FloorScreen() {
   // dialog left holding the old object would keep offering an action that has
   // already happened.
   const [partsId, setPartsId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
 
   const seatById = useMemo(
     () => new Map(workstations.map((w) => [w.id, w])),
@@ -138,6 +139,23 @@ export function FloorScreen() {
     ],
   );
 
+  // The same search as the check-in list, plus the seat and the exam, so a
+  // name called out across the room can be found among twenty-five tubes.
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return seated;
+    return seated.filter(
+      ({ candidate: c, seat, programme }) =>
+        fullName(c).toLowerCase().includes(q) ||
+        c.roster_number.toLowerCase().includes(q) ||
+        c.public_token.toLowerCase().includes(q) ||
+        (c.phone ?? "").includes(q) ||
+        (c.locker_key ?? "").toLowerCase().includes(q) ||
+        seat.seat_code.toLowerCase().includes(q) ||
+        (programme?.name ?? c.live_exam_name ?? "").toLowerCase().includes(q),
+    );
+  }, [seated, query]);
+
   const partsRow = seated.find((s) => s.candidate.id === partsId) ?? null;
   const free = workstations.filter(
     (w) => w.lab_id && w.status === "free",
@@ -163,6 +181,26 @@ export function FloorScreen() {
         <span className="font-mono text-[12px] text-fg-faint">
           {free} seats free
         </span>
+        <div className="flex w-full min-w-0 items-center gap-[10px] rounded-[14px] border border-edge-strong bg-panel-soft px-[14px] py-[11px] md:w-[320px]">
+          <span className="font-mono text-[14px] text-fg-dim">⌕</span>
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Name · confirmation no · seat · exam"
+            aria-label="Search the candidates on the floor"
+            className="min-w-0 flex-1 border-0 bg-transparent text-[15px] outline-none placeholder:text-fg-faint"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              aria-label="Clear the search"
+              className="cursor-pointer text-[13px] text-fg-faint hover:text-fg"
+            >
+              ✕
+            </button>
+          )}
+        </div>
       </div>
 
       {seated.length === 0 ? (
@@ -175,9 +213,13 @@ export function FloorScreen() {
             and they appear here.
           </span>
         </div>
+      ) : shown.length === 0 ? (
+        <p className="rounded-[20px] border border-white/[0.07] bg-white/[0.02] p-[28px] text-center text-[13px] text-fg-faint">
+          Nobody on the floor matches &ldquo;{query}&rdquo;
+        </p>
       ) : (
         <div className="grid shrink-0 grid-cols-1 gap-[12px] 2xl:grid-cols-2">
-          {seated.map((s) => (
+          {shown.map((s) => (
             <FloorCard
               key={s.seat.id}
               row={s}

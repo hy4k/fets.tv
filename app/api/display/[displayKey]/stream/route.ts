@@ -47,7 +47,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
       const channel = supabase.channel(`fets:display:${display.id}`);
       const filter = `center_id=eq.${display.center_id}`;
-      for (const table of ["public_display_calls", "candidates", "centers", "display_notices"]) {
+      // The home screen and the seats change the idle board as much as a call does.
+      for (const table of ["public_display_calls", "candidates", "centers", "display_notices", "display_home", "workstations"]) {
         channel.on(
           "postgres_changes",
           { event: "*", schema: "public", table, filter: table === "centers" ? `id=eq.${display.center_id}` : filter },
