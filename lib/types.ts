@@ -546,12 +546,29 @@ export type DisplayState = {
   server_time: string;
 };
 
+/** What the hall hears when somebody is called. */
+export type CallSound = "voice" | "chime" | "off";
+
 export type BoardHome = {
+  /** Kept for screens that predate the switches below; derived from them on save. */
   layout: "room" | "welcome" | "both";
   title: string;
   subtitle: string;
   show_exams: boolean;
   show_early: boolean;
+  // Absent on a row saved before every piece had its own switch.
+  show_welcome?: boolean;
+  show_seats?: boolean;
+  /** Empty means the standard wording. */
+  seats_free_label?: string;
+  seats_used_label?: string;
+  exams_label?: string;
+  exams_empty?: string;
+  early_text?: string;
+  full_text?: string;
+  /** Lines staff added themselves, shown under the welcome. */
+  lines?: string[];
+  call_sound?: CallSound;
 };
 
 export type BoardFloor = {

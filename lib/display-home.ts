@@ -10,11 +10,23 @@ export function useDisplayHome(centerId: string) {
   const [loaded, setLoaded] = useState(false);
 
   const load = useCallback(async () => {
-    const { data } = await supabaseBrowser()
+    const db = supabaseBrowser();
+    const first = await db
       .from("display_home" as never)
-      .select("layout, title, subtitle, show_exams, show_early")
+      .select(
+        "layout, title, subtitle, show_exams, show_early, show_welcome, show_seats, seats_free_label, seats_used_label, exams_label, exams_empty, early_text, full_text, lines, call_sound",
+      )
       .eq("center_id", centerId)
       .maybeSingle();
+    let data = first.data;
+    // Before the home screen switches are installed, read what there is.
+    if (first.error) {
+      ({ data } = await db
+        .from("display_home" as never)
+        .select("layout, title, subtitle, show_exams, show_early")
+        .eq("center_id", centerId)
+        .maybeSingle());
+    }
     setHome((data as BoardHome | null) ?? null);
     setLoaded(true);
   }, [centerId]);
