@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Claude Design handoff bundle: prototypes and their runtime, not app code.
     "project/**",
+    // Claude Code skills: helper scripts run by hand with Node, not app code.
+    ".claude/**",
   ]),
 ]);
 
