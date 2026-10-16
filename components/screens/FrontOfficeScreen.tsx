@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { LockerKeyDialog } from "@/components/screens/LockersScreen";
-import { MaterialsPanel } from "@/components/screens/MaterialsPanel";
+import { FinishDialog } from "@/components/screens/FinishDialog";
 import { CandidateDetailsDialog } from "@/components/screens/CandidateDetailsDialog";
 import { useConsole } from "@/lib/console-data";
 import {
@@ -241,9 +241,10 @@ export function FrontOfficeScreen() {
       {adding && <CandidateDetailsDialog open candidate={null} onClose={() => setAdding(false)} />}
 
       {signingOut && (
-        <SignOutDialog
+        <FinishDialog
           key={signingOut.id}
-          candidate={signingOut}
+          candidateId={signingOut.id}
+          where="at the front desk"
           onClose={() => setSigningOutId(null)}
         />
       )}
@@ -523,90 +524,6 @@ function CheckInDialog({
             Mark no show
           </button>
         )}
-      </div>
-    </Dialog>
-  );
-}
-
-/**
- * The other end of the day. They have finished, and now everything the centre
- * gave them has to come back before they walk out: the key off the board, the
- * sheets off the desk. The button stays shut until it has.
- */
-function SignOutDialog({ candidate, onClose }: { candidate: Candidate; onClose: () => void }) {
-  const { center, materials, materialKinds, rpc, canFrontOffice } = useConsole();
-
-  const mine = materials.filter((m) => m.candidate_id === candidate.id);
-  const outstanding = mine.filter((m) => {
-    const kind = materialKinds.find((k) => k.code === m.kind);
-    return kind?.returnable && stillHeld(m) > 0;
-  });
-  const ready = outstanding.length === 0;
-
-  return (
-    <Dialog
-      open
-      title={fullName(candidate)}
-      subtitle={[
-        refOf(candidate),
-        candidate.roster_number,
-        `finished ${clockAt(candidate.completed_at, center.timezone)}`,
-      ]
-        .filter(Boolean)
-        .join(" · ")}
-      onClose={onClose}
-      footer={
-        <>
-          <button
-            type="button"
-            disabled={!ready || !canFrontOffice}
-            onClick={async () => {
-              const ok = await rpc(
-                "fets_sign_out",
-                { p_candidate: candidate.id, p_note: "Signed out at the front desk" },
-                `${refOf(candidate)} signed out`,
-              );
-              if (ok) onClose();
-            }}
-            className={`flex-1 rounded-[14px] px-[22px] py-[15px] text-[14.5px] font-bold ${
-              ready && canFrontOffice
-                ? "cursor-pointer bg-[linear-gradient(145deg,oklch(0.83_0.16_158),oklch(0.72_0.15_165))] text-[#0c1711]"
-                : "cursor-not-allowed bg-[#1d1d25] text-fg-dim"
-            }`}
-          >
-            {ready ? `Sign out ${refOf(candidate)}` : "Take everything back first"}
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="cursor-pointer rounded-[14px] border border-edge px-[20px] py-[15px] text-[14px] font-semibold text-fg-muted"
-          >
-            Close
-          </button>
-        </>
-      }
-    >
-      <div className="flex flex-col gap-[12px]">
-        {candidate.locker_key && candidate.locker_key !== "NIL" && (
-          <div className="flex items-center gap-[13px] rounded-[16px] border border-gold/40 bg-gold/8 p-[13px]">
-            <span className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border-2 border-gold bg-gold/12 font-mono text-[12px] font-semibold text-gold-bright">
-              K
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-[14px] font-semibold">Locker key back</span>
-              <span className="block font-mono text-[11.5px] text-fg-faint">
-                {candidate.locker_key} — the key frees itself once they are signed out
-              </span>
-            </span>
-          </div>
-        )}
-
-        <div>
-          <span className="mb-[9px] block text-[11px] font-bold tracking-[0.12em] text-fg-faint uppercase">
-            Count it back in
-          </span>
-          <MaterialsPanel candidate={candidate} mode="collect" />
-        </div>
       </div>
     </Dialog>
   );
