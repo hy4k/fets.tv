@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
+import { FinishDialog } from "@/components/screens/FinishDialog";
 import { useConsole } from "@/lib/console-data";
 import { clockAt, fullName, instantFromZonedTime, refOf } from "@/lib/format";
 import { currentSection, sectionsFor, type SectionView } from "@/lib/sections";
@@ -98,6 +99,7 @@ export function FloorScreen() {
   // dialog left holding the old object would keep offering an action that has
   // already happened.
   const [partsId, setPartsId] = useState<string | null>(null);
+  const [finishingId, setFinishingId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
 
   const seatById = useMemo(
@@ -158,6 +160,12 @@ export function FloorScreen() {
   }, [seated, query]);
 
   const partsRow = seated.find((s) => s.candidate.id === partsId) ?? null;
+  // Finished but not signed out: from before Finish signed people out, or a
+  // sign-out that was held up. They stay here, in the lab, until it is done.
+  const toSignOut = candidates
+    .filter((c) => c.status === "completed")
+    .sort((a, b) => (a.completed_at ?? "").localeCompare(b.completed_at ?? ""));
+  const finishingSeat = seated.find((s) => s.candidate.id === finishingId)?.seat ?? null;
   const free = workstations.filter(
     (w) => w.lab_id && w.status === "free",
   ).length;
@@ -204,6 +212,40 @@ export function FloorScreen() {
         </div>
       </div>
 
+      {toSignOut.length > 0 && (
+        <section className="shrink-0 overflow-hidden rounded-[20px] border border-gold/30 bg-gold/[0.04]">
+          <div className="flex items-center gap-[10px] border-b border-gold/20 px-[16px] py-[10px]">
+            <span className="text-[11px] font-bold tracking-[0.12em] text-gold-bright uppercase">
+              Finished · sign out
+            </span>
+            <span className="font-mono text-[12px] text-fg-faint">{toSignOut.length}</span>
+            <span className="ml-auto font-mono text-[10.5px] text-fg-faint">
+              Their locker key frees once they are signed out
+            </span>
+          </div>
+          {toSignOut.map((c) => (
+            <div key={c.id} className="flex items-center gap-[12px] border-b border-white/[0.05] px-[16px] py-[10px] last:border-b-0">
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[14px] font-semibold">{fullName(c)}</span>
+                <span className="block truncate font-mono text-[11px] text-fg-faint">
+                  {[refOf(c), c.locker_key === "NIL" ? "Locker Nil" : c.locker_key && `Locker ${c.locker_key}`, c.completed_at && `finished ${clockAt(c.completed_at, center.timezone)}`]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+              </span>
+              <button
+                type="button"
+                disabled={!canLab}
+                onClick={() => setFinishingId(c.id)}
+                className="shrink-0 cursor-pointer rounded-full border border-white/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(226,220,205,0.85))] px-[16px] py-[7px] text-[12px] font-bold text-[#17151a] disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                Sign out
+              </button>
+            </div>
+          ))}
+        </section>
+      )}
+
       {seated.length === 0 ? (
         <div className="flex min-h-[260px] flex-col items-center justify-center gap-[10px] rounded-[28px] border border-white/[0.07] bg-white/[0.02] p-[30px] text-center">
           <span className="font-display text-[28px] font-light">
@@ -231,6 +273,7 @@ export function FloorScreen() {
               onEdit={() => setEditing(s)}
               onMove={() => setMoving(s)}
               onParts={() => setPartsId(s.candidate.id)}
+              onFinish={() => setFinishingId(s.candidate.id)}
             />
           ))}
         </div>
@@ -239,7 +282,9 @@ export function FloorScreen() {
       <p className="shrink-0 px-[4px] font-mono text-[10.5px] text-fg-faint">
         Each tube is the sitting in tenths. The clock is an estimate and keeps
         running through breaks; the exam software is authoritative, and nobody
-        is finished until somebody presses Finish.
+        is finished until somebody presses Finish. Finish is also the sign-out:
+        collect what they were given and their locker key, and the key goes
+        free for the next candidate.
       </p>
 
       {editing && (
@@ -255,6 +300,16 @@ export function FloorScreen() {
           key={moving.candidate.id}
           row={moving}
           onClose={() => setMoving(null)}
+        />
+      )}
+
+      {finishingId && (
+        <FinishDialog
+          key={finishingId}
+          candidateId={finishingId}
+          where="in the lab"
+          seat={finishingSeat ? seatName(finishingSeat) : null}
+          onClose={() => setFinishingId(null)}
         />
       )}
 
@@ -282,6 +337,7 @@ function FloorCard({
   onEdit,
   onMove,
   onParts,
+  onFinish,
 }: {
   row: Seated;
   now: number;
@@ -295,6 +351,7 @@ function FloorCard({
   onEdit: () => void;
   onMove: () => void;
   onParts: () => void;
+  onFinish: () => void;
 }) {
   const { seat, candidate, programme, onBreak, remaining, sections } = row;
   const part = currentSection(sections, now);
@@ -437,13 +494,8 @@ function FloorCard({
           <button
             type="button"
             disabled={!canLab || !!onBreak}
-            onClick={() =>
-              rpc(
-                "fets_confirm_finish",
-                { p_candidate: candidate.id },
-                `${refOf(candidate)} finished`,
-              )
-            }
+            onClick={onFinish}
+            title="Stop the clock, collect what they hold and the locker key, and sign them out"
             className="cursor-pointer rounded-full border border-white/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(226,220,205,0.85))] px-[18px] py-[8px] text-[12px] font-bold text-[#17151a] shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_8px_22px_-10px_rgba(255,240,210,0.5)] disabled:cursor-not-allowed disabled:opacity-30"
           >
             Finish
