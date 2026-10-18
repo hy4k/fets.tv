@@ -48,9 +48,9 @@ test("the export lists every mark with the nearest check's name", () => {
   const lines = csv.trim().split("\r\n");
   assert.equal(lines.length, 1 + 2 + 1);
   assert.equal(lines[0], '"Date","Track","Mark","Due at","On duty (rota)","Checked at","Checked by","Signature"');
-  assert.equal(lines[1], '"2026-09-24","DVR check","1","09:06","","09:07","Aysha",""');
-  assert.equal(lines[2], '"2026-09-24","DVR check","2","09:12","","","",""');
-  assert.equal(lines[3], `"2026-09-24","Floor walk","1","09:10","","09:11","'=Rahul",""`);
+  assert.equal(lines[1], '"2026-09-24","DVR check","1","9:06 AM","","9:07 AM","Aysha",""');
+  assert.equal(lines[2], '"2026-09-24","DVR check","2","9:12 AM","","","",""');
+  assert.equal(lines[3], `"2026-09-24","Floor walk","1","9:10 AM","","9:11 AM","'=Rahul",""`);
 });
 
 // fets.live's plan: blocks from 08:00 (480) in 90-minute steps.
@@ -91,6 +91,6 @@ test("outside the rota's hours the name is blank", () => {
 test("the export fills the on-duty column from the rota", () => {
   const csv = dutyLogCsv({ start: ist(8, 0), end: ist(8, 10), checks: [], date: "2026-09-24", timezone: "Asia/Kolkata", rota });
   const lines = csv.trim().split("\r\n");
-  assert.equal(lines[1], '"2026-09-24","DVR check","1","08:06","Bindu","","",""');
-  assert.equal(lines[2], '"2026-09-24","Floor walk","1","08:10","Aysha","","",""');
+  assert.equal(lines[1], '"2026-09-24","DVR check","1","8:06 AM","Bindu","","",""');
+  assert.equal(lines[2], '"2026-09-24","Floor walk","1","8:10 AM","Aysha","","",""');
 });

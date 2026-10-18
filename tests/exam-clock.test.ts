@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { clockAt, instantFromZonedTime, nowInZone, todayInZone } from "../lib/format.ts";
+import { clock24, clockAt, instantFromZonedTime, nowInZone, todayInZone } from "../lib/format.ts";
 
 const IST = "Asia/Kolkata";
 
@@ -14,7 +14,7 @@ test("a typed time is read in the center's timezone, not the laptop's", () => {
 test("the instant round-trips back to the same wall clock", () => {
   const reference = new Date("2026-09-19T12:00:00Z");
   for (const hhmm of ["00:00", "05:29", "05:30", "09:30", "18:45", "23:59"]) {
-    assert.equal(clockAt(instantFromZonedTime(hhmm, IST, reference).toISOString(), IST), hhmm);
+    assert.equal(clock24(instantFromZonedTime(hhmm, IST, reference).toISOString(), IST), hhmm);
   }
 });
 
@@ -50,4 +50,11 @@ test("the exam day is the center's day, not UTC's", () => {
   assert.equal(todayInZone(IST, justAfterLocalMidnight), "2026-09-22");
   assert.equal(todayInZone("UTC", justAfterLocalMidnight), "2026-09-21");
   assert.equal(todayInZone("America/New_York", justAfterLocalMidnight), "2026-09-21");
+});
+
+test("times are shown as AM/PM", () => {
+  assert.equal(clockAt("2026-10-18T10:30:00Z", IST), "4:00 PM");
+  assert.equal(clockAt("2026-10-18T05:33:00Z", IST), "11:03 AM");
+  assert.equal(clockAt("2026-10-18T18:30:00Z", IST), "12:00 AM");
+  assert.equal(clockAt(null, IST), "—");
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useSyncExternalStore } from "react";
+import { timeOfDay } from "@/lib/format";
 
 /**
  * One ticking clock shared by every component that shows a time, subscribed
@@ -40,12 +41,7 @@ export function useClock(timezone: string) {
 
   const format = useCallback(
     (ms: number) =>
-      new Intl.DateTimeFormat("en-GB", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-        timeZone: timezone,
-      }).format(new Date(ms)),
+      timeOfDay(ms, timezone),
     [timezone],
   );
 

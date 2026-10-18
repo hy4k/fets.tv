@@ -10,15 +10,25 @@ export function LandingClock({ timezone }: { timezone: string }) {
   const now = useNow();
   const at = new Date(now);
 
+  // "4:05" large, with the seconds and AM/PM beside it.
+  const parts =
+    now === 0
+      ? []
+      : new Intl.DateTimeFormat("en-US", {
+          hour: "numeric",
+          minute: "2-digit",
+          hour12: true,
+          timeZone: timezone,
+        }).formatToParts(at);
   const time =
     now === 0
       ? "--:--"
-      : new Intl.DateTimeFormat("en-GB", {
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: false,
-          timeZone: timezone,
-        }).format(at);
+      : parts
+          .filter((p) => p.type !== "dayPeriod")
+          .map((p) => p.value)
+          .join("")
+          .trim();
+  const period = parts.find((p) => p.type === "dayPeriod")?.value ?? "";
   const seconds =
     now === 0
       ? "--"
@@ -42,7 +52,9 @@ export function LandingClock({ timezone }: { timezone: string }) {
         <span className="text-[64px] leading-none font-semibold tracking-[-0.02em] sm:text-[92px]">
           {time}
         </span>
-        <span className="text-[22px] text-fg-faint sm:text-[28px]">{seconds}</span>
+        <span className="text-[22px] text-fg-faint sm:text-[28px]">
+          {seconds} {period}
+        </span>
       </div>
       <div className="mt-[10px] font-serif text-[19px] text-gold sm:text-[23px]">{date}</div>
     </div>

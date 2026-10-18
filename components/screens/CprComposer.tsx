@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { CPR_FORMATS, entryText, minutesLate, writeEntry, type CprFormat, type Values } from "@/lib/cpr";
 import { useConsole } from "@/lib/console-data";
-import { clockAt, fullName, instantFromZonedTime, nowInZone, refOf } from "@/lib/format";
+import { clock24, fullName, instantFromZonedTime, nowInZone, refOf } from "@/lib/format";
 import type { Candidate } from "@/lib/types";
 
 /**
@@ -41,10 +41,10 @@ export function CprComposer({ canAdd }: { canAdd: boolean }) {
   function prefill(f: CprFormat, c: Candidate | undefined): Values {
     const arrived = c?.arrival_at ?? c?.check_in_at ?? null;
     const known: Values = {
-      scheduled: c?.scheduled_at ? clockAt(c.scheduled_at, tz) : "",
-      arrived: arrived ? clockAt(arrived, tz) : "",
+      scheduled: c?.scheduled_at ? clock24(c.scheduled_at, tz) : "",
+      arrived: arrived ? clock24(arrived, tz) : "",
       late: String(minutesLate(c?.scheduled_at ?? null, arrived) ?? ""),
-      at: arrived && ["name_mismatch", "missing_id"].includes(f.key) ? clockAt(arrived, tz) : nowInZone(tz),
+      at: arrived && ["name_mismatch", "missing_id"].includes(f.key) ? clock24(arrived, tz) : nowInZone(tz),
       roster_name: c ? fullName(c) : "",
     };
     return Object.fromEntries(f.fields.map((field) => [field.key, known[field.key] ?? ""]));
