@@ -30,10 +30,11 @@ function ring() {
 /**
  * The admin room has called somebody: the front office must see it now.
  *
- * Wherever the front desk is in the console, a new call flashes the whole
- * screen for a moment with the token, rings, and blinks the browser tab; then
- * it stays pinned across the top of the page, one row per candidate on their
- * way, each with its own Send to admin button. It is not shown in the admin room or
+ * Wherever the front desk is in the console, a new call rings and blinks the
+ * browser tab, and the candidate is pinned across the top of the page, one row
+ * per candidate on their way, each with its own Send to admin button. The name
+ * itself is announced on the hall TV only: a full-screen flash here used to
+ * cover the check-in form mid-entry, so the desk is never interrupted now. It is not shown in the admin room or
  * the lab, which made the call or has no part in it.
  */
 export function CallAlert() {
@@ -52,7 +53,6 @@ export function CallAlert() {
 
   // A call is new once per call row: a re-call rings again.
   const seen = useRef<Set<string> | null>(null);
-  const [flash, setFlash] = useState<{ token: string; name: string; room: string } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   useEffect(() => {
@@ -67,16 +67,7 @@ export function CallAlert() {
     const c = candidates.find((x) => x.id === call?.candidate_id);
     if (!c || c.status !== "waiting") return;
     ring();
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setFlash({ token: refOf(c), name: fullName(c), room: call?.room_label ?? "Security & Biometrics" });
-  }, [call?.id, call?.candidate_id, call?.room_label, candidates, here]);
-
-  // The flash is a moment, then the pinned rows carry it.
-  useEffect(() => {
-    if (!flash) return;
-    const t = setTimeout(() => setFlash(null), 2600);
-    return () => clearTimeout(t);
-  }, [flash]);
+  }, [call?.id, call?.candidate_id, candidates, here]);
 
   // The tab blinks while anybody is waiting to be marked in.
   useEffect(() => {
@@ -93,7 +84,7 @@ export function CallAlert() {
     };
   }, [here, onTheWay]);
 
-  if (!here || (onTheWay.length === 0 && !flash)) return null;
+  if (!here || onTheWay.length === 0) return null;
 
   async function enter(id: string, token: string) {
     setBusy(id);
@@ -103,22 +94,6 @@ export function CallAlert() {
 
   return (
     <>
-      {flash && (
-        <button
-          type="button"
-          onClick={() => setFlash(null)}
-          aria-label="Dismiss"
-          className="fixed inset-0 z-[80] flex cursor-pointer flex-col items-center justify-center gap-[18px] bg-[radial-gradient(circle_at_50%_40%,oklch(0.55_0.14_165/0.92),oklch(0.2_0.05_165/0.96))] text-[#eafff4] backdrop-blur-sm motion-safe:animate-announce"
-        >
-          <span className="font-mono text-[16px] font-bold tracking-[0.3em] uppercase opacity-80">Called by the admin room</span>
-          <span className="max-w-[92vw] truncate font-display text-[clamp(56px,10vw,140px)] leading-none">{flash.name}</span>
-          <span className="font-mono text-[clamp(20px,2.6vw,34px)] leading-none font-semibold opacity-85">{flash.token}</span>
-          <span className="mt-[8px] rounded-full bg-[#0c1711]/60 px-[22px] py-[10px] text-[18px] font-bold tracking-[0.08em] uppercase">
-            Send to {flash.room}
-          </span>
-        </button>
-      )}
-
       {onTheWay.length > 0 && (
         <section
           aria-live="assertive"
