@@ -49,7 +49,7 @@ never have to go back up.
 | `/admin` | admin, TCA | Waiting queue with Call / Re-call / Clear, live counters, 11-stage flow, audit trail, override |
 | `/tv` | any operator | Staff-side preview of what the halls are showing |
 | `/notices` | admin, TCA | Hall Messages: put a templated message on the TV, with a live preview of the board |
-| `/floor` | admin, TCA, lab staff | Live Floor: one card per occupied seat, exam countdown, breaks, Confirm finish |
+| `/floor` | admin, TCA, lab staff | Live Floor: one card per occupied seat, exam countdown, breaks, and Finish — which collects materials and the locker key and signs the candidate out, freeing the key for the next one |
 | `/roster` | admin | Step 1: upload the day's roster. Nothing else on the page |
 | `/candidates` | any operator | Step 2: the imported roster as a list, searchable and filterable |
 | `/lab` | lab staff, TCA | Seat map, faults, handoffs through the pipeline |
