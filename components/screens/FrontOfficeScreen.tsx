@@ -337,7 +337,9 @@ function RosterRow({
           )}
         </span>
         <span className="block truncate font-mono text-[11px] text-fg-faint">
-          {candidate.placeholder ? "No confirmation number yet" : refOf(candidate)}
+          {candidate.placeholder
+            ? `${candidate.live_exam_name ?? "Exam"} · no confirmation number yet`
+            : refOf(candidate)}
         </span>
       </span>
 
