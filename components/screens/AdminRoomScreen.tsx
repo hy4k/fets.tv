@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { TwinBadge } from "@/components/console/NameTwin";
 import { Dialog } from "@/components/ui/Dialog";
 import { MaterialsPanel } from "@/components/screens/MaterialsPanel";
 import { useConsole } from "@/lib/console-data";
@@ -141,7 +142,10 @@ export function AdminRoomScreen() {
                 {i + 1}
               </span>
               <span className="block min-w-0 flex-1">
-                <span className="block truncate text-[14px] font-semibold">{fullName(c)}</span>
+                <span className="flex min-w-0 items-center gap-[7px]">
+                  <span className="block truncate text-[14px] font-semibold">{fullName(c)}</span>
+                  <TwinBadge candidate={c} />
+                </span>
                 <span className="block truncate font-mono text-[10.5px] text-fg-faint">
                   {refOf(c)} ·{" "}
                   {c.locker_key ? (
@@ -206,6 +210,7 @@ export function AdminRoomScreen() {
                 <span className={`min-w-0 truncate font-display leading-none ${i === 0 ? "text-[26px]" : "text-[20px] text-fg-muted"}`}>
                   {fullName(c)}
                 </span>
+                <TwinBadge candidate={c} />
                 <span className="font-mono text-[12.5px] leading-none text-fg-dim">{refOf(c)}</span>
                 <span className="flex-1" />
                 <span className="flex flex-wrap gap-[8px]">
@@ -256,6 +261,7 @@ export function AdminRoomScreen() {
               <div key={c.id} className="rounded-[16px] border border-edge-soft bg-ink/35 p-[12px]">
                 <div className="flex flex-wrap items-center gap-x-[14px] gap-y-[8px]">
                   <span className="min-w-0 truncate text-[16px] font-semibold">{fullName(c)}</span>
+                  <TwinBadge candidate={c} />
                   <span className="font-mono text-[11px] text-fg-faint">
                     {[refOf(c), c.part, c.locker_key && `KEY ${c.locker_key === "NIL" ? "Nil" : c.locker_key}`].filter(Boolean).join(" · ")}
                   </span>
