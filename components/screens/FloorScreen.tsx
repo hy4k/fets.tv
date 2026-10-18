@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { TwinBadge } from "@/components/console/NameTwin";
 import { Dialog } from "@/components/ui/Dialog";
 import { FinishDialog } from "@/components/screens/FinishDialog";
 import { useConsole } from "@/lib/console-data";
@@ -393,6 +394,7 @@ function FloorCard({
             {fullName(candidate)}
           </span>
           <span className="mt-[2px] flex min-w-0 items-center gap-[7px]">
+            <TwinBadge candidate={candidate} />
             <span className="truncate font-mono text-[10.5px] text-fg-faint">
               {[
                 refOf(candidate),

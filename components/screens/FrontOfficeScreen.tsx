@@ -5,6 +5,9 @@ import { Dialog } from "@/components/ui/Dialog";
 import { LockerKeyDialog } from "@/components/screens/LockersScreen";
 import { FinishDialog } from "@/components/screens/FinishDialog";
 import { CandidateDetailsDialog } from "@/components/screens/CandidateDetailsDialog";
+import { TwinBadge, TwinWarning } from "@/components/console/NameTwin";
+import { howFar, outsideSession } from "@/lib/safeguards";
+import { useNow } from "@/lib/use-clock";
 import { useConsole } from "@/lib/console-data";
 import {
   WAITING_TO_CHECK_IN,
@@ -316,6 +319,7 @@ function RosterRow({
       <span className="block min-w-0 flex-1 lg:flex-none">
         <span className="flex min-w-0 items-center gap-[8px]">
           <span className="truncate text-[14.5px] font-semibold">{fullName(candidate)}</span>
+          <TwinBadge candidate={candidate} />
           {late && (
             <span className="shrink-0 rounded-[7px] border border-gold/50 px-[6px] py-[1px] text-[9.5px] font-bold tracking-[0.08em] text-gold uppercase">
               Added late
@@ -407,9 +411,14 @@ function CheckInDialog({
   const [mismatch, setMismatch] = useState(false);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  // A booking far from now is asked about once; "Yes" unlocks the check-in.
+  const [sureItIsThem, setSureItIsThem] = useState(false);
+  const now = useNow();
 
   const done = !!candidate.check_in_at;
   const noteMissing = mismatch && !note.trim();
+  const away = !done && now ? outsideSession(candidate.scheduled_at, now) : null;
+  const held = away !== null && !sureItIsThem;
 
   async function checkIn() {
     setBusy(true);
@@ -442,13 +451,15 @@ function CheckInDialog({
         <>
           <button
             type="button"
-            disabled={done || busy || noteMissing || !canFrontOffice}
+            disabled={done || busy || noteMissing || held || !canFrontOffice}
             onClick={checkIn}
             className="flex-1 cursor-pointer rounded-[14px] bg-[linear-gradient(145deg,oklch(0.83_0.16_158),oklch(0.72_0.15_165))] px-[22px] py-[15px] text-[15px] font-bold text-[#0c1711] disabled:cursor-not-allowed disabled:bg-none disabled:bg-[#1d1d25] disabled:text-fg-dim"
           >
             {done
               ? `Checked in at ${clockAt(candidate.check_in_at, center.timezone)}`
-              : noteMissing
+              : held
+                ? "Confirm the session first"
+                : noteMissing
                 ? "Write what the ID says first"
                 : busy
                   ? "Checking in…"
@@ -465,6 +476,32 @@ function CheckInDialog({
       }
     >
       <div className="flex flex-col gap-[12px]">
+        {away !== null && (
+          <div
+            className={`flex flex-col gap-[10px] rounded-[16px] border p-[13px] ${
+              sureItIsThem ? "border-edge bg-panel-soft/40" : "border-rust/60 bg-rust/12"
+            }`}
+          >
+            <span className="text-[14px] font-semibold">
+              This booking is for {clockAt(candidate.scheduled_at, center.timezone)}, {howFar(away)}.
+              {" "}Are you sure this is the right person?
+            </span>
+            {sureItIsThem ? (
+              <span className="font-mono text-[11.5px] text-fg-faint">Confirmed — you can check them in.</span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setSureItIsThem(true)}
+                className="cursor-pointer self-start rounded-[12px] border border-rust/60 px-[16px] py-[9px] text-[13px] font-bold text-rust hover:bg-rust/10"
+              >
+                Yes, this is the right person
+              </button>
+            )}
+          </div>
+        )}
+
+        <TwinWarning candidate={candidate} />
+
         <dl className="grid grid-cols-2 gap-[8px] sm:grid-cols-3">
           {details.map(([label, value]) => (
             <div key={label} className="rounded-[12px] border border-edge-soft bg-panel-soft/60 px-[11px] py-[9px]">
