@@ -86,6 +86,14 @@ export type Candidate = {
   exam_finished_at: string | null;
   /** The exam as fets.live names it, when the day came from there. */
   live_exam_name?: string | null;
+  /** The provider as fets.live names it ("CELPIP", "PEARSON VUE"), when the day came from there. */
+  live_provider?: string | null;
+  /**
+   * An empty booked slot: the fets.live calendar booked somebody for this exam
+   * and time, but their name is not in fets.live. The desk fills it in at
+   * check-in (fets_fill_slot).
+   */
+  placeholder?: boolean;
   created_at: string;
 };
 

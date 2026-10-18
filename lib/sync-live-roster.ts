@@ -30,7 +30,16 @@ export async function syncLiveRoster(center: { id: string; name: string }, day?:
   if ('reason' in calendar) throw Error(calendar.reason);
   const checked = reconcileRoster(candidates.rows, calendar.rows);
   if (checked.issues.length) throw Error(checked.issues.slice(0, 8).join(' '));
-  const { data, error } = await supabaseService().rpc('fets_sync_live_roster', { p_center: center.id, p_day: date, p_rows: checked.rows });
+  const db = supabaseService();
+  let { data, error } = await db.rpc('fets_sync_live_roster', { p_center: center.id, p_day: date, p_rows: checked.rows, p_slots: checked.slots });
+  // Until the booked-slots SQL is run, the database only knows the three-part
+  // pull: names still come across, and the slots wait for the SQL.
+  if (error?.code === 'PGRST202') {
+    ({ data, error } = await db.rpc('fets_sync_live_roster', { p_center: center.id, p_day: date, p_rows: checked.rows }));
+    if (!error && checked.slots.length) {
+      checked.warnings.push(`${checked.slots.reduce((n, s) => n + s.count, 0)} bookings without names need the booked-slots SQL to appear as empty slots. Run it once in Supabase.`);
+    }
+  }
   if (error) throw Error(error.code === 'PGRST202' ? 'Install the fets.online roster sync migration before pulling candidates.' : error.message);
   const retained = Number((data as Record<string, unknown>)?.retained || 0);
   if (retained > 0) checked.warnings.push(`${retained} existing candidates are not in the current fets.live roster. They were retained with their exam-day progress; review the source roster.`);

@@ -5,7 +5,7 @@ import { Dialog } from "@/components/ui/Dialog";
 import { LockerKeyDialog } from "@/components/screens/LockersScreen";
 import { FinishDialog } from "@/components/screens/FinishDialog";
 import { CandidateDetailsDialog } from "@/components/screens/CandidateDetailsDialog";
-import { TwinBadge, TwinWarning } from "@/components/console/NameTwin";
+import { DraftTwinWarning, TwinBadge, TwinWarning } from "@/components/console/NameTwin";
 import { howFar, outsideSession } from "@/lib/safeguards";
 import { useNow } from "@/lib/use-clock";
 import { useConsole } from "@/lib/console-data";
@@ -81,6 +81,7 @@ export function FrontOfficeScreen() {
           fullName(c).toLowerCase().includes(q) ||
           c.roster_number.toLowerCase().includes(q) ||
           (c.phone ?? "").includes(q) ||
+          (c.live_exam_name ?? "").toLowerCase().includes(q) ||
           (c.locker_key ?? "").toLowerCase().includes(q),
       );
   }, [candidates, filter, query, session]);
@@ -318,7 +319,16 @@ function RosterRow({
 
       <span className="block min-w-0 flex-1 lg:flex-none">
         <span className="flex min-w-0 items-center gap-[8px]">
-          <span className="truncate text-[14.5px] font-semibold">{fullName(candidate)}</span>
+          {candidate.placeholder ? (
+            <>
+              <span className="truncate text-[14.5px] font-semibold text-fg-muted italic">Booked slot</span>
+              <span className="shrink-0 rounded-[7px] border border-gold/50 bg-gold/10 px-[6px] py-[1px] text-[9.5px] font-bold tracking-[0.08em] text-gold uppercase">
+                Details needed
+              </span>
+            </>
+          ) : (
+            <span className="truncate text-[14.5px] font-semibold">{fullName(candidate)}</span>
+          )}
           <TwinBadge candidate={candidate} />
           {late && (
             <span className="shrink-0 rounded-[7px] border border-gold/50 px-[6px] py-[1px] text-[9.5px] font-bold tracking-[0.08em] text-gold uppercase">
@@ -326,7 +336,9 @@ function RosterRow({
             </span>
           )}
         </span>
-        <span className="block truncate font-mono text-[11px] text-fg-faint">{refOf(candidate)}</span>
+        <span className="block truncate font-mono text-[11px] text-fg-faint">
+          {candidate.placeholder ? "No confirmation number yet" : refOf(candidate)}
+        </span>
       </span>
 
       <span className="hidden min-w-0 lg:block">
@@ -414,6 +426,12 @@ function CheckInDialog({
   // A booking far from now is asked about once; "Yes" unlocks the check-in.
   const [sureItIsThem, setSureItIsThem] = useState(false);
   const now = useNow();
+  // A booked slot is filled from the candidate's ID and booking at the desk.
+  const slot = !!candidate.placeholder;
+  const [slotName, setSlotName] = useState("");
+  const [slotNumber, setSlotNumber] = useState("");
+  const [slotPhone, setSlotPhone] = useState("");
+  const slotMissing = slot && (!slotName.trim() || !slotNumber.trim());
 
   const done = !!candidate.check_in_at;
   const noteMissing = mismatch && !note.trim();
@@ -422,36 +440,60 @@ function CheckInDialog({
 
   async function checkIn() {
     setBusy(true);
+    if (slot) {
+      const filled = await rpc("fets_fill_slot", {
+        p_candidate: candidate.id,
+        p_name: slotName.trim(),
+        p_number: slotNumber.trim(),
+        p_phone: slotPhone.trim() || null,
+      });
+      if (!filled) {
+        setBusy(false);
+        return;
+      }
+    }
     const ok = await rpc(
       "fets_check_in_one",
       { p_candidate: candidate.id, p_name_note: mismatch ? note.trim() : null },
       mismatch
         ? `${refOf(candidate)} checked in · name note saved for the report`
-        : `${refOf(candidate)} checked in`,
+        : `${slot ? slotNumber.trim() : refOf(candidate)} checked in`,
     );
     setBusy(false);
     if (ok) onCheckedIn();
   }
 
-  const details: [string, string | null][] = [
+  const details: [string, string | null][] = slot
+    ? [
+        ["Exam", candidate.live_exam_name ?? null],
+        ["Provider", candidate.live_provider ?? null],
+        ["Scheduled", candidate.scheduled_at ? clockAt(candidate.scheduled_at, center.timezone) : null],
+      ]
+    : [
     ["Confirmation no.", candidate.roster_number],
     ["Exam part", candidate.part],
     ["Scheduled", candidate.scheduled_at ? clockAt(candidate.scheduled_at, center.timezone) : null],
     ["Contact", candidate.phone],
     ["Place", candidate.place],
   ];
+  const field =
+    "w-full rounded-[12px] border border-edge-strong bg-panel-soft px-[12px] py-[10px] text-[14px] outline-none placeholder:text-fg-faint focus:border-accent/60";
 
   return (
     <Dialog
       open
-      title={fullName(candidate)}
-      subtitle="Check the ID against this name before checking in"
+      title={slot ? `Booked slot · ${candidate.live_exam_name ?? "exam"}` : fullName(candidate)}
+      subtitle={
+        slot
+          ? "Type the name from their ID and the confirmation number from their booking"
+          : "Check the ID against this name before checking in"
+      }
       onClose={onClose}
       footer={
         <>
           <button
             type="button"
-            disabled={done || busy || noteMissing || held || !canFrontOffice}
+            disabled={done || busy || noteMissing || slotMissing || held || !canFrontOffice}
             onClick={checkIn}
             className="flex-1 cursor-pointer rounded-[14px] bg-[linear-gradient(145deg,oklch(0.83_0.16_158),oklch(0.72_0.15_165))] px-[22px] py-[15px] text-[15px] font-bold text-[#0c1711] disabled:cursor-not-allowed disabled:bg-none disabled:bg-[#1d1d25] disabled:text-fg-dim"
           >
@@ -459,11 +501,15 @@ function CheckInDialog({
               ? `Checked in at ${clockAt(candidate.check_in_at, center.timezone)}`
               : held
                 ? "Confirm the session first"
+                : slotMissing
+                ? "Enter the name and confirmation no."
                 : noteMissing
                 ? "Write what the ID says first"
                 : busy
                   ? "Checking in…"
-                  : "Checked in"}
+                  : slot
+                    ? "Save and check in"
+                    : "Checked in"}
           </button>
           <button
             type="button"
@@ -500,7 +546,30 @@ function CheckInDialog({
           </div>
         )}
 
-        <TwinWarning candidate={candidate} />
+        {slot && !done && (
+          <div className="flex flex-col gap-[8px] rounded-[16px] border border-gold/50 bg-gold/8 p-[13px]">
+            <label className="flex flex-col gap-[5px]">
+              <span className="text-[12px] font-semibold">Full name, exactly as on the ID *</span>
+              <input value={slotName} onChange={(e) => setSlotName(e.target.value)} maxLength={200} autoFocus className={field} />
+            </label>
+            <label className="flex flex-col gap-[5px]">
+              <span className="text-[12px] font-semibold">Confirmation / registration number *</span>
+              <input
+                value={slotNumber}
+                onChange={(e) => setSlotNumber(e.target.value)}
+                maxLength={60}
+                autoComplete="off"
+                className={`${field} font-mono`}
+              />
+            </label>
+            <label className="flex flex-col gap-[5px]">
+              <span className="text-[12px] font-semibold">Phone (optional)</span>
+              <input value={slotPhone} onChange={(e) => setSlotPhone(e.target.value)} maxLength={40} inputMode="tel" className={field} />
+            </label>
+          </div>
+        )}
+
+        {slot ? <DraftTwinWarning name={slotName} exceptId={candidate.id} /> : <TwinWarning candidate={candidate} />}
 
         <dl className="grid grid-cols-2 gap-[8px] sm:grid-cols-3">
           {details.map(([label, value]) => (
@@ -511,7 +580,7 @@ function CheckInDialog({
           ))}
         </dl>
 
-        {!done && (
+        {!done && !slot && (
           <div
             className={`rounded-[16px] border p-[13px] transition-colors ${
               mismatch ? "border-gold/50 bg-gold/8" : "border-edge bg-panel-soft/40"

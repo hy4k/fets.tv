@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { useConsole } from "@/lib/console-data";
 import { clockAt, fullName, refOf } from "@/lib/format";
-import { nameTwins } from "@/lib/safeguards";
+import { namesClash, nameTwins } from "@/lib/safeguards";
 import type { Candidate } from "@/lib/types";
 
 /**
@@ -12,7 +12,8 @@ import type { Candidate } from "@/lib/types";
  */
 export function useNameTwins() {
   const { candidates } = useConsole();
-  return useMemo(() => nameTwins(candidates), [candidates]);
+  // An empty booked slot has no name of its own to confuse.
+  return useMemo(() => nameTwins(candidates.filter((c) => !c.placeholder)), [candidates]);
 }
 
 /** The red tag beside a name that could be mistaken for another on today's list. */
@@ -30,6 +31,40 @@ export function TwinBadge({ candidate }: { candidate: Candidate }) {
     >
       Name twin
     </span>
+  );
+}
+
+/**
+ * While a booked slot is being filled in: the names on today's list that look
+ * like the one being typed, so the desk notices before saving.
+ */
+export function DraftTwinWarning({ name, exceptId }: { name: string; exceptId: string }) {
+  const { candidates, center } = useConsole();
+  const typed = name.trim();
+  const twins = useMemo(
+    () =>
+      typed.length < 3
+        ? []
+        : candidates.filter(
+            (c) => c.id !== exceptId && !c.placeholder && namesClash({ first_name: typed, last_name: "" }, c),
+          ),
+    [candidates, exceptId, typed],
+  );
+  if (twins.length === 0) return null;
+  return (
+    <div className="flex flex-col gap-[8px] rounded-[16px] border border-rust/50 bg-rust/10 p-[12px]">
+      <span className="text-[13px] font-bold text-rust">
+        Name twin — a look-alike name is already on today&rsquo;s list
+      </span>
+      {twins.map((t) => (
+        <div key={t.id} className="rounded-[12px] border border-edge-soft bg-black/20 px-[11px] py-[9px]">
+          <span className="block text-[14px] font-semibold break-words">{fullName(t)}</span>
+          <span className="block font-mono text-[12px] text-fg-muted">
+            {t.scheduled_at ? clockAt(t.scheduled_at, center.timezone) : "no time"} · {refOf(t)}
+          </span>
+        </div>
+      ))}
+    </div>
   );
 }
 
