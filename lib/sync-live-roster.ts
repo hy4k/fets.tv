@@ -43,5 +43,6 @@ export async function syncLiveRoster(center: { id: string; name: string }, day?:
   if (error) throw Error(error.code === 'PGRST202' ? 'Install the fets.online roster sync migration before pulling candidates.' : error.message);
   const retained = Number((data as Record<string, unknown>)?.retained || 0);
   if (retained > 0) checked.warnings.push(`${retained} existing candidates are not in the current fets.live roster. They were retained with their exam-day progress; review the source roster.`);
-  return { ...(data as Record<string, unknown>), found: checked.rows.length, warnings: checked.warnings, date };
+  // Which exams the empty slots are for, so the result names them.
+  return { ...(data as Record<string, unknown>), found: checked.rows.length, warnings: checked.warnings, date, booked: checked.slots };
 }

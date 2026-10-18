@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useConsole } from '@/lib/console-data';
 import { basePath } from '@/lib/base-path';
-import { todayInZone } from '@/lib/format';
+import { clockAt, todayInZone } from '@/lib/format';
 import { supabaseBrowser } from '@/lib/supabase/client';
 
 type PullResult = {
@@ -17,7 +17,11 @@ type PullResult = {
   prepared?: boolean;
   /** Empty booked slots on the list now, for exams with no names in fets.live. */
   slots?: number;
+  /** The calendar's bookings without names, by exam and start time. */
+  booked?: { client_name: string; exam_name: string; start_time: string; count: number }[];
 };
+
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 type Prepared = { id: string; exam_date: string; count: number };
 
@@ -190,8 +194,21 @@ export function RosterUploadScreen() {
           <p className="mt-2">
             {result.found} in fets.live · {result.inserted} added · {result.updated} matched
             {result.retained ? ` · ${result.retained} kept that fets.live no longer lists` : ''}
-            {result.slots ? ` · ${result.slots} booked slots to fill in at check-in` : ''}
+            {result.slots ? ` · ${plural(result.slots, 'booked slot')} to fill in at check-in` : ''}
           </p>
+          {result.booked && result.booked.length > 0 && (
+            <ul className="mt-3 flex flex-col gap-1 text-sm">
+              {result.booked.map((b) => (
+                <li key={`${b.client_name}|${b.exam_name}|${b.start_time}`} className="flex flex-wrap gap-x-2">
+                  <span className="font-semibold">{b.exam_name}</span>
+                  <span className="text-fg-muted">
+                    {b.client_name} · {clockAt(`${result.date}T${b.start_time}:00+05:30`, 'Asia/Kolkata')} ·{' '}
+                    {plural(b.count, 'booked slot')}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
           {result.warnings.map((warning, i) => (
             <p key={i} className="mt-3 text-gold">
               {warning}
