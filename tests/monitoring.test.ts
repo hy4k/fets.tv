@@ -135,10 +135,10 @@ test("the export has a row per window per track, names the holder, and cannot ca
   });
   const lines = csv.trim().split("\r\n");
   assert.equal(lines.length, 5);
-  assert.match(lines[1], /"Floor walk","1","09:00-09:10","Aysha","Done","09:04","Aysha","'=HYPERLINK\(1\)"/);
-  assert.match(lines[2], /"Floor walk","2","09:10-09:20","Aysha","Open"/);
-  assert.match(lines[3], /"DVR","1","09:00-09:10","Lazeem","Done","09:06","Lazeem"/);
-  assert.match(lines[1], /^"2026-09-24","1","09:00-10:30"/);
+  assert.match(lines[1], /"Floor walk","1","9:00 AM-9:10 AM","Aysha","Done","9:04 AM","Aysha","'=HYPERLINK\(1\)"/);
+  assert.match(lines[2], /"Floor walk","2","9:10 AM-9:20 AM","Aysha","Open"/);
+  assert.match(lines[3], /"DVR","1","9:00 AM-9:10 AM","Lazeem","Done","9:06 AM","Lazeem"/);
+  assert.match(lines[1], /^"2026-09-24","1","9:00 AM-10:30 AM"/);
 });
 
 test("somebody still to start keeps the day open, however early the first finish", () => {
@@ -194,7 +194,7 @@ test("a check after a mid-window handover names the new holder", () => {
       { post_kind: "lab", profile_name: "Niyas", started_at: iso(5), ended_at: null },
     ],
   });
-  assert.match(csv.split("\r\n")[1], /"09:00-09:10","Niyas","Done","09:07","Niyas"/);
+  assert.match(csv.split("\r\n")[1], /"9:00 AM-9:10 AM","Niyas","Done","9:07 AM","Niyas"/);
 });
 
 test("a check logged after the last finish does not count", () => {

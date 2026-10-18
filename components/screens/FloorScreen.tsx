@@ -5,7 +5,7 @@ import { TwinBadge } from "@/components/console/NameTwin";
 import { Dialog } from "@/components/ui/Dialog";
 import { FinishDialog } from "@/components/screens/FinishDialog";
 import { useConsole } from "@/lib/console-data";
-import { clockAt, fullName, instantFromZonedTime, refOf } from "@/lib/format";
+import { clock24, clockAt, fullName, instantFromZonedTime, refOf } from "@/lib/format";
 import { currentSection, sectionsFor, type SectionView } from "@/lib/sections";
 import { useNow } from "@/lib/use-clock";
 import { seatName, seatNumber } from "@/lib/seats";
@@ -826,7 +826,7 @@ function AdjustDialog({ row, onClose }: { row: Seated; onClose: () => void }) {
   const { candidate, seat } = row;
 
   const [startTime, setStartTime] = useState(() =>
-    clockAt(candidate.exam_started_at, center.timezone),
+    clock24(candidate.exam_started_at, center.timezone),
   );
   const [duration, setDuration] = useState(
     String(candidate.exam_duration_minutes ?? 180),

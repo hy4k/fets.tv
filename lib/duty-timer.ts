@@ -1,3 +1,4 @@
+import { timeOfDay } from "./format.ts";
 /**
  * The Lab's duty timer: one long run from the first exam start to the last
  * expected finish, with a DVR check due every six minutes and a floor walk
@@ -121,9 +122,7 @@ export function dutyLogCsv(input: {
 }) {
   const { start, end, checks, date, timezone, rota } = input;
   const time = (ms: number) =>
-    new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: timezone }).format(
-      new Date(ms),
-    );
+    timeOfDay(ms, timezone);
   const cell = (v: string | number) => {
     let s = String(v);
     if (/^[=+\-@]/.test(s)) s = `'${s}`;

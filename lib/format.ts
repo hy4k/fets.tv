@@ -92,8 +92,27 @@ export function initials(name: string) {
     .toUpperCase();
 }
 
+/** A time of day as staff read it: "4:00 PM", "11:05 AM". */
+export function timeOfDay(at: number | string | Date, timezone: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: timezone,
+  }).format(new Date(at));
+}
+
 export function clockAt(iso: string | null | undefined, timezone: string) {
   if (!iso) return "—";
+  return timeOfDay(iso, timezone);
+}
+
+/**
+ * "16:05" — the 24-hour form that time-entry boxes and instantFromZonedTime
+ * read. For values a person edits, never for display.
+ */
+export function clock24(iso: string | null | undefined, timezone: string) {
+  if (!iso) return "";
   return new Intl.DateTimeFormat("en-GB", {
     hour: "2-digit",
     minute: "2-digit",
@@ -173,7 +192,7 @@ function zoneOffsetMs(instant: number, timezone: string) {
 
 /** The current wall-clock time at the center, as "HH:MM". */
 export function nowInZone(timezone: string) {
-  return clockAt(new Date().toISOString(), timezone);
+  return clock24(new Date().toISOString(), timezone);
 }
 
 /** Reads "HH:MM" as today's wall-clock time at the center and returns the instant. */
