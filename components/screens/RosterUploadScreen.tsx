@@ -15,6 +15,8 @@ type PullResult = {
   warnings: string[];
   date: string;
   prepared?: boolean;
+  /** Empty booked slots on the list now, for exams with no names in fets.live. */
+  slots?: number;
 };
 
 type Prepared = { id: string; exam_date: string; count: number };
@@ -188,6 +190,7 @@ export function RosterUploadScreen() {
           <p className="mt-2">
             {result.found} in fets.live · {result.inserted} added · {result.updated} matched
             {result.retained ? ` · ${result.retained} kept that fets.live no longer lists` : ''}
+            {result.slots ? ` · ${result.slots} booked slots to fill in at check-in` : ''}
           </p>
           {result.warnings.map((warning, i) => (
             <p key={i} className="mt-3 text-gold">

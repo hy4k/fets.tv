@@ -61,6 +61,8 @@ export function joinedLate(
   session: { created_at: string } | null,
 ) {
   if (c.roster_number?.startsWith("MANUAL-")) return true;
+  // An empty booked slot mirrors the calendar; topping them up is not a late booking.
+  if (c.roster_number?.startsWith("SLOT-")) return false;
   if (!session) return false;
   // A minute's grace: an import or sync writes its rows just after the day opens.
   return Date.parse(c.created_at) - Date.parse(session.created_at) > 60_000;
