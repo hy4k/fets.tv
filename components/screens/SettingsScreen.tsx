@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
+import { FloorPlanSection } from "@/components/screens/FloorPlanEditor";
 import { useConsole } from "@/lib/console-data";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { HEADER_ALIASES } from "@/lib/roster/parse";
@@ -10,7 +11,7 @@ import type { DutyPostKind, ExamProgramme, Lab, ScheduleRules, SectionKind, Work
 
 const SECTIONS = [
   { key: "centre", label: "Centre", blurb: "Name, timezone, and what the TV shows" },
-  { key: "labs", label: "Labs and seats", blurb: "How many seats each lab has, and their numbers" },
+  { key: "labs", label: "Labs and seats", blurb: "Seats per lab, the floor plan, and desk numbers" },
   { key: "exams", label: "Exams", blurb: "Which exams run here, how long, and their parts" },
   { key: "day", label: "The day", blurb: "Start, end, break and how candidates are spread out" },
   { key: "flow", label: "Check in and calling", blurb: "Which steps a candidate passes through" },
@@ -65,6 +66,7 @@ export function SettingsScreen() {
         {section === "labs" && (
           <div className="flex flex-col gap-[28px]">
             <LabsSection />
+            <FloorPlanSection />
             <SeatNumbersSection />
           </div>
         )}
