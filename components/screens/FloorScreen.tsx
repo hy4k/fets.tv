@@ -1,29 +1,24 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { TwinBadge } from "@/components/console/NameTwin";
 import { Dialog } from "@/components/ui/Dialog";
 import { FinishDialog } from "@/components/screens/FinishDialog";
+import { PlanCanvas, PlanItemView, SeatTile, type SeatState } from "@/components/screens/FloorPlan";
+import { completePlan, readPlan, turnPlan } from "@/lib/floor-plan";
 import { useConsole } from "@/lib/console-data";
 import { clock24, clockAt, fullName, instantFromZonedTime, refOf } from "@/lib/format";
 import { currentSection, sectionsFor, type SectionView } from "@/lib/sections";
 import { useNow } from "@/lib/use-clock";
 import { seatName, seatNumber } from "@/lib/seats";
+import { countdown, liquid } from "@/lib/floor-look";
 import type {
   Candidate,
   CandidateBreak,
   ExamProgramme,
+  Lab,
   Workstation,
 } from "@/lib/types";
-
-function countdown(msRemaining: number) {
-  const over = msRemaining <= 0;
-  const total = Math.floor(Math.abs(msRemaining) / 1000);
-  const h = Math.floor(total / 3600);
-  const m = Math.floor((total % 3600) / 60);
-  const body = h > 0 ? `${h}:${String(m).padStart(2, "0")}` : `${m}m`;
-  return over ? `+${body}` : body;
-}
 
 /** "6:04" — minutes and seconds away, for a break running now. */
 function awayClock(startedAt: string, now: number) {
@@ -34,39 +29,7 @@ function awayClock(startedAt: string, now: number) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
-/**
- * The liquid in each tube. One calm champagne for most of the sitting, warming
- * to amber in the last quarter hour and to a soft coral once past time; a break
- * turns it to frosted pearl. No traffic-light red and green.
- */
-function liquid(remaining: number, onBreak: boolean) {
-  if (onBreak)
-    return {
-      fill: "linear-gradient(90deg, oklch(0.78 0.04 290), oklch(0.9 0.03 300))",
-      glow: "oklch(0.8 0.06 295 / 0.45)",
-      text: "text-[oklch(0.88_0.05_300)]",
-    };
-  const minutes = remaining / 60000;
-  if (minutes <= 0)
-    return {
-      fill: "linear-gradient(90deg, oklch(0.62 0.13 25), oklch(0.76 0.12 35))",
-      glow: "oklch(0.7 0.14 30 / 0.5)",
-      text: "text-[oklch(0.8_0.12_35)]",
-    };
-  if (minutes <= 15)
-    return {
-      fill: "linear-gradient(90deg, oklch(0.7 0.13 60), oklch(0.85 0.12 78))",
-      glow: "oklch(0.8 0.13 70 / 0.45)",
-      text: "text-[oklch(0.87_0.11_78)]",
-    };
-  return {
-    fill: "linear-gradient(90deg, oklch(0.72 0.07 75), oklch(0.93 0.05 90))",
-    glow: "oklch(0.9 0.06 85 / 0.35)",
-    text: "text-[oklch(0.93_0.04_90)]",
-  };
-}
-
-type Seated = {
+export type Seated = {
   seat: Workstation;
   candidate: Candidate;
   programme: ExamProgramme | null;
@@ -92,7 +55,11 @@ export function FloorScreen() {
     center,
     rpc,
     canLab,
+    labs,
   } = useConsole();
+  // The floor plan is the Lab page; the list stays one tap away.
+  const [view, setView] = useState<"plan" | "list">("plan");
+  const [openSeatId, setOpenSeatId] = useState<string | null>(null);
   const now = useNow();
   const [editing, setEditing] = useState<Seated | null>(null);
   const [moving, setMoving] = useState<Seated | null>(null);
@@ -161,6 +128,9 @@ export function FloorScreen() {
   }, [seated, query]);
 
   const partsRow = seated.find((s) => s.candidate.id === partsId) ?? null;
+  // Held by seat id, so the card follows the refreshed row and closes itself
+  // once the seat is no longer taken.
+  const openRow = seated.find((s) => s.seat.id === openSeatId) ?? null;
   // Finished but not signed out: from before Finish signed people out, or a
   // sign-out that was held up. They stay here, in the lab, until it is done.
   const toSignOut = candidates
@@ -247,7 +217,32 @@ export function FloorScreen() {
         </section>
       )}
 
-      {seated.length === 0 ? (
+      <div className="flex shrink-0 items-center gap-[6px] px-[4px]">
+        {(["plan", "list"] as const).map((v) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => setView(v)}
+            aria-pressed={view === v}
+            className={`cursor-pointer rounded-full px-[14px] py-[7px] text-[12px] font-semibold ${
+              view === v ? "bg-white/[0.12] text-fg" : "text-fg-faint hover:text-fg"
+            }`}
+          >
+            {v === "plan" ? "Floor plan" : "List"}
+          </button>
+        ))}
+      </div>
+
+      {view === "plan" ? (
+        <LabFloors
+          labs={labs}
+          workstations={workstations}
+          seated={seated}
+          query={query}
+          now={now}
+          onOpen={(id) => setOpenSeatId(id)}
+        />
+      ) : seated.length === 0 ? (
         <div className="flex min-h-[260px] flex-col items-center justify-center gap-[10px] rounded-[28px] border border-white/[0.07] bg-white/[0.02] p-[30px] text-center">
           <span className="font-display text-[28px] font-light">
             The floor is quiet
@@ -287,6 +282,39 @@ export function FloorScreen() {
         collect what they were given and their locker key, and the key goes
         free for the next candidate.
       </p>
+
+      {openRow && (
+        <Dialog
+          open
+          title={seatName(openRow.seat)}
+          onClose={() => setOpenSeatId(null)}
+          width={760}
+        >
+          <FloorCard
+            row={openRow}
+            now={now}
+            canLab={canLab}
+            timezone={center.timezone}
+            rpc={rpc}
+            onEdit={() => {
+              setOpenSeatId(null);
+              setEditing(openRow);
+            }}
+            onMove={() => {
+              setOpenSeatId(null);
+              setMoving(openRow);
+            }}
+            onParts={() => {
+              setOpenSeatId(null);
+              setPartsId(openRow.candidate.id);
+            }}
+            onFinish={() => {
+              setOpenSeatId(null);
+              setFinishingId(openRow.candidate.id);
+            }}
+          />
+        </Dialog>
+      )}
 
       {editing && (
         <AdjustDialog
@@ -1152,5 +1180,146 @@ function TransferDialog({
         </button>
       </div>
     </Dialog>
+  );
+}
+
+/** Whether the screen is wide enough to read a tall room turned on its side. */
+function useWide() {
+  return useSyncExternalStore(
+    (on) => {
+      const m = window.matchMedia("(min-width: 900px)");
+      m.addEventListener("change", on);
+      return () => m.removeEventListener("change", on);
+    },
+    () => window.matchMedia("(min-width: 900px)").matches,
+    () => true,
+  );
+}
+
+/**
+ * Every lab drawn as it stands, one after another in the order of Setup. A tall
+ * narrow room is turned on its side on a wide screen so its desks are big
+ * enough to read; "Turn" flips that by hand. Searching dims every desk but the
+ * ones that match.
+ */
+function LabFloors({
+  labs,
+  workstations,
+  seated,
+  query,
+  now,
+  onOpen,
+}: {
+  labs: Lab[];
+  workstations: Workstation[];
+  seated: Seated[];
+  query: string;
+  now: number;
+  onOpen: (seatId: string) => void;
+}) {
+  const wide = useWide();
+  const [flip, setFlip] = useState(false);
+  const bySeat = useMemo(() => new Map(seated.map((s) => [s.seat.id, s])), [seated]);
+  const q = query.trim().toLowerCase();
+
+  const stateOf = (s: Seated): SeatState => {
+    const started = s.candidate.exam_started_at ? new Date(s.candidate.exam_started_at).getTime() : null;
+    const length = (s.candidate.exam_duration_minutes ?? 0) * 60000;
+    return {
+      name: fullName(s.candidate).split(/\s+/)[0] || refOf(s.candidate),
+      remaining: s.remaining,
+      progress: started && length > 0 && now > 0 ? Math.min(1, Math.max(0, (now - started) / length)) : 0,
+      onBreak: !!s.onBreak,
+    };
+  };
+  const matches = (w: Workstation) => {
+    if (!q) return true;
+    const s = bySeat.get(w.id);
+    return (
+      seatNumber(w).toLowerCase() === q ||
+      (!!s &&
+        (fullName(s.candidate).toLowerCase().includes(q) ||
+          s.candidate.roster_number.toLowerCase().includes(q) ||
+          (s.programme?.name ?? s.candidate.live_exam_name ?? "").toLowerCase().includes(q)))
+    );
+  };
+
+  const floors = labs
+    .map((lab) => {
+      const seats = workstations
+        .filter((w) => w.lab_id === lab.id)
+        .sort((a, b) => a.seat_code.localeCompare(b.seat_code, undefined, { numeric: true }));
+      return { lab, seats };
+    })
+    .filter((f) => f.seats.length > 0);
+
+  if (floors.length === 0) {
+    return (
+      <p className="rounded-[20px] border border-white/[0.07] bg-white/[0.02] p-[28px] text-center text-[13px] text-fg-faint">
+        No labs are set up yet. Add them in Settings → Labs and seats.
+      </p>
+    );
+  }
+
+  return (
+    <div className="flex shrink-0 flex-col gap-[14px]">
+      {floors.map(({ lab, seats }) => {
+        const drawn = completePlan(readPlan(lab.plan), seats.map((w) => w.id));
+        const tall = drawn.h > drawn.w * 1.3;
+        const turned = (tall && wide) !== flip;
+        const plan = turned ? turnPlan(drawn) : drawn;
+        const taken = seats.filter((w) => bySeat.has(w.id)).length;
+        const byId = new Map(seats.map((w) => [w.id, w]));
+        return (
+          <section
+            key={lab.id}
+            className="rounded-[26px] border border-white/[0.07] bg-[radial-gradient(120%_120%_at_0%_0%,rgba(255,255,255,0.05),rgba(255,255,255,0.01))] p-[14px] md:p-[18px]"
+          >
+            <div className="mb-[10px] flex flex-wrap items-center gap-x-[12px] gap-y-[6px]">
+              <span className="font-display text-[22px] leading-none font-light">{lab.name}</span>
+              <span className="font-mono text-[12px] text-fg-faint">
+                {taken} testing · {seats.length - taken} free
+              </span>
+              <span className="flex-1" />
+              <button
+                type="button"
+                onClick={() => setFlip(!flip)}
+                className="cursor-pointer rounded-full border border-white/10 px-[12px] py-[5px] text-[11.5px] font-semibold text-fg-muted hover:text-fg"
+                title="Turn the plan a quarter round"
+              >
+                ⟲ Turn
+              </button>
+            </div>
+            <PlanCanvas plan={plan}>
+              {plan.items.map((item, i) => (
+                <PlanItemView key={`item-${i}`} item={item} />
+              ))}
+              {Object.entries(plan.seats).map(([id, p]) => {
+                const w = byId.get(id);
+                if (!w) return null;
+                const s = bySeat.get(id);
+                return (
+                  <SeatTile
+                    key={id}
+                    ws={w}
+                    x={p.x}
+                    y={p.y}
+                    facing={p.f}
+                    state={s ? stateOf(s) : null}
+                    dimmed={!matches(w)}
+                    onPick={s ? () => onOpen(id) : undefined}
+                  />
+                );
+              })}
+            </PlanCanvas>
+          </section>
+        );
+      })}
+      <p className="px-[4px] font-mono text-[10.5px] text-fg-faint">
+        The ring round each taken desk is the time left: champagne, amber in the last quarter hour, coral once
+        past time, pearl on a break. Tap a taken desk for Break, Move and Finish. Arrange the plan and the
+        desk numbers in Settings → Labs and seats.
+      </p>
+    </div>
   );
 }

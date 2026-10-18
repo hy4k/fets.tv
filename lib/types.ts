@@ -466,6 +466,8 @@ export type Lab = {
   position: number;
   capacity: number;
   created_at: string;
+  /** The lab as drawn (lib/floor-plan.ts); null until somebody draws it. */
+  plan?: unknown;
 };
 
 export type Workstation = {
