@@ -7,6 +7,7 @@ import { useConsole } from "@/lib/console-data";
 import { useNow } from "@/lib/use-clock";
 import { clockAt, fullName, refOf } from "@/lib/format";
 import { useDisplayHome } from "@/lib/display-home";
+import { useDisplaySlides } from "@/lib/display-slides";
 import { roomFloor } from "@/lib/room";
 
 export function TvPreviewScreen() {
@@ -25,12 +26,14 @@ export function TvPreviewScreen() {
   // The same room numbers and home screen the TV works out for itself.
   const floor = roomFloor(candidates, workstations, programmes);
   const { home } = useDisplayHome(center.id);
+  const { slides } = useDisplaySlides(center.id);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-[14px]">
       <DisplayBoard
         floor={floor}
         home={home}
+        slides={slides}
         className="flex-1"
         hallLabel={displays[0]?.hall_label ?? "HALL 1"}
         timezone={center.timezone}

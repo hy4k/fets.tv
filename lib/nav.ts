@@ -21,6 +21,7 @@ export type StepKey =
   | "report"
   | "tv"
   | "home"
+  | "channel"
   | "messages"
   | "setup";
 
@@ -113,11 +114,12 @@ export const PLACES: Place[] = [
     key: "screen",
     wing: "more",
     title: "The Hall TV",
-    hint: "Screen · home · messages",
+    hint: "Screen · home · channel · messages",
     tone: ["oklch(0.78 0.15 355)", "oklch(0.64 0.18 10)"],
     steps: [
       { key: "tv", href: "/tv", label: "TV screen", sub: "What the hall sees now" },
       { key: "home", href: "/home-screen", label: "Home screen", sub: "Welcome and layout" },
+      { key: "channel", href: "/channel", label: "TV Channel", sub: "Promos and slides" },
       { key: "messages", href: "/notices", label: "Messages", sub: "Put on the TV" },
     ],
   },

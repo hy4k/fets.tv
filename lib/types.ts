@@ -556,6 +556,8 @@ export type DisplayState = {
   floor?: BoardFloor | null;
   /** How the centre set the home screen; null until somebody does. */
   home?: BoardHome | null;
+  /** The TV Channel's slides; the TV picks which are on by its own clock. */
+  slides?: import("@/lib/tv-channel").TvSlide[];
   server_time: string;
 };
 
