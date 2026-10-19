@@ -14,7 +14,7 @@ Apply `FETS.LIVE-v7.0/supabase/migrations/20261019185443_online_shift_checks.sql
 
 ## Validation
 
-176 Online tests pass, including nine new request/slot/export checks. The matching Live branch has 17 isolated PostgreSQL tests covering role isolation, verified/active accounts, branch separation, both intervals, exact changeovers, break cover, amendments, roster removal, retries, closure and reads of native Live checks. TypeScript, targeted ESLint and production build pass. Isolated browser journeys at 1440, 393 and 320 pixels verify owner controls, failed-save draft retention, shared event visibility, stale connection handling and missing-plan states, with no page errors or horizontal overflow. Fictional preview records never reach production.
+184 Online tests pass, including nine new request/slot/export checks. The matching Live branch has 17 isolated PostgreSQL tests covering role isolation, verified/active accounts, branch separation, both intervals, exact changeovers, break cover, amendments, roster removal, retries, closure and reads of native Live checks. TypeScript, targeted ESLint and production build pass. Isolated browser journeys at 1440, 393 and 320 pixels verify owner controls, failed-save draft retention, shared event visibility, stale connection handling and missing-plan states, with no page errors or horizontal overflow. Fictional preview records never reach production.
 
 ## Operations
 
@@ -24,4 +24,4 @@ A lead must publish the actual day plan in The Shift before staff can record. St
 
 Database bridge installed in FETS Live on 20 October 2026 IST. Read-only production checks matched all 432 due slots and owners across the three existing published plans. Seven of eight non-viewer Online staff accounts have a matching verified Live account and centre membership; the ninth account is a viewer. No production check records were created, and Live counts remained 17 auth users, nine plans, zero duty events and one report. Online schema and records were not changed.
 
-Website deployment is pending VPS reconnection. The retained base is main `cffdec3` (including the newer candidate-correction work). The deployment guard must re-inspect the running image before rollout because another release may have changed it while Desktop Commander was offline. A passing build and installed database bridge are not evidence that the Online UI is deployed.
+VPS access is restored. The release includes main `8ca0fd4`, preserving candidate corrections and the newer TV Channel update. The deployment guard is pinned to the inspected running image `sha256:d1b74f1fcfd80d9834d56147d3ddde62b2d2c91a52aa4fcfcdd4c31bee6dbae3`. Website deployment and public verification remain pending.
