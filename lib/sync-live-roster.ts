@@ -2,6 +2,7 @@ import { readTable, type CalendarRow, type LiveCandidate } from './fets-live';
 import { reconcileRoster } from './roster-reconcile';
 import { supabaseService } from './supabase/service';
 import { todayInZone } from './format';
+import { pushLiveCorrections } from './live-corrections';
 
 /**
  * Pull one day from fets.live into this centre's list. Today becomes (or tops
@@ -14,6 +15,9 @@ export async function syncLiveRoster(center: { id: string; name: string }, day?:
   const date = day ?? today;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(`${date}T00:00:00Z`))) throw Error('Pick a valid date');
   if (date < today) throw Error('A past day cannot be pulled');
+  // Corrections still waiting go to fets.live first, so it reads the same as here.
+  // A failure here never stops the pull; they wait for the next one.
+  const pushed = await pushLiveCorrections(supabaseService(), center.id).catch(() => null);
   const next = new Date(Date.parse(`${date}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
   const [candidates, calendar] = await Promise.all([
     readTable<LiveCandidate>('candidates', center.name, {
@@ -42,6 +46,7 @@ export async function syncLiveRoster(center: { id: string; name: string }, day?:
   }
   if (error) throw Error(error.code === 'PGRST202' ? 'Install the fets.online roster sync migration before pulling candidates.' : error.message);
   const retained = Number((data as Record<string, unknown>)?.retained || 0);
+  if (pushed?.failed) checked.warnings.push(`${pushed.failed} corrections could not be sent to fets.live yet; they will go with the next save or pull.`);
   if (retained > 0) checked.warnings.push(`${retained} existing candidates are not in the current fets.live roster. They were retained with their exam-day progress; review the source roster.`);
   // Which exams the empty slots are for, so the result names them.
   return { ...(data as Record<string, unknown>), found: checked.rows.length, warnings: checked.warnings, date, booked: checked.slots };

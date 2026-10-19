@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Dialog } from "@/components/ui/Dialog";
+import { basePath } from "@/lib/base-path";
 import { useConsole } from "@/lib/console-data";
 import { fullName, refOf } from "@/lib/format";
 import type { Candidate } from "@/lib/types";
@@ -96,6 +97,11 @@ export function CandidateDetailsDialog({
 
     setBusy(false);
     if (ok) {
+      // A correction to a candidate from fets.live goes back there now; if this
+      // fails it waits and goes with the next pull.
+      if (editing && candidate.live_provider) {
+        void fetch(`${basePath}/api/fets-live/push`, { method: "POST" }).catch(() => {});
+      }
       onClose();
       if (thenCheckIn) router.push("/front-office");
     }
