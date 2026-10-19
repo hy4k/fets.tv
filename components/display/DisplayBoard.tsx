@@ -1,6 +1,9 @@
 "use client";
 
-import { useClock } from "@/lib/use-clock";
+import { useEffect, useState } from "react";
+import { useClock, useNow } from "@/lib/use-clock";
+import { ChannelSlide } from "@/components/display/ChannelSlide";
+import { playlist, type TvSlide } from "@/lib/tv-channel";
 import { LogoMark } from "@/components/brand/Logo";
 import { centreLook, shortName } from "@/lib/centres";
 import type { BoardFloor, BoardHome } from "@/lib/types";
@@ -80,6 +83,7 @@ export function DisplayBoard({
   floor = null,
   home = null,
   notice = null,
+  slides = null,
   nonce = 0,
   siteLabel,
   centre,
@@ -96,6 +100,8 @@ export function DisplayBoard({
   /** The centre's home screen: welcome line and what to show under it. */
   home?: BoardHome | null;
   notice?: BoardNotice;
+  /** The TV Channel: designed slides that take turns between calls. */
+  slides?: TvSlide[] | null;
   nonce?: number;
   siteLabel?: string;
   /** Which centre this board is in; sets the mark's metal and the name. */
@@ -107,6 +113,11 @@ export function DisplayBoard({
   const look = centreLook(centre);
   const view = homeView(home, centre ? shortName(centre) : null);
   const pieces = visiblePieces(view, floor);
+  const now = useNow();
+  // A message put up by hand comes before the loop; a call before everything.
+  const loop = notice ? [] : playlist(slides, now, timezone);
+  const { slide, round } = useChannel(loop);
+  const designed = !call && slide && slide.kind !== "today" ? slide : null;
 
   return (
     <div
@@ -178,12 +189,19 @@ export function DisplayBoard({
             </span>
           </span>
         </section>
+      ) : designed ? (
+        <section aria-label="TV Channel" className="flex min-h-0 flex-1 flex-col">
+          <div key={`${designed.id}#${round}`} className="min-h-0 flex-1 animate-slide-in motion-reduce:animate-none">
+            <ChannelSlide slide={designed} tone={look.tone} />
+          </div>
+        </section>
       ) : (
         <section
+          key={slide ? `${slide.id}#${round}` : undefined}
           style={notice ? noticeLook(notice.style, "1px").band : undefined}
           className={`flex min-h-0 flex-1 flex-col items-center justify-center gap-[1.4cqh] rounded-[22px] border px-[clamp(10px,3cqw,48px)] py-[clamp(9px,2.6cqh,40px)] text-center ${
             notice && tone ? tone.band : "border-edge bg-[linear-gradient(165deg,#1a1613,#141110)]"
-          }`}
+          } ${slide ? "animate-slide-in motion-reduce:animate-none" : ""}`}
         >
           {notice && tone ? (
             <>
@@ -254,6 +272,8 @@ export function DisplayBoard({
           </span>
         </section>
       )}
+
+      {!call && slide && loop.length > 1 && <ChannelProgress loop={loop} current={slide} round={round} tone={look.tone} />}
 
       {call && earlier.length > 0 && (
         <section aria-label="Also called" className="flex shrink-0 flex-col gap-[0.9cqh]">
@@ -501,6 +521,62 @@ function IdleFloor({
           {free > 0 ? view.earlyText : view.fullText}
         </span>
       )}
+    </div>
+  );
+}
+
+/**
+ * Which slide is on and when the next one comes. The slide stays where it is
+ * when the loop changes round it — a slide added, another one's hours over —
+ * and the loop starts from the top only when the one on screen has gone.
+ */
+function useChannel(loop: TvSlide[]): { slide: TvSlide | null; round: number } {
+  const [at, setAt] = useState<{ id: string | null; round: number }>({ id: null, round: 0 });
+  const index = Math.max(0, loop.findIndex((s) => s.id === at.id));
+  const slide = loop[index] ?? null;
+  const ids = loop.map((s) => s.id).join("|");
+
+  useEffect(() => {
+    if (!slide || loop.length < 2) return;
+    const t = setTimeout(
+      () => setAt((a) => ({ id: loop[(index + 1) % loop.length].id, round: a.round + 1 })),
+      slide.seconds * 1000,
+    );
+    return () => clearTimeout(t);
+    // The loop is rebuilt every second from the clock; its slides are what matter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ids, slide?.id, slide?.seconds, at.round]);
+
+  return { slide, round: at.round };
+}
+
+/** A thin bar per slide; the one on screen fills for as long as it stays. */
+function ChannelProgress({
+  loop,
+  current,
+  round,
+  tone,
+}: {
+  loop: TvSlide[];
+  current: TvSlide;
+  round: number;
+  tone: [string, string];
+}) {
+  const at = loop.findIndex((s) => s.id === current.id);
+  return (
+    <div aria-hidden className="flex shrink-0 justify-center gap-[0.6cqw]">
+      {loop.map((s, i) => (
+        <span key={s.id} className="relative h-[clamp(3px,0.5cqh,6px)] w-[clamp(18px,4cqw,64px)] overflow-hidden rounded-full bg-white/10">
+          {i < at && <span className="absolute inset-0 rounded-full bg-white/30" />}
+          {i === at && (
+            <span
+              key={round}
+              className="absolute inset-0 origin-left animate-fill rounded-full motion-reduce:animate-none"
+              style={{ animationDuration: `${s.seconds}s`, background: `linear-gradient(90deg, ${tone[1]}, ${tone[0]})` }}
+            />
+          )}
+        </span>
+      ))}
     </div>
   );
 }

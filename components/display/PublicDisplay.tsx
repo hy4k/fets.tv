@@ -102,6 +102,7 @@ export function PublicDisplay({ displayKey, initial }: { displayKey: string; ini
         earlier={(state.earlier ?? []).map((e) => ({ token: e.token, name: e.name }))}
         floor={state.floor ?? null}
         home={state.home ?? null}
+        slides={state.slides ?? null}
       />
       {!online && (
         <p className="pt-[8px] text-center font-mono text-[11px] text-rust">Reconnecting to the console…</p>
