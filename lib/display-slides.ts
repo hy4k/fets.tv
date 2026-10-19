@@ -6,6 +6,8 @@ import type { TvSlide } from "@/lib/tv-channel";
 
 const COLUMNS =
   "id, center_id, kind, label, fields, link, media_path, media_kind, seconds, starts_on, ends_on, days, from_time, to_time, everywhere, position, active";
+// The scan code arrives with the stats SQL; read it when it is there.
+const WITH_CODE = `${COLUMNS}, code`;
 
 /**
  * The centre's TV Channel slides, kept fresh when another console changes
@@ -20,11 +22,14 @@ export function useDisplaySlides(centerId: string) {
 
   const load = useCallback(async () => {
     const db = supabaseBrowser();
-    const { data, error } = await db
-      .from("display_slides" as never)
-      .select(COLUMNS)
-      .or(`center_id.eq.${centerId},everywhere.eq.true`)
-      .order("position");
+    const read = (columns: string) =>
+      db
+        .from("display_slides" as never)
+        .select(columns)
+        .or(`center_id.eq.${centerId},everywhere.eq.true`)
+        .order("position");
+    let { data, error } = await read(WITH_CODE);
+    if (error) ({ data, error } = await read(COLUMNS));
     if (error) {
       setReady(false);
       setLoaded(true);
@@ -49,10 +54,54 @@ export function useDisplaySlides(centerId: string) {
       .channel(`display-slides-${centerId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "display_slides" }, () => void load())
       .subscribe();
+    // A live update can go missing; the list never waits on one for long.
+    const every = window.setInterval(() => void load(), 60_000);
     return () => {
+      window.clearInterval(every);
       void supabaseBrowser().removeChannel(channel);
     };
   }, [load, centerId]);
 
   return { slides, loaded, ready, reload: load };
+}
+
+export type SlideNumbers = { shown: number; scans: number; shownToday: number; scansToday: number };
+
+/**
+ * How often each slide was on screen and how many phones scanned its QR code:
+ * the last seven days at the centre, and today. Empty until the stats SQL is run.
+ */
+export function useSlideStats(centerId: string, today: string) {
+  const [stats, setStats] = useState<Map<string, SlideNumbers>>(new Map());
+
+  const load = useCallback(async () => {
+    if (!today) return;
+    const since = new Date(Date.parse(`${today}T00:00:00Z`) - 6 * 86400000).toISOString().slice(0, 10);
+    const { data, error } = await supabaseBrowser()
+      .from("display_slide_stats" as never)
+      .select("slide_id, day, shown, scans")
+      .gte("day", since);
+    if (error) return;
+    const next = new Map<string, SlideNumbers>();
+    for (const r of (data ?? []) as { slide_id: string; day: string; shown: number; scans: number }[]) {
+      const n = next.get(r.slide_id) ?? { shown: 0, scans: 0, shownToday: 0, scansToday: 0 };
+      n.shown += r.shown;
+      n.scans += r.scans;
+      if (r.day === today) {
+        n.shownToday += r.shown;
+        n.scansToday += r.scans;
+      }
+      next.set(r.slide_id, n);
+    }
+    setStats(next);
+  }, [today]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void load();
+    const every = window.setInterval(() => void load(), 60_000);
+    return () => window.clearInterval(every);
+  }, [load, centerId]);
+
+  return stats;
 }

@@ -5,6 +5,7 @@ import {
   cleanLink,
   fieldOf,
   localNow,
+  nextOn,
   playlist,
   scheduleLine,
   shortLink,
@@ -111,4 +112,18 @@ test("the schedule in a line", () => {
     "Mon–Fri · 9 AM–1:30 PM · until 31 Oct",
   );
   assert.equal(scheduleLine(slide({ days: [6, 0] })), "Weekends · all day");
+});
+
+test("when a scheduled slide comes on", () => {
+  // 03:30 on Tuesday 20 October in Kochi.
+  const early = Date.parse("2026-10-19T22:00:00Z");
+  const promo = slide({ starts_on: "2026-10-20", ends_on: "2026-10-31", from_time: "08:00:00", to_time: "21:00:00" });
+  assert.equal(nextOn(promo, early, IST), "Comes on today at 8 AM");
+  assert.equal(nextOn(slide({ starts_on: "2026-10-21", from_time: "09:30" }), early, IST), "Comes on tomorrow at 9:30 AM");
+  assert.equal(nextOn(slide({ starts_on: "2026-10-24" }), early, IST), "Comes on Sat 24 Oct");
+  assert.equal(nextOn(slide({ days: [6] }), early, IST), "Comes on Sat 24 Oct");
+  assert.equal(nextOn(slide(), early, IST), null);
+  assert.equal(nextOn(slide({ ends_on: "2026-10-19" }), early, IST), null);
+  // Past today's hours: tomorrow.
+  assert.equal(nextOn(slide({ from_time: "01:00", to_time: "02:00" }), early, IST), "Comes on tomorrow at 1 AM");
 });

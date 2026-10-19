@@ -68,12 +68,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         if (!closed) controller.enqueue(encoder.encode(": ping\n\n"));
       }, 25_000);
 
+      // A fresh read every minute whatever the live updates say: a slide saved
+      // while a live update went missing still reaches the TV, and poster
+      // links are signed again long before they run out.
+      const refresh = setInterval(() => void push(), 60_000);
+
       void push();
 
       request.signal.addEventListener("abort", () => {
         closed = true;
         if (pending) clearTimeout(pending);
         clearInterval(heartbeat);
+        clearInterval(refresh);
         void supabase.removeChannel(channel);
         void supabase.removeChannel(slides);
         try {
