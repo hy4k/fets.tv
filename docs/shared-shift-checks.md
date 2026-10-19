@@ -10,11 +10,11 @@ The day log and CSV use exact recorded slots; they never count a nearby, early o
 
 ## Database dependency
 
-Apply `FETS.LIVE-v7.0/supabase/migrations/20261019185443_online_shift_checks.sql` to FETS Live `qqewusetilxxfvfkmsed` before this app release. Online project `ueufcqmdqtwvhjjyudeu` needs no SQL changes. Existing `FETS_LIVE_SUPABASE_URL` and `FETS_LIVE_SUPABASE_KEY` remain server-only. This release does not change candidate-roster imports or their scheduler.
+Apply `FETS.LIVE-v7.0/supabase/migrations/20261019185443_online_shift_checks.sql` to FETS Live `qqewusetilxxfvfkmsed` and its `20261019203847_online_check_provenance_policy.sql` follow-up before this app release. Online project `ueufcqmdqtwvhjjyudeu` needs no SQL changes. Existing `FETS_LIVE_SUPABASE_URL` and `FETS_LIVE_SUPABASE_KEY` remain server-only. This release does not change candidate-roster imports or their scheduler.
 
 ## Validation
 
-173 Online tests pass, including nine new request/slot/export checks. The matching Live branch has 17 isolated PostgreSQL tests covering role isolation, verified/active accounts, branch separation, both intervals, exact changeovers, break cover, amendments, roster removal, retries, closure and reads of native Live checks. TypeScript, targeted ESLint and production build pass. Isolated browser journeys at 1440, 393 and 320 pixels verify owner controls, failed-save draft retention, shared event visibility, stale connection handling and missing-plan states, with no page errors or horizontal overflow. Fictional preview records never reach production.
+176 Online tests pass, including nine new request/slot/export checks. The matching Live branch has 17 isolated PostgreSQL tests covering role isolation, verified/active accounts, branch separation, both intervals, exact changeovers, break cover, amendments, roster removal, retries, closure and reads of native Live checks. TypeScript, targeted ESLint and production build pass. Isolated browser journeys at 1440, 393 and 320 pixels verify owner controls, failed-save draft retention, shared event visibility, stale connection handling and missing-plan states, with no page errors or horizontal overflow. Fictional preview records never reach production.
 
 ## Operations
 
@@ -22,4 +22,6 @@ Apply `FETS.LIVE-v7.0/supabase/migrations/20261019185443_online_shift_checks.sql
 
 A lead must publish the actual day plan in The Shift before staff can record. Staff without a matching verified Live account and centre access see an explicit message; accounts are not linked by display name.
 
-Deployment status: prepared. Add the verified release, rollback path and production read-only checks after rollout.
+Database bridge installed in FETS Live on 20 October 2026 IST. Read-only production checks matched all 432 due slots and owners across the three existing published plans. Seven of eight non-viewer Online staff accounts have a matching verified Live account and centre membership; the ninth account is a viewer. No production check records were created, and Live counts remained 17 auth users, nine plans, zero duty events and one report. Online schema and records were not changed.
+
+Website deployment is pending VPS reconnection. The retained base is main `cffdec3` (including the newer candidate-correction work). The deployment guard must re-inspect the running image before rollout because another release may have changed it while Desktop Commander was offline. A passing build and installed database bridge are not evidence that the Online UI is deployed.
