@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { DisplayBoard } from "@/components/display/DisplayBoard";
 import { basePath } from "@/lib/base-path";
 import { announceCall, soundReady, unlockSound } from "@/lib/call-sound";
@@ -34,6 +34,30 @@ export function PublicDisplay({ displayKey, initial }: { displayKey: string; ini
     source.onerror = () => setOnline(false);
 
     return () => source.close();
+  }, [displayKey]);
+
+  // How many times each TV Channel slide came on, sent every two minutes and
+  // when the page closes, so the console can say how often it was seen.
+  const shown = useRef(new Map<string, number>());
+  const onShown = useCallback((id: string) => {
+    shown.current.set(id, (shown.current.get(id) ?? 0) + 1);
+  }, []);
+  useEffect(() => {
+    const url = `${basePath}/api/display/${encodeURIComponent(displayKey)}/shown`;
+    const send = (closing: boolean) => {
+      if (shown.current.size === 0) return;
+      const body = JSON.stringify({ counts: Object.fromEntries(shown.current) });
+      shown.current = new Map();
+      if (closing && navigator.sendBeacon) navigator.sendBeacon(url, new Blob([body], { type: "application/json" }));
+      else void fetch(url, { method: "POST", body, headers: { "Content-Type": "application/json" }, keepalive: true }).catch(() => {});
+    };
+    const every = window.setInterval(() => send(false), 120_000);
+    const close = () => send(true);
+    window.addEventListener("pagehide", close);
+    return () => {
+      window.clearInterval(every);
+      window.removeEventListener("pagehide", close);
+    };
   }, [displayKey]);
 
   const sound = state.home?.call_sound ?? "voice";
@@ -103,6 +127,7 @@ export function PublicDisplay({ displayKey, initial }: { displayKey: string; ini
         floor={state.floor ?? null}
         home={state.home ?? null}
         slides={state.slides ?? null}
+        onShown={onShown}
       />
       {!online && (
         <p className="pt-[8px] text-center font-mono text-[11px] text-rust">Reconnecting to the console…</p>

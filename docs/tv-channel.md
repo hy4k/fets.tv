@@ -12,3 +12,11 @@ Slides that take turns on the hall TV between calls. Hall TV → **TV Channel** 
 Run `supabase/migrations/20261020090000_fets_tv_channel.sql` once in the fets.online project. Until then the TV and the console behave as before.
 
 Check it locally with `scripts/verify-tv-channel.mjs` (PGlite).
+
+## Counting (part two)
+
+- Every slide has a short code. Its QR code on the TV holds this console's `/go/<code>` link: a scan adds one to the slide's count for the day and sends the phone straight on to the slide's link. Unknown codes go to fets.in.
+- The TV counts each time a slide comes on and reports every two minutes (and when the page closes) to `/api/display/<key>/shown`.
+- The console shows, per slide and in total: shown and scanned over the last 7 days, and today.
+- SQL: `supabase/migrations/20261020120000_fets_tv_channel_stats.sql`, after the TV Channel SQL. Check it with `scripts/verify-tv-channel-stats.mjs`.
+- The QR code points at whatever address the TV page is opened on, so the TV must use the public address (fets.online), not a local one.

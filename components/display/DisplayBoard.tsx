@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useClock, useNow } from "@/lib/use-clock";
 import { ChannelSlide } from "@/components/display/ChannelSlide";
-import { playlist, type TvSlide } from "@/lib/tv-channel";
+import { playlist, TODAY_SLIDE, type TvSlide } from "@/lib/tv-channel";
 import { LogoMark } from "@/components/brand/Logo";
 import { centreLook, shortName } from "@/lib/centres";
 import type { BoardFloor, BoardHome } from "@/lib/types";
@@ -84,6 +84,7 @@ export function DisplayBoard({
   home = null,
   notice = null,
   slides = null,
+  onShown,
   nonce = 0,
   siteLabel,
   centre,
@@ -102,6 +103,8 @@ export function DisplayBoard({
   notice?: BoardNotice;
   /** The TV Channel: designed slides that take turns between calls. */
   slides?: TvSlide[] | null;
+  /** Told each time a slide comes on the screen, for the TV's own counts. */
+  onShown?: (slideId: string) => void;
   nonce?: number;
   siteLabel?: string;
   /** Which centre this board is in; sets the mark's metal and the name. */
@@ -118,6 +121,14 @@ export function DisplayBoard({
   const loop = notice ? [] : playlist(slides, now, timezone);
   const { slide, round } = useChannel(loop);
   const designed = !call && slide && slide.kind !== "today" ? slide : null;
+  const callOn = !!call;
+
+  // Counted once per turn on screen; the home screen the loop adds itself is not a slide.
+  useEffect(() => {
+    if (!callOn && slide && slide.id !== TODAY_SLIDE.id) onShown?.(slide.id);
+    // A turn is the slide and its round; a new render of the same turn is not another showing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slide?.id, round]);
 
   return (
     <div

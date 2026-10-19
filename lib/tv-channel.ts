@@ -37,6 +37,8 @@ export type TvSlide = {
   everywhere: boolean;
   position: number;
   active: boolean;
+  /** Short code for the counted QR link, /go/<code>; absent before the stats SQL. */
+  code?: string | null;
 };
 
 export const BOOKING_LINK = "https://fets.in/testdrive/";
@@ -158,6 +160,16 @@ export function fieldOf(slide: Pick<TvSlide, "kind" | "fields">, key: string): s
   // The poster's caption stays empty unless somebody writes one.
   if (slide.kind === "poster") return "";
   return designOf(slide.kind).sample[key] ?? "";
+}
+
+/**
+ * What the QR code holds: this console's own /go/<code> link, which counts the
+ * scan and sends the phone on to the slide's link — or the link itself when
+ * the slide has no code yet or there is no address to count at.
+ */
+export function qrTarget(slide: Pick<TvSlide, "link" | "code">, base: string | null): string | null {
+  if (!slide.link) return null;
+  return slide.code && base ? `${base.replace(/\/+$/, "")}/go/${slide.code}` : slide.link;
 }
 
 /** "fets.in/testdrive" — short enough to read off the screen and type. */
@@ -298,4 +310,43 @@ export function scheduleLine(slide: TvSlide): string {
           ? `until ${date(slide.ends_on)}`
           : null;
   return [dayText, hours, range].filter(Boolean).join(" · ");
+}
+
+const clockText = (minutes: number) => {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${((h + 11) % 12) + 1}${m ? `:${String(m).padStart(2, "0")}` : ""} ${h < 12 ? "AM" : "PM"}`;
+};
+
+/**
+ * For a slide that is scheduled but not on: when it next comes on, so nobody
+ * wonders why the TV is not showing what they just saved.
+ */
+export function nextOn(slide: TvSlide, ms: number, timezone: string): string | null {
+  if (ms === 0 || slideStatus(slide, ms, timezone) !== "later") return null;
+  const days = slide.days?.length ? slide.days : ALL_DAYS;
+  const from = toMinutes(slide.from_time) ?? 0;
+  // An all-day slide just comes on that day.
+  const at = slide.from_time ? ` at ${clockText(from)}` : "";
+  // A fortnight ahead, a day at a time.
+  for (let d = 0; d < 15; d++) {
+    const probe = localNow(ms + d * 86400000, timezone);
+    if (slide.ends_on && probe.date > slide.ends_on) return null;
+    if (slide.starts_on && probe.date < slide.starts_on) continue;
+    if (!days.includes(probe.day)) continue;
+    if (d === 0) {
+      const now = localNow(ms, timezone);
+      if (now.minutes < from) return `Comes on today${at}`;
+      continue;
+    }
+    if (d === 1) return `Comes on tomorrow${at}`;
+    const date = new Date(`${probe.date}T00:00:00Z`).toLocaleDateString("en-GB", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      timeZone: "UTC",
+    });
+    return `Comes on ${date}${at}`;
+  }
+  return null;
 }

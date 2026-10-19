@@ -9,7 +9,7 @@ import { Dialog } from "@/components/ui/Dialog";
 import { centreLook, shortName } from "@/lib/centres";
 import { useConsole } from "@/lib/console-data";
 import { useDisplayHome } from "@/lib/display-home";
-import { useDisplaySlides } from "@/lib/display-slides";
+import { useDisplaySlides, useSlideStats, type SlideNumbers } from "@/lib/display-slides";
 import { roomFloor } from "@/lib/room";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import {
@@ -21,6 +21,8 @@ import {
   MIN_SECONDS,
   cleanLink,
   designOf,
+  localNow,
+  nextOn,
   playlist,
   scheduleLine,
   shortLink,
@@ -111,7 +113,7 @@ function downloadQr(link: string) {
  */
 export function ChannelScreen() {
   const { center, candidates, workstations, programmes, displays, rpc, notify, canCall } = useConsole();
-  const { slides, ready } = useDisplaySlides(center.id);
+  const { slides, ready, reload } = useDisplaySlides(center.id);
   const { home } = useDisplayHome(center.id);
   const now = useNow();
   const tone = centreLook(center.name).tone;
@@ -123,6 +125,13 @@ export function ChannelScreen() {
   const [busy, setBusy] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
+  // The centre's date, for "today" and "last 7 days"; empty until the clock is known.
+  const today = now ? localNow(now, center.timezone).date : "";
+  const stats = useSlideStats(center.id, today);
+  const totals = [...stats.values()].reduce(
+    (t, n) => ({ shown: t.shown + n.shown, scans: t.scans + n.scans }),
+    { shown: 0, scans: 0 },
+  );
   const mine = slides.filter((s) => s.center_id === center.id);
   const shared = slides.filter((s) => s.center_id !== center.id);
   const loop = playlist(slides, now, center.timezone);
@@ -182,7 +191,10 @@ export function ChannelScreen() {
         throw new Error("Choose an image or a video for the poster.");
       }
       const ok = await rpc("fets_save_slide", { p_center: center.id, p_slide: payload(next) }, draft.id ? "Slide saved" : "Slide added to the TV Channel");
-      if (ok) close();
+      if (ok) {
+        close();
+        await reload();
+      }
     } catch (e) {
       notify(e instanceof Error ? e.message : String(e), "error");
     } finally {
@@ -191,24 +203,25 @@ export function ChannelScreen() {
   }
 
   async function toggle(s: TvSlide) {
-    await rpc(
+    const ok = await rpc(
       "fets_save_slide",
       { p_center: center.id, p_slide: payload({ ...toDraft(s), active: !s.active }) },
       s.active ? "Slide switched off" : "Slide switched on",
     );
+    if (ok) await reload();
   }
 
   async function remove(s: TvSlide) {
-    if (!window.confirm(`Delete “${s.label || designOf(s.kind).name}” from the TV Channel?`)) return;
     const ok = await rpc("fets_delete_slide", { p_center: center.id, p_slide: s.id }, "Slide deleted");
     if (ok && s.media_path) void supabaseBrowser().storage.from("notice-media").remove([s.media_path]);
+    if (ok) await reload();
   }
 
   async function move(i: number, by: -1 | 1) {
     const order = mine.map((s) => s.id);
     const [id] = order.splice(i, 1);
     order.splice(i + by, 0, id);
-    await rpc("fets_order_slides", { p_center: center.id, p_slides: order });
+    if (await rpc("fets_order_slides", { p_center: center.id, p_slides: order })) await reload();
   }
 
   const previewSlide: TvSlide | null = draft
@@ -250,6 +263,16 @@ export function ChannelScreen() {
               <span className="flex-1" />
               <span className="font-mono text-[11px] text-fg-faint">{loop.length > 0 ? `${loop.length} on now` : "nothing on now"}</span>
             </div>
+            {stats.size > 0 && (
+              <div className="grid grid-cols-3 gap-[8px]">
+                <Stat label="Shown, last 7 days" value={totals.shown} />
+                <Stat label="QR scans, last 7 days" value={totals.scans} />
+                <Stat
+                  label="Scans per 100 showings"
+                  value={totals.shown ? Math.round((totals.scans / totals.shown) * 1000) / 10 : 0}
+                />
+              </div>
+            )}
             {mine.length === 0 && (
               <p className="text-[12.5px] text-fg-faint">No slides yet. Pick a design below to make the first one.</p>
             )}
@@ -259,6 +282,8 @@ export function ChannelScreen() {
                 slide={s}
                 tone={tone}
                 status={slideStatus(s, now, center.timezone)}
+                hint={nextOn(s, now, center.timezone)}
+                numbers={stats.get(s.id)}
                 locked={locked}
                 first={i === 0}
                 last={i === mine.length - 1}
@@ -614,6 +639,8 @@ function SlideRow({
   slide,
   tone,
   status,
+  hint,
+  numbers,
   locked,
   first,
   last,
@@ -626,6 +653,9 @@ function SlideRow({
   slide: TvSlide;
   tone: [string, string];
   status: SlideStatus;
+  /** When a scheduled slide next comes on. */
+  hint?: string | null;
+  numbers?: SlideNumbers;
   locked: boolean;
   first?: boolean;
   last?: boolean;
@@ -637,6 +667,8 @@ function SlideRow({
 }) {
   const s = STATUS[status];
   const editable = !locked && !!onEdit;
+  // Asked on the page itself: a browser can be set to swallow confirm() boxes.
+  const [confirming, setConfirming] = useState(false);
   return (
     <div className="flex items-center gap-[12px] rounded-[16px] border border-edge bg-panel-soft p-[8px]">
       <span className="pointer-events-none block aspect-video w-[132px] shrink-0 overflow-hidden rounded-[10px]">
@@ -655,6 +687,13 @@ function SlideRow({
         <span className="truncate text-[11.5px] text-fg-faint">
           {designOf(slide.kind).name} · {slide.seconds}s · {scheduleLine(slide)}
         </span>
+        {hint && <span className="text-[11.5px] font-semibold text-iris">{hint}</span>}
+        {numbers && (
+          <span className="font-mono text-[11px] text-fg-dim">
+            7 days: shown {numbers.shown} · scanned {numbers.scans}
+            {slide.link ? "" : " (no QR)"} · today {numbers.shownToday} / {numbers.scansToday}
+          </span>
+        )}
         {editable && (
           <span className="flex flex-wrap gap-[6px] pt-[2px]">
             <RowButton onClick={onEdit}>Edit</RowButton>
@@ -665,9 +704,25 @@ function SlideRow({
             <RowButton onClick={onDown} disabled={last} label="Move down">
               ↓
             </RowButton>
-            <RowButton onClick={onDelete} danger>
-              Delete
-            </RowButton>
+            {confirming ? (
+              <>
+                <span className="self-center text-[11.5px] font-semibold text-rust">Delete this slide?</span>
+                <RowButton
+                  onClick={() => {
+                    setConfirming(false);
+                    onDelete?.();
+                  }}
+                  danger
+                >
+                  Yes, delete
+                </RowButton>
+                <RowButton onClick={() => setConfirming(false)}>No</RowButton>
+              </>
+            ) : (
+              <RowButton onClick={() => setConfirming(true)} danger>
+                Delete
+              </RowButton>
+            )}
           </span>
         )}
       </div>
@@ -700,6 +755,15 @@ function RowButton({
     >
       {children}
     </button>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="flex flex-col gap-[2px] rounded-[12px] border border-edge bg-panel-soft px-[12px] py-[9px]">
+      <span className="font-serif text-[24px] leading-none tabular-nums">{value.toLocaleString("en-IN")}</span>
+      <span className="text-[11px] text-fg-faint">{label}</span>
+    </div>
   );
 }
 

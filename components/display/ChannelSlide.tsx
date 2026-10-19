@@ -1,7 +1,19 @@
-import type { CSSProperties, ReactNode } from "react";
+import { useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import { LogoMark } from "@/components/brand/Logo";
 import { QrCode } from "@/components/display/QrCode";
-import { fieldOf, shortLink, type TvSlide } from "@/lib/tv-channel";
+import { basePath } from "@/lib/base-path";
+import { fieldOf, qrTarget, shortLink, type TvSlide } from "@/lib/tv-channel";
+
+const noSubscribe = () => () => {};
+
+/** Where this page is served from, so a QR code can count its scans here. Null on the server. */
+function useScanBase(): string | null {
+  return useSyncExternalStore(
+    noSubscribe,
+    () => `${window.location.origin}${basePath}`,
+    () => null,
+  );
+}
 
 /**
  * One designed slide of the TV Channel. Staff fill in a few words; the layout,
@@ -12,15 +24,17 @@ import { fieldOf, shortLink, type TvSlide } from "@/lib/tv-channel";
 export function ChannelSlide({ slide, tone }: { slide: TvSlide; tone: [string, string] }) {
   const f = (key: string) => fieldOf(slide, key);
   const link = slide.link;
+  // The code goes in the QR; the link it lands on is what people read under it.
+  const qr = qrTarget(slide, useScanBase());
 
   return (
     <div className="@container relative h-full w-full overflow-hidden rounded-[22px] border border-white/[0.08] bg-[#0d0d11] [container-type:size]">
       <Backdrop tone={tone} />
-      {slide.kind === "promo" && <Promo f={f} link={link} tone={tone} />}
-      {slide.kind === "batch" && <Batch f={f} link={link} tone={tone} />}
+      {slide.kind === "promo" && <Promo f={f} link={link} qr={qr} tone={tone} />}
+      {slide.kind === "batch" && <Batch f={f} link={link} qr={qr} tone={tone} />}
       {slide.kind === "partners" && <Partners f={f} tone={tone} />}
       {slide.kind === "tip" && <Tip f={f} tone={tone} />}
-      {slide.kind === "poster" && <Poster slide={slide} caption={f("caption")} link={link} />}
+      {slide.kind === "poster" && <Poster slide={slide} caption={f("caption")} link={link} qr={qr} />}
       {slide.kind !== "poster" && <Brand tone={tone} />}
     </div>
   );
@@ -83,14 +97,26 @@ const metal = (tone: [string, string]): CSSProperties => ({
 });
 
 /** The QR code on a white card, with what it does and where it goes. */
-function QrCard({ link, cta, tone, size = "min(27cqw,56cqh)" }: { link: string; cta?: string; tone: [string, string]; size?: string }) {
+function QrCard({
+  link,
+  qr,
+  cta,
+  tone,
+  size = "min(27cqw,56cqh)",
+}: {
+  link: string;
+  qr: string;
+  cta?: string;
+  tone: [string, string];
+  size?: string;
+}) {
   return (
     <div className="flex shrink-0 animate-rise flex-col items-center gap-[2cqh] [animation-delay:500ms] motion-reduce:animate-none">
       <div
         className="rounded-[8%] bg-white p-[3%] shadow-[0_30px_80px_-30px_rgba(0,0,0,0.9)]"
         style={{ width: size, boxShadow: `0 0 0 0.5cqw color-mix(in oklab, ${tone[0]} 55%, transparent), 0 30px 80px -30px rgba(0,0,0,0.9)` }}
       >
-        <QrCode value={link} className="block h-auto w-full" />
+        <QrCode value={qr} className="block h-auto w-full" />
       </div>
       {cta && (
         <span className="max-w-[32cqw] text-center text-[min(2.1cqw,4cqh)] leading-tight font-semibold text-fg">{cta}</span>
@@ -104,7 +130,7 @@ function QrCard({ link, cta, tone, size = "min(27cqw,56cqh)" }: { link: string; 
 
 type Field = (key: string) => string;
 
-function Promo({ f, link, tone }: { f: Field; link: string | null; tone: [string, string] }) {
+function Promo({ f, link, qr, tone }: { f: Field; link: string | null; qr: string | null; tone: [string, string] }) {
   return (
     <div className="relative flex h-full items-center gap-[5cqw] px-[6cqw] pt-[5cqh] pb-[12cqh]">
       <div className="flex min-w-0 flex-1 flex-col gap-[3cqh]">
@@ -141,12 +167,12 @@ function Promo({ f, link, tone }: { f: Field; link: string | null; tone: [string
           </Rise>
         )}
       </div>
-      {link && <QrCard link={link} cta={f("cta")} tone={tone} />}
+      {link && qr && <QrCard link={link} qr={qr} cta={f("cta")} tone={tone} />}
     </div>
   );
 }
 
-function Batch({ f, link, tone }: { f: Field; link: string | null; tone: [string, string] }) {
+function Batch({ f, link, qr, tone }: { f: Field; link: string | null; qr: string | null; tone: [string, string] }) {
   return (
     <div className="relative flex h-full items-center gap-[5cqw] px-[6cqw] pt-[5cqh] pb-[12cqh]">
       <div className="flex min-w-0 flex-1 flex-col gap-[3.4cqh]">
@@ -178,7 +204,7 @@ function Batch({ f, link, tone }: { f: Field; link: string | null; tone: [string
           </Rise>
         )}
       </div>
-      {link && <QrCard link={link} cta="Scan to know more" tone={tone} size="min(23cqw,48cqh)" />}
+      {link && qr && <QrCard link={link} qr={qr} cta="Scan to know more" tone={tone} size="min(23cqw,48cqh)" />}
     </div>
   );
 }
@@ -238,7 +264,7 @@ function Tip({ f, tone }: { f: Field; tone: [string, string] }) {
   );
 }
 
-function Poster({ slide, caption, link }: { slide: TvSlide; caption: string; link: string | null }) {
+function Poster({ slide, caption, link, qr }: { slide: TvSlide; caption: string; link: string | null; qr: string | null }) {
   const url = slide.media_url ?? null;
   return (
     <div className="absolute inset-0">
@@ -266,10 +292,10 @@ function Poster({ slide, caption, link }: { slide: TvSlide; caption: string; lin
       {(caption || link) && (
         <div className="absolute inset-x-0 bottom-0 flex items-end gap-[3cqw] bg-[linear-gradient(0deg,rgba(0,0,0,0.85),transparent)] px-[4cqw] pt-[10cqh] pb-[4cqh]">
           <span className="min-w-0 flex-1 font-serif text-[min(4cqw,8cqh)] leading-tight text-white">{caption}</span>
-          {link && (
+          {link && qr && (
             <span className="flex shrink-0 flex-col items-center gap-[1cqh]">
               <span className="w-[min(14cqw,28cqh)] rounded-[8%] bg-white p-[3%]">
-                <QrCode value={link} className="block h-auto w-full" />
+                <QrCode value={qr} className="block h-auto w-full" />
               </span>
               <span className="font-mono text-[min(1.4cqw,2.6cqh)] text-white/85">{shortLink(link)}</span>
             </span>

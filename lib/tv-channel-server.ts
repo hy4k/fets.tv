@@ -19,18 +19,22 @@ const COLUMNS =
 export async function displaySlides(supabase: SupabaseClient, centerId: string): Promise<TvSlide[]> {
   // A day's grace either side of the server's date covers every time zone.
   const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-  const { data, error } = await supabase
-    .from("display_slides")
-    .select(COLUMNS)
-    .eq("active", true)
-    .or(`center_id.eq.${centerId},everywhere.eq.true`)
-    .or(`ends_on.is.null,ends_on.gte.${yesterday}`)
-    .order("position")
-    .limit(60);
+  const read = (columns: string) =>
+    supabase
+      .from("display_slides")
+      .select(columns)
+      .eq("active", true)
+      .or(`center_id.eq.${centerId},everywhere.eq.true`)
+      .order("position")
+      .limit(100);
+  let { data, error } = await read(`${COLUMNS}, code`);
+  // The scan code comes with the stats SQL; without it, the slides alone.
+  if (error) ({ data, error } = await read(COLUMNS));
   // Before the TV Channel SQL is run there is no table: no slides.
   if (error || !data) return [];
 
-  const slides = data as TvSlide[];
+  // Over is over; one filter in the query, the date here, keeps the query simple.
+  const slides = (data as unknown as TvSlide[]).filter((s) => !s.ends_on || s.ends_on >= yesterday);
   const paths = slides.map((s) => s.media_path).filter((p): p is string => !!p);
   if (paths.length === 0) return slides;
 
