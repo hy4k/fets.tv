@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { NextRequest } from "next/server";
-import { withSignedMedia } from "@/lib/notice-media";
 import { supabaseService } from "@/lib/supabase/service";
+import { loadDisplayState } from "@/lib/tv-channel-server";
 
 export const dynamic = "force-dynamic";
 
@@ -33,9 +33,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
       const push = async () => {
         if (closed) return;
-        const { data } = await supabase.rpc("fets_display_state", { p_display_key: displayKey });
-        if (closed || !data) return;
-        const state = await withSignedMedia(supabase, data);
+        const state = await loadDisplayState(supabase, displayKey, display.center_id);
         if (closed || !state) return;
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(state)}\n\n`));
       };
@@ -57,6 +55,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       }
       channel.subscribe();
 
+      // The TV Channel on a channel of its own: before its SQL is run the table
+      // does not exist, and a subscription naming it must not take the calls
+      // down with it. A slide set for every centre is saved under the centre
+      // that made it, so the table is watched whole; it changes a few times a day.
+      const slides = supabase
+        .channel(`fets:display-slides:${display.id}`)
+        .on("postgres_changes", { event: "*", schema: "public", table: "display_slides" }, schedulePush)
+        .subscribe();
+
       const heartbeat = setInterval(() => {
         if (!closed) controller.enqueue(encoder.encode(": ping\n\n"));
       }, 25_000);
@@ -68,6 +75,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         if (pending) clearTimeout(pending);
         clearInterval(heartbeat);
         void supabase.removeChannel(channel);
+        void supabase.removeChannel(slides);
         try {
           controller.close();
         } catch {}
