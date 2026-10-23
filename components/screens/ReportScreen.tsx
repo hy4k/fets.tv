@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { SharedChecks } from '@/components/console/DutyTimer';
 import { CprComposer } from "@/components/screens/CprComposer";
 import { useConsole } from "@/lib/console-data";
 import { supabaseBrowser } from "@/lib/supabase/client";
@@ -313,10 +314,12 @@ export function ReportBody({
               )}
             </section>
 
+            <SharedChecks key={`${report.center.code}:${report.session.exam_date}`} date={report.session.exam_date} centerName={report.center.name} readOnly />
+
             {report.walks && report.walks.walks > 0 && (
               <section className="rounded-[18px] border border-edge-mid panel-bg p-[14px]">
                 <h2 className="mb-[10px] text-[11px] font-bold tracking-[0.13em] text-fg-dim uppercase">
-                  Floor walks
+                  Earlier local walk records
                 </h2>
                 <div
                   className={`flex flex-wrap items-baseline gap-x-[14px] gap-y-[5px] rounded-[13px] border px-[12px] py-[10px] ${
@@ -570,7 +573,7 @@ function asPlainText(r: ProblemReport, tz: string) {
     lines.push(
       ``,
       `FLOOR WALKS`,
-      `${r.walks.walks} walks against an interval of ${r.walks.interval_minutes} minutes. ` +
+      `Earlier local log: ${r.walks.walks} walks against an interval of ${r.walks.interval_minutes} minutes. ` +
         `Longest gap ${r.walks.longest_gap_minutes} minutes` +
         (r.walks.gaps_over_interval > 0
           ? `, ${r.walks.gaps_over_interval} over the interval.`
