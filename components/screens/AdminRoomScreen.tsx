@@ -6,26 +6,30 @@ import { Dialog } from "@/components/ui/Dialog";
 import { MaterialsPanel } from "@/components/screens/MaterialsPanel";
 import { useConsole } from "@/lib/console-data";
 import { SeatGrid } from "@/components/screens/SeatGrid";
-import { MAX_ON_THE_WAY, STAGE_LABELS, STAGE_ORDER, fullName, refOf } from "@/lib/format";
-import { type Candidate, type CandidateStatus, stillHeld } from "@/lib/types";
+import { MAX_ON_THE_WAY, STAGE_LABELS, STAGE_ORDER, clockAt, fullName, refOf } from "@/lib/format";
+import { seatName, seatNumber } from "@/lib/seats";
+import { type Candidate, type CandidateStatus, type Workstation, stillHeld } from "@/lib/types";
 
-/** Everyone who has walked in from the desk but has nowhere to sit yet. */
-const UNSEATED = ["frisking", "biometrics", "assigned"];
+/** Called and at the gate: on the way, or part-way through under the old two-step flow. */
+const atGate = (c: Candidate) => (c.status === "waiting" && !!c.called_at) || c.status === "frisking" || c.status === "biometrics";
 
 /** Where a called candidate goes first. */
 const GATE = "Security & Biometrics";
 
 /**
- * The admin room, as one page and one flow: call the next person, watch them
- * walk to the frisking gate, then seat them — all from here.
+ * The admin room, as one page and one flow: everyone checked in at the desk
+ * lands here by themselves; call the next person, tick them through security
+ * and biometrics, then seat them — all from here, with nothing for the front
+ * desk to press.
  *
- * The call button stays at the top. Once pressed, the person called is held in
- * a banner at the foot — "Security & Biometrics" — until the front desk marks them
- * in; then the same place becomes their seat: press, pick the seat, confirm.
+ * Across the top, the day at a glance: who is still to come, who is waiting,
+ * at the gate, ready for a seat, in the lab and done. At the foot, everybody
+ * who came today and where each of them is now.
  */
 export function AdminRoomScreen() {
-  const { candidates, center, rpc, isAdmin, canCall, canLab, session, rules, materials, workstations } =
+  const { candidates, center, rpc, isAdmin, canCall, canLab, session, rules, materials, workstations, labs } =
     useConsole();
+  const [passing, setPassing] = useState<string | null>(null);
   const [issuing, setIssuing] = useState<Candidate | null>(null);
   const [overriding, setOverriding] = useState(false);
   const [seatingId, setSeatingId] = useState<string | null>(null);
@@ -43,24 +47,54 @@ export function AdminRoomScreen() {
     [candidates],
   );
 
+  // Through security and biometrics, waiting for a seat: first through, first seated.
   const toSeat = useMemo(
     () =>
       candidates
-        .filter((c) => UNSEATED.includes(c.status) && !c.workstation_id)
-        .sort((a, b) => (a.frisked_at ?? a.check_in_at ?? "").localeCompare(b.frisked_at ?? b.check_in_at ?? "")),
+        .filter((c) => c.status === "assigned" && !c.workstation_id)
+        .sort((a, b) => (a.biometrics_at ?? a.frisked_at ?? "").localeCompare(b.biometrics_at ?? b.frisked_at ?? "")),
     [candidates],
   );
 
-
-  // Called and not yet marked in by the front office, newest first. Up to five
-  // may be on their way; the newest is the big name on the TV.
+  // Called and at the gate, newest first. Up to five may be on their way; the
+  // newest is the big name on the TV.
   const onTheWay = useMemo(
     () =>
       candidates
-        .filter((c) => c.status === "waiting" && c.called_at)
-        .sort((a, b) => (b.called_at ?? "").localeCompare(a.called_at ?? "")),
+        .filter(atGate)
+        .sort((a, b) => (b.called_at ?? b.frisked_at ?? "").localeCompare(a.called_at ?? a.frisked_at ?? "")),
     [candidates],
   );
+
+  // A free seat ready for each person waiting for one, in the order the room
+  // fills: lab by lab, lowest number first, no seat offered twice.
+  const suggested = useMemo(() => {
+    const order = new Map(labs.map((l, i) => [l.id, i]));
+    const free = workstations
+      .filter((w) => w.lab_id && w.status === "free" && !w.current_candidate_id)
+      .sort(
+        (a, b) =>
+          (order.get(a.lab_id!) ?? 99) - (order.get(b.lab_id!) ?? 99) ||
+          seatNumber(a).localeCompare(seatNumber(b), undefined, { numeric: true }),
+      );
+    const out = new Map<string, Workstation>();
+    toSeat.forEach((c, i) => {
+      if (free[i]) out.set(c.id, free[i]);
+    });
+    return out;
+  }, [labs, workstations, toSeat]);
+
+  async function throughGate(c: Candidate) {
+    setPassing(c.id);
+    await rpc("fets_security_done", { p_center: center.id, p_candidate: c.id }, `${refOf(c)} through security & biometrics`);
+    setPassing(null);
+  }
+
+  async function seatAt(c: Candidate, w: Workstation) {
+    setPassing(c.id);
+    await rpc("fets_assign_workstation", { p_candidate: c.id, p_workstation: w.id }, `${refOf(c)} seated at ${seatName(w)}`);
+    setPassing(null);
+  }
   // Up to five may be called back to back; the sixth waits for one to go in.
   const full = onTheWay.length >= MAX_ON_THE_WAY;
   const awaitingEntry = full;
@@ -91,6 +125,7 @@ export function AdminRoomScreen() {
     // wide screen the first two stand on the left and the last two on the
     // right, so the room reads at a glance.
     <div className="grid min-h-0 flex-1 auto-rows-min grid-cols-1 gap-[14px] overflow-y-auto lg:grid-cols-2 lg:items-start">
+      <Glance candidates={candidates} />
       <div className="flex min-w-0 flex-col gap-[14px]">
       {/* The call, always here. */}
       <Stage n={1} hue={80} title="The call" right={isAdmin && (
@@ -115,7 +150,7 @@ export function AdminRoomScreen() {
           }`}
         >
           {full
-            ? `${MAX_ON_THE_WAY} on their way — the front office sends one in first`
+            ? `${MAX_ON_THE_WAY} at the gate — tick one through security first`
             : next
               ? `Call ${fullName(next)} · ${refOf(next)}`
               : keyless > 0
@@ -145,9 +180,14 @@ export function AdminRoomScreen() {
                 <span className="flex min-w-0 items-center gap-[7px]">
                   <span className="block truncate text-[14px] font-semibold">{fullName(c)}</span>
                   <TwinBadge candidate={c} />
+                  {c.id === next?.id && (
+                    <span className="shrink-0 rounded-full bg-[oklch(0.8_0.11_225)] px-[8px] py-[1px] text-[10px] font-extrabold tracking-[0.12em] text-[#0d1420] uppercase">
+                      Next
+                    </span>
+                  )}
                 </span>
                 <span className="block truncate font-mono text-[10.5px] text-fg-faint">
-                  {refOf(c)} ·{" "}
+                  {refOf(c)} · in {clockAt(c.check_in_at, center.timezone)} ·{" "}
                   {c.locker_key ? (
                     `KEY ${c.locker_key === "NIL" ? "Nil" : c.locker_key}`
                   ) : (
@@ -171,7 +211,7 @@ export function AdminRoomScreen() {
                   needsKey(c)
                     ? "Issue a locker key or Nil first"
                     : awaitingEntry
-                      ? `${MAX_ON_THE_WAY} already on their way`
+                      ? `${MAX_ON_THE_WAY} already at the gate`
                       : undefined
                 }
                 onClick={() => rpc("fets_call_candidate", { p_candidate: c.id }, `Calling ${refOf(c)}`)}
@@ -192,13 +232,13 @@ export function AdminRoomScreen() {
 
       <div className="flex min-w-0 flex-col gap-[14px]">
 
-      {/* Called: on the way to the gate. The front desk marks each one in. */}
+      {/* Called: at the gate. The admin room ticks each one through. */}
       <Stage
         n={3}
         hue={290}
         title={GATE}
         live={onTheWay.length > 0}
-        right={<span className="font-mono text-[12px] text-fg-dim">{onTheWay.length} of {MAX_ON_THE_WAY} on their way</span>}
+        right={<span className="font-mono text-[12px] text-fg-dim">{onTheWay.length} of {MAX_ON_THE_WAY} at the gate</span>}
       >
         {onTheWay.length === 0 ? (
           <p className="py-[10px] text-center text-[12.5px] text-fg-faint">Nobody called yet. Call from the list on the left.</p>
@@ -216,11 +256,20 @@ export function AdminRoomScreen() {
                 <span className="flex flex-wrap gap-[8px]">
                   <button
                     type="button"
+                    disabled={!canCall || passing === c.id}
+                    onClick={() => void throughGate(c)}
+                    className="min-h-[42px] cursor-pointer rounded-[12px] bg-[linear-gradient(145deg,oklch(0.8_0.13_290),oklch(0.68_0.15_295))] px-[16px] py-[9px] text-[13px] font-bold text-[#140f1c] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {passing === c.id ? "…" : "✓ Security & biometrics done"}
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setIssuing(c)}
                     className="cursor-pointer rounded-[12px] border border-edge-warm bg-ink/40 px-[12px] py-[9px] text-[12px] font-semibold"
                   >
                     Materials
                   </button>
+                  {c.status === "waiting" && (
                   <button
                     type="button"
                     disabled={!canCall}
@@ -229,6 +278,8 @@ export function AdminRoomScreen() {
                   >
                     Call again
                   </button>
+                  )}
+                  {c.status === "waiting" && (
                   <button
                     type="button"
                     disabled={!canCall}
@@ -237,11 +288,12 @@ export function AdminRoomScreen() {
                   >
                     Cancel
                   </button>
+                  )}
                 </span>
               </div>
             ))}
           </div>
-          <p className="mt-[10px] text-[12px] text-fg-dim">The front office sends each one in; then they can be seated below.</p>
+          <p className="mt-[10px] text-[12px] text-fg-dim">Tick each person once security and biometrics are done; they move to “Ready for a seat” below.</p>
         </>
         )}
       </Stage>
@@ -250,11 +302,11 @@ export function AdminRoomScreen() {
       <Stage
         n={4}
         hue={160}
-        title="Assign a seat"
+        title="Ready for a seat"
         right={<span className="font-mono text-[12px] text-fg-dim">{toSeat.length} to seat · {freeSeats} free</span>}
       >
         {toSeat.length === 0 ? (
-          <p className="py-[10px] text-center text-[12.5px] text-fg-faint">Nobody to seat. They appear here once sent in.</p>
+          <p className="py-[10px] text-center text-[12.5px] text-fg-faint">Nobody to seat. They appear here once ticked through security.</p>
         ) : (
           <div className="flex flex-col gap-[8px]">
             {toSeat.map((c) => (
@@ -266,16 +318,42 @@ export function AdminRoomScreen() {
                     {[refOf(c), c.part, c.locker_key && `KEY ${c.locker_key === "NIL" ? "Nil" : c.locker_key}`].filter(Boolean).join(" · ")}
                   </span>
                   <span className="flex-1" />
-                  {seating?.id !== c.id && (
-                    <button
-                      type="button"
-                      disabled={!canLab || freeSeats === 0}
-                      onClick={() => setSeatingId(c.id)}
-                      className="cursor-pointer rounded-[13px] bg-[linear-gradient(145deg,oklch(0.83_0.16_158),oklch(0.72_0.15_165))] px-[18px] py-[11px] text-[13.5px] font-bold text-[#0c1711] disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      {freeSeats === 0 ? "No seat free" : "Assign seat"}
-                    </button>
-                  )}
+                  {seating?.id !== c.id &&
+                    (suggested.get(c.id) ? (
+                      <span className="flex flex-wrap gap-[8px]">
+                        {/* One tap: the next free seat in the room, already picked. */}
+                        <button
+                          type="button"
+                          disabled={!canLab || passing === c.id}
+                          onClick={() => void seatAt(c, suggested.get(c.id)!)}
+                          className="min-h-[44px] cursor-pointer rounded-[13px] bg-[linear-gradient(145deg,oklch(0.83_0.16_158),oklch(0.72_0.15_165))] px-[18px] py-[10px] text-left text-[#0c1711] disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          <span className="block text-[14px] leading-tight font-bold">
+                            {passing === c.id ? "Seating…" : `Seat ${seatNumber(suggested.get(c.id)!)}`}
+                          </span>
+                          <span className="block text-[10.5px] leading-tight font-semibold opacity-75">
+                            {suggested.get(c.id)!.lab_name ?? "next free seat"}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!canLab}
+                          onClick={() => setSeatingId(c.id)}
+                          className="cursor-pointer rounded-[13px] border border-edge-warm px-[14px] py-[10px] text-[12.5px] font-semibold text-fg-muted hover:text-fg disabled:opacity-40"
+                        >
+                          Other seat
+                        </button>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={!canLab || freeSeats === 0}
+                        onClick={() => setSeatingId(c.id)}
+                        className="cursor-pointer rounded-[13px] bg-[linear-gradient(145deg,oklch(0.83_0.16_158),oklch(0.72_0.15_165))] px-[18px] py-[11px] text-[13.5px] font-bold text-[#0c1711] disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        {freeSeats === 0 ? "No seat free" : "Choose a seat"}
+                      </button>
+                    ))}
                 </div>
                 {seating?.id === c.id && (
                   <div className="mt-[12px] border-t border-edge-soft pt-[12px]">
@@ -288,6 +366,8 @@ export function AdminRoomScreen() {
         )}
       </Stage>
       </div>
+
+      <Everyone candidates={candidates} workstations={workstations} timezone={center.timezone} />
 
       {issuing && (
         <Dialog
@@ -392,6 +472,7 @@ function Stage({
   right,
   live = false,
   flush = false,
+  wide = false,
   children,
 }: {
   n: number;
@@ -402,6 +483,8 @@ function Stage({
   live?: boolean;
   /** The body runs edge to edge, for a list. */
   flush?: boolean;
+  /** Across both columns on a wide screen. */
+  wide?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -411,7 +494,7 @@ function Stage({
         background: `linear-gradient(160deg, oklch(0.32 0.07 ${hue} / 0.5), oklch(0.17 0.02 ${hue} / 0.8) 55%)`,
         boxShadow: `0 20px 50px -30px oklch(0.6 0.14 ${hue} / 0.7), inset 0 1px 0 oklch(0.9 0.05 ${hue} / 0.12)`,
       }}
-      className="relative flex min-w-0 flex-col overflow-hidden rounded-[22px] border"
+      className={`relative flex min-w-0 flex-col overflow-hidden rounded-[22px] border ${wide ? "lg:col-span-2" : ""}`}
     >
       <div
         style={{ borderColor: `oklch(0.72 0.12 ${hue} / 0.25)` }}
@@ -444,3 +527,153 @@ function Count({ n, hue }: { n: number; hue: number }) {
   );
 }
 
+
+type Where = "expected" | "desk" | "waiting" | "gate" | "seat" | "lab" | "done" | "no_show";
+
+/** Where somebody is in the day, in the words the room uses. */
+function whereIs(c: Candidate): Where {
+  if (c.status === "no_show") return "no_show";
+  if (c.status === "scheduled") return "expected";
+  if (c.status === "arrived" || c.status === "id_checked") return "desk";
+  if (c.status === "completed" || c.status === "signed_out") return "done";
+  if (atGate(c)) return "gate";
+  if (c.status === "waiting") return "waiting";
+  if (c.status === "assigned" && !c.workstation_id) return "seat";
+  return "lab";
+}
+
+const WHERE: Record<Where, { label: string; hue: number }> = {
+  expected: { label: "Still to come", hue: 260 },
+  desk: { label: "At the desk", hue: 60 },
+  waiting: { label: "Checked in · waiting", hue: 225 },
+  gate: { label: "At security", hue: 290 },
+  seat: { label: "Ready for a seat", hue: 160 },
+  lab: { label: "In the lab", hue: 85 },
+  done: { label: "Finished", hue: 140 },
+  no_show: { label: "No-show", hue: 25 },
+};
+
+/** The day in one line of numbers, from the door to the way out. */
+function Glance({ candidates }: { candidates: Candidate[] }) {
+  const count = new Map<Where, number>();
+  for (const c of candidates) count.set(whereIs(c), (count.get(whereIs(c)) ?? 0) + 1);
+  const came = candidates.filter((c) => !["expected", "no_show"].includes(whereIs(c))).length;
+  return (
+    <section className="flex flex-wrap gap-[8px] lg:col-span-2">
+      <span className="flex min-w-[110px] flex-col justify-center rounded-[16px] border border-edge-mid bg-panel-soft px-[14px] py-[9px]">
+        <span className="font-serif text-[26px] leading-none tabular-nums">{came}</span>
+        <span className="text-[11px] font-semibold text-fg-dim">came today</span>
+      </span>
+      {(Object.keys(WHERE) as Where[]).map((w) => (
+        <span
+          key={w}
+          style={{
+            borderColor: `oklch(0.72 0.12 ${WHERE[w].hue} / 0.45)`,
+            background: `oklch(0.3 0.06 ${WHERE[w].hue} / 0.35)`,
+          }}
+          className={`flex min-w-[110px] flex-1 flex-col justify-center rounded-[16px] border px-[14px] py-[9px] ${
+            (count.get(w) ?? 0) === 0 ? "opacity-45" : ""
+          }`}
+        >
+          <span style={{ color: `oklch(0.88 0.1 ${WHERE[w].hue})` }} className="font-serif text-[26px] leading-none tabular-nums">
+            {count.get(w) ?? 0}
+          </span>
+          <span className="text-[11px] font-semibold text-fg-muted">{WHERE[w].label}</span>
+        </span>
+      ))}
+    </section>
+  );
+}
+
+/**
+ * Everybody who came today and where each of them is now, in the order they
+ * checked in — the answer to "has she been through security yet?" without
+ * opening anything.
+ */
+function Everyone({
+  candidates,
+  workstations,
+  timezone,
+}: {
+  candidates: Candidate[];
+  workstations: Workstation[];
+  timezone: string;
+}) {
+  const [all, setAll] = useState(false);
+  const queue = candidates
+    .filter((c) => whereIs(c) === "waiting")
+    .sort((a, b) => (a.check_in_at ?? "").localeCompare(b.check_in_at ?? ""))
+    .map((c) => c.id);
+  const rows = candidates
+    .filter((c) => all || !["expected", "no_show"].includes(whereIs(c)))
+    .sort(
+      (a, b) =>
+        (a.check_in_at ?? "9").localeCompare(b.check_in_at ?? "9") ||
+        (a.scheduled_at ?? "").localeCompare(b.scheduled_at ?? "") ||
+        fullName(a).localeCompare(fullName(b)),
+    );
+  const hidden = candidates.filter((c) => ["expected", "no_show"].includes(whereIs(c))).length;
+
+  const detail = (c: Candidate) => {
+    const w = whereIs(c);
+    if (w === "waiting") return `Waiting · ${queue.indexOf(c.id) + 1} in line`;
+    if (w === "lab") {
+      const ws = workstations.find((x) => x.id === c.workstation_id);
+      return ws ? `Seat ${seatNumber(ws)} · ${ws.lab_name ?? "lab"}` : WHERE.lab.label;
+    }
+    return WHERE[w].label;
+  };
+
+  return (
+    <Stage
+      n={5}
+      hue={250}
+      title="Everyone today"
+      flush
+      right={
+        hidden > 0 ? (
+          <button
+            type="button"
+            onClick={() => setAll((v) => !v)}
+            className="cursor-pointer rounded-[10px] border border-edge px-[10px] py-[5px] text-[11px] font-semibold text-fg-dim hover:text-fg"
+          >
+            {all ? "Only who came" : `Show still to come and no-shows (${hidden})`}
+          </button>
+        ) : null
+      }
+      wide
+    >
+      <div className="max-h-[48vh] overflow-y-auto">
+        {rows.map((c) => {
+          const w = whereIs(c);
+          return (
+            <div
+              key={c.id}
+              className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-[12px] gap-y-[4px] border-b border-edge-soft/60 px-[16px] py-[9px] sm:grid-cols-[minmax(0,1fr)_110px_92px_210px]"
+            >
+              <span className="flex min-w-0 items-center gap-[7px]">
+                <span className="truncate text-[13.5px] font-semibold">{c.placeholder ? "Booked slot" : fullName(c)}</span>
+                <TwinBadge candidate={c} />
+              </span>
+              <span className="hidden font-mono text-[11px] text-fg-faint sm:block">{refOf(c)}</span>
+              <span className="hidden font-mono text-[11px] text-fg-dim sm:block">
+                {c.check_in_at ? `in ${clockAt(c.check_in_at, timezone)}` : "—"}
+              </span>
+              <span
+                style={{
+                  color: `oklch(0.88 0.1 ${WHERE[w].hue})`,
+                  borderColor: `oklch(0.72 0.12 ${WHERE[w].hue} / 0.5)`,
+                  background: `oklch(0.32 0.06 ${WHERE[w].hue} / 0.35)`,
+                }}
+                className="justify-self-end truncate rounded-full border px-[10px] py-[3px] text-[11.5px] font-semibold sm:justify-self-start"
+              >
+                {detail(c)}
+              </span>
+            </div>
+          );
+        })}
+        {rows.length === 0 && <p className="p-[22px] text-center text-[12.5px] text-fg-faint">Nobody has checked in yet today.</p>}
+      </div>
+    </Stage>
+  );
+}

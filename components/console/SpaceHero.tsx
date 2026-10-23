@@ -153,7 +153,7 @@ function Band({ place, pathname }: { place: Place; pathname: string }) {
   }
   if (place.key === "hall") {
     stats.push(["Waiting", String(candidates.filter((c) => c.status === "waiting" && !c.called_at).length)]);
-    stats.push(["To seat", String(candidates.filter((c) => ["frisking", "biometrics", "assigned"].includes(c.status) && !c.workstation_id).length)]);
+    stats.push(["To seat", String(candidates.filter((c) => c.status === "assigned" && !c.workstation_id).length)]);
   }
   if (place.key === "lab") {
     stats.push(["Testing", String(candidates.filter(isTesting).length)]);

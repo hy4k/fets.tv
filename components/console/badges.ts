@@ -8,9 +8,16 @@ import type { StepKey } from "@/lib/nav";
  * place) and the tabs under the hero (one each), so the two never disagree.
  */
 export function useStepBadges(): Partial<Record<StepKey, number>> {
-  const { candidates, call, notice, openBreaks, incidents, rules } = useConsole();
+  const { candidates, notice, openBreaks, incidents, rules } = useConsole();
 
-  const waiting = candidates.filter((c) => c.status === "waiting" && !c.called_at).length;
+  // The admin room's work: waiting to be called, at the gate, ready for a seat.
+  const waiting = candidates.filter(
+    (c) =>
+      c.status === "waiting" ||
+      c.status === "frisking" ||
+      c.status === "biometrics" ||
+      (c.status === "assigned" && !c.workstation_id),
+  ).length;
   const testing = candidates.filter((c) => c.exam_started_at && !c.exam_finished_at).length;
   const openIncidents = incidents.filter((i) => !i.resolved_at).length;
 
@@ -22,8 +29,8 @@ export function useStepBadges(): Partial<Record<StepKey, number>> {
     : 0;
 
   return {
-    // Somebody called and not yet sent in, or checked in without a key.
-    checkin: (call?.candidate_id ? 1 : 0) + keyless,
+    // Checked in without a key. Calls are the admin room's now, not the desk's.
+    checkin: keyless,
     security: waiting,
     live: testing + openBreaks.length,
     incidents: openIncidents,
