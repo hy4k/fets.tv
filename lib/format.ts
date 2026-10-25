@@ -47,6 +47,15 @@ export function refOf(c: Pick<Candidate, "roster_number" | "public_token">) {
 /** How many called candidates may be on their way to the gate at once. */
 export const MAX_ON_THE_WAY = 5;
 
+/**
+ * Called and not yet seated: the TV still shows the name, or (under the old
+ * two-step flow) the person was part-way through the gate. Seating them is the
+ * only step left.
+ */
+export function calledNotSeated(c: Pick<Candidate, "status" | "called_at">) {
+  return (c.status === "waiting" && !!c.called_at) || c.status === "frisking" || c.status === "biometrics";
+}
+
 /** Statuses that still need the front desk's check-in. */
 export const WAITING_TO_CHECK_IN = ["scheduled", "arrived", "id_checked"];
 

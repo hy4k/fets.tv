@@ -1,5 +1,5 @@
 "use client";
-import { refOf } from "@/lib/format";
+import { calledNotSeated, refOf } from "@/lib/format";
 
 import { useMemo, useState } from "react";
 import { useConsole } from "@/lib/console-data";
@@ -46,6 +46,11 @@ export function SeatGrid({ candidate, onDone }: { candidate: Candidate; onDone: 
   async function confirm() {
     if (!chosen) return;
     setBusy(true);
+    // Somebody called and seated straight away: the gate is passed in the same tap.
+    if (calledNotSeated(candidate) && !(await rpc("fets_security_done", { p_center: candidate.center_id, p_candidate: candidate.id }))) {
+      setBusy(false);
+      return;
+    }
     const ok = await rpc(
       "fets_assign_workstation",
       { p_candidate: candidate.id, p_workstation: chosen.id },
