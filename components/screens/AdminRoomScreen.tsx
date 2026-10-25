@@ -7,7 +7,7 @@ import { MaterialsPanel } from "@/components/screens/MaterialsPanel";
 import { useConsole } from "@/lib/console-data";
 import { SeatGrid } from "@/components/screens/SeatGrid";
 import { MAX_ON_THE_WAY, STAGE_LABELS, STAGE_ORDER, calledNotSeated, clockAt, fullName, refOf } from "@/lib/format";
-import { seatName, seatNumber } from "@/lib/seats";
+import { seatNumber } from "@/lib/seats";
 import { type Candidate, type CandidateStatus, type Workstation, stillHeld } from "@/lib/types";
 
 
@@ -21,9 +21,8 @@ import { type Candidate, type CandidateStatus, type Workstation, stillHeld } fro
  * who came today and where each of them is now.
  */
 export function AdminRoomScreen() {
-  const { candidates, center, rpc, isAdmin, canCall, canLab, session, rules, materials, workstations, labs } =
+  const { candidates, center, rpc, isAdmin, canCall, canLab, session, rules, materials, workstations } =
     useConsole();
-  const [passing, setPassing] = useState<string | null>(null);
   const [issuing, setIssuing] = useState<Candidate | null>(null);
   const [overriding, setOverriding] = useState(false);
   const [seatingId, setSeatingId] = useState<string | null>(null);
@@ -53,29 +52,6 @@ export function AdminRoomScreen() {
   // Up to five may be called and not yet seated; the sixth waits for a seat to be given.
   const onTheWay = toSeat.filter(calledNotSeated);
 
-  // Every free seat, lab by lab in number order, as buttons on each row: staff
-  // pick the desk themselves, so no seat is pushed on them.
-  const freeByLab = useMemo(() => {
-    const free = workstations.filter((w) => w.lab_id && w.status === "free" && !w.current_candidate_id);
-    return labs
-      .map((lab) => ({
-        lab,
-        seats: free
-          .filter((w) => w.lab_id === lab.id)
-          .sort((x, y) => seatNumber(x).localeCompare(seatNumber(y), undefined, { numeric: true })),
-      }))
-      .filter((g) => g.seats.length > 0);
-  }, [labs, workstations]);
-
-  // One tap: the call comes off the TV and the person is in their seat.
-  async function seatAt(c: Candidate, w: Workstation) {
-    setPassing(c.id);
-    const through = !calledNotSeated(c) || (await rpc("fets_security_done", { p_center: center.id, p_candidate: c.id }));
-    if (through) {
-      await rpc("fets_assign_workstation", { p_candidate: c.id, p_workstation: w.id }, `${refOf(c)} seated at ${seatName(w)}`);
-    }
-    setPassing(null);
-  }
   const full = onTheWay.length >= MAX_ON_THE_WAY;
   const awaitingEntry = full;
   // The next person who can actually go: somebody still waiting on a locker
@@ -225,7 +201,7 @@ export function AdminRoomScreen() {
         }
       >
         {toSeat.length === 0 ? (
-          <p className="py-[10px] text-center text-[12.5px] text-fg-faint">Nobody to seat. Whoever you call appears here; tap a free seat number to seat them.</p>
+          <p className="py-[10px] text-center text-[12.5px] text-fg-faint">Nobody to seat. Whoever you call appears here; press Assign seat and pick the desk.</p>
         ) : (
           <div className="flex flex-col gap-[8px]">
             {toSeat.map((c) => (
@@ -242,37 +218,19 @@ export function AdminRoomScreen() {
                     </span>
                   )}
                   <span className="flex-1" />
+                  {seating?.id !== c.id && (
+                    <button
+                      type="button"
+                      disabled={!canLab || freeSeats === 0}
+                      onClick={() => setSeatingId(c.id)}
+                      className="min-h-[44px] cursor-pointer rounded-[13px] bg-[linear-gradient(145deg,oklch(0.83_0.16_158),oklch(0.72_0.15_165))] px-[20px] py-[10px] text-[14px] font-bold text-[#0c1711] disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {freeSeats === 0 ? "No seat free" : "Assign seat"}
+                    </button>
+                  )}
                 </div>
-                {seating?.id !== c.id && (
-                  <div className="mt-[10px] flex flex-col gap-[6px]">
-                    {freeByLab.length === 0 && <span className="text-[12.5px] font-semibold text-rust">No seat free</span>}
-                    {freeByLab.map(({ lab, seats }) => (
-                      <div key={lab.id} className="flex flex-wrap items-center gap-[6px]">
-                        {freeByLab.length > 1 && (
-                          <span className="mr-[2px] text-[11px] font-semibold text-fg-dim">{lab.name}</span>
-                        )}
-                        {/* One tap on a number: the call comes off the TV and the person is seated there. */}
-                        {seats.map((w) => (
-                          <button
-                            key={w.id}
-                            type="button"
-                            title={`Seat at ${seatName(w)}`}
-                            disabled={!canLab || passing === c.id}
-                            onClick={() => void seatAt(c, w)}
-                            className="h-[40px] min-w-[44px] cursor-pointer rounded-[11px] border border-mint/45 bg-mint/10 px-[8px] font-mono text-[14px] font-bold text-mint hover:bg-mint hover:text-[#0c1711] disabled:cursor-not-allowed disabled:opacity-40"
-                          >
-                            {seatNumber(w)}
-                          </button>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                )}
                 <div className="mt-[8px] flex flex-wrap gap-[6px]">
                   <SmallAction onClick={() => setIssuing(c)}>Materials</SmallAction>
-                  <SmallAction disabled={!canLab} onClick={() => setSeatingId(seating?.id === c.id ? null : c.id)}>
-                    {seating?.id === c.id ? "Hide seat map" : "Seat map"}
-                  </SmallAction>
                   {c.status === "waiting" && (
                     <>
                       <SmallAction disabled={!canCall} onClick={() => rpc("fets_recall", { p_center: center.id, p_candidate: c.id })}>
