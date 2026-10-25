@@ -53,23 +53,19 @@ export function AdminRoomScreen() {
   // Up to five may be called and not yet seated; the sixth waits for a seat to be given.
   const onTheWay = toSeat.filter(calledNotSeated);
 
-  // A free seat ready for each person waiting for one, in the order the room
-  // fills: lab by lab, lowest number first, no seat offered twice.
-  const suggested = useMemo(() => {
-    const order = new Map(labs.map((l, i) => [l.id, i]));
-    const free = workstations
-      .filter((w) => w.lab_id && w.status === "free" && !w.current_candidate_id)
-      .sort(
-        (a, b) =>
-          (order.get(a.lab_id!) ?? 99) - (order.get(b.lab_id!) ?? 99) ||
-          seatNumber(a).localeCompare(seatNumber(b), undefined, { numeric: true }),
-      );
-    const out = new Map<string, Workstation>();
-    toSeat.forEach((c, i) => {
-      if (free[i]) out.set(c.id, free[i]);
-    });
-    return out;
-  }, [labs, workstations, toSeat]);
+  // Every free seat, lab by lab in number order, as buttons on each row: staff
+  // pick the desk themselves, so no seat is pushed on them.
+  const freeByLab = useMemo(() => {
+    const free = workstations.filter((w) => w.lab_id && w.status === "free" && !w.current_candidate_id);
+    return labs
+      .map((lab) => ({
+        lab,
+        seats: free
+          .filter((w) => w.lab_id === lab.id)
+          .sort((x, y) => seatNumber(x).localeCompare(seatNumber(y), undefined, { numeric: true })),
+      }))
+      .filter((g) => g.seats.length > 0);
+  }, [labs, workstations]);
 
   // One tap: the call comes off the TV and the person is in their seat.
   async function seatAt(c: Candidate, w: Workstation) {
@@ -229,7 +225,7 @@ export function AdminRoomScreen() {
         }
       >
         {toSeat.length === 0 ? (
-          <p className="py-[10px] text-center text-[12.5px] text-fg-faint">Nobody to seat. Whoever you call appears here.</p>
+          <p className="py-[10px] text-center text-[12.5px] text-fg-faint">Nobody to seat. Whoever you call appears here; tap a free seat number to seat them.</p>
         ) : (
           <div className="flex flex-col gap-[8px]">
             {toSeat.map((c) => (
@@ -246,45 +242,37 @@ export function AdminRoomScreen() {
                     </span>
                   )}
                   <span className="flex-1" />
-                  {seating?.id !== c.id &&
-                    (suggested.get(c.id) ? (
-                      <span className="flex flex-wrap gap-[8px]">
-                        {/* One tap: the next free seat in the room, already picked. */}
-                        <button
-                          type="button"
-                          disabled={!canLab || passing === c.id}
-                          onClick={() => void seatAt(c, suggested.get(c.id)!)}
-                          className="min-h-[44px] cursor-pointer rounded-[13px] bg-[linear-gradient(145deg,oklch(0.83_0.16_158),oklch(0.72_0.15_165))] px-[18px] py-[10px] text-left text-[#0c1711] disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          <span className="block text-[14px] leading-tight font-bold">
-                            {passing === c.id ? "Seating…" : `Seat ${seatNumber(suggested.get(c.id)!)}`}
-                          </span>
-                          <span className="block text-[10.5px] leading-tight font-semibold opacity-75">
-                            {suggested.get(c.id)!.lab_name ?? "next free seat"}
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          disabled={!canLab}
-                          onClick={() => setSeatingId(c.id)}
-                          className="cursor-pointer rounded-[13px] border border-edge-warm px-[14px] py-[10px] text-[12.5px] font-semibold text-fg-muted hover:text-fg disabled:opacity-40"
-                        >
-                          Other seat
-                        </button>
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        disabled={!canLab || freeSeats === 0}
-                        onClick={() => setSeatingId(c.id)}
-                        className="cursor-pointer rounded-[13px] bg-[linear-gradient(145deg,oklch(0.83_0.16_158),oklch(0.72_0.15_165))] px-[18px] py-[11px] text-[13.5px] font-bold text-[#0c1711] disabled:cursor-not-allowed disabled:opacity-40"
-                      >
-                        {freeSeats === 0 ? "No seat free" : "Choose a seat"}
-                      </button>
-                    ))}
                 </div>
+                {seating?.id !== c.id && (
+                  <div className="mt-[10px] flex flex-col gap-[6px]">
+                    {freeByLab.length === 0 && <span className="text-[12.5px] font-semibold text-rust">No seat free</span>}
+                    {freeByLab.map(({ lab, seats }) => (
+                      <div key={lab.id} className="flex flex-wrap items-center gap-[6px]">
+                        {freeByLab.length > 1 && (
+                          <span className="mr-[2px] text-[11px] font-semibold text-fg-dim">{lab.name}</span>
+                        )}
+                        {/* One tap on a number: the call comes off the TV and the person is seated there. */}
+                        {seats.map((w) => (
+                          <button
+                            key={w.id}
+                            type="button"
+                            title={`Seat at ${seatName(w)}`}
+                            disabled={!canLab || passing === c.id}
+                            onClick={() => void seatAt(c, w)}
+                            className="h-[40px] min-w-[44px] cursor-pointer rounded-[11px] border border-mint/45 bg-mint/10 px-[8px] font-mono text-[14px] font-bold text-mint hover:bg-mint hover:text-[#0c1711] disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            {seatNumber(w)}
+                          </button>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div className="mt-[8px] flex flex-wrap gap-[6px]">
                   <SmallAction onClick={() => setIssuing(c)}>Materials</SmallAction>
+                  <SmallAction disabled={!canLab} onClick={() => setSeatingId(seating?.id === c.id ? null : c.id)}>
+                    {seating?.id === c.id ? "Hide seat map" : "Seat map"}
+                  </SmallAction>
                   {c.status === "waiting" && (
                     <>
                       <SmallAction disabled={!canCall} onClick={() => rpc("fets_recall", { p_center: center.id, p_candidate: c.id })}>
