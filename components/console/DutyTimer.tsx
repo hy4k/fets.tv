@@ -1,5 +1,6 @@
 "use client";
 
+import { SharedChecks } from "./SharedShiftChecks";
 import { useState } from "react";
 import { basePath } from "@/lib/base-path";
 import { useConsole } from "@/lib/console-data";
@@ -32,15 +33,7 @@ const WALK = { ink: "oklch(0.88 0.13 85)", glow: "oklch(0.85 0.14 85 / 0.75)" };
  */
 export function DutyTimer() {
   const { candidates, walkthroughs, center, session, notify } = useConsole();
-  return (
-    <DutyTimerView
-      candidates={candidates}
-      checks={walkthroughs}
-      timezone={center.timezone}
-      date={session?.exam_date ?? todayInZone(center.timezone)}
-      notify={notify}
-    />
-  );
+  return <SharedChecks key={`${center.id}:${session?.exam_date??todayInZone(center.timezone)}`} date={session?.exam_date??todayInZone(center.timezone)} centerName={center.name} notify={message=>notify(message)}/>;
 }
 
 /** The day's rota from fets.live, or why there is none. */
