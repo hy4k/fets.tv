@@ -4,7 +4,7 @@ umask 077
 COMMIT=${1:?Pass the reviewed commit.}
 APP=/opt/apps/fets-tv
 CONTAINER=fets-tv-fets-tv-1
-BASE=sha256:17b545f7d63926e17797aa8ab23ee7acd64f24805681e5f24745b7d9c245fba4
+BASE=sha256:1293f47ee265da59951666a8f9626a5dec141b58fd072993b08518c773a3f90e
 [[ $EUID == 0 && $(hostname -s) == srv1120621 && $COMMIT =~ ^[a-f0-9]{40}$ ]] || exit 1
 exec 9>/var/lock/fets-online-deploy.lock
 flock -n 9 || { echo 'Another Online deployment is running';exit 1; }

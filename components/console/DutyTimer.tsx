@@ -22,18 +22,13 @@ import { useNow } from "@/lib/use-clock";
 const DVR = { ink: "oklch(0.86 0.12 205)", glow: "oklch(0.8 0.14 205 / 0.75)" };
 const WALK = { ink: "oklch(0.88 0.13 85)", glow: "oklch(0.85 0.14 85 / 0.75)" };
 
-/**
- * The Lab's top banner: the whole sitting as one long liquid-glass cylinder.
- *
- * It fills from the first exam start to the last expected finish. Gold marks
- * above the glass are the ten-minute floor walks, cyan marks below are the
- * six-minute DVR checks; two counters say how long until the next of each.
- * Nothing is logged here — the export at the end gives the day's sheet, with
- * who was on duty for each mark taken from the fets.live rota.
- */
+/** Today's published check ledger, independent of imported exam sessions. */
 export function DutyTimer() {
-  const { candidates, walkthroughs, center, session, notify } = useConsole();
-  return <SharedChecks key={`${center.id}:${session?.exam_date??todayInZone(center.timezone)}`} date={session?.exam_date??todayInZone(center.timezone)} centerName={center.name} notify={message=>notify(message)}/>;
+  const { center, notify } = useConsole();
+  const now = useNow();
+  if (!now) return <p role="status">Reading today’s published checks…</p>;
+  const date = todayInZone(center.timezone, new Date(now));
+  return <SharedChecks key={`${center.id}:${date}`} date={date} centerName={center.name} notify={message=>notify(message)}/>;
 }
 
 /** The day's rota from fets.live, or why there is none. */
