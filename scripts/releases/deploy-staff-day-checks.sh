@@ -54,7 +54,7 @@ git -C "$R/source" merge-base --is-ancestor origin/main "$COMMIT"
 git -C "$R/source" checkout --detach "$COMMIT"
 echo 'Saving rollback image and server configuration...'
 docker tag "$BASE" "fets-tv-fets-tv:rollback-$REL"
-docker save "fets-tv-fets-tv:rollback-$REL" | gzip > "$R/rollback-image.tar.gz"
+docker save "fets-tv-fets-tv:rollback-$REL" | gzip -1 > "$R/rollback-image.tar.gz"
 cp -a /etc/nginx "$R/nginx.before"
 cp "$APP/compose.yml" "$R/compose.original.yml"
 cat > "$R/rollback.sh" <<'ROLLBACK'
