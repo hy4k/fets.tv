@@ -7,7 +7,8 @@ import { basePath } from "@/lib/base-path";
 import { shortName } from "@/lib/centres";
 import { useConsole } from "@/lib/console-data";
 import type { DayTotals } from "@/lib/fets-live";
-import { clockAt, isTesting, todayInZone } from "@/lib/format";
+import { calledNotSeated, clockAt, fullName, isTesting, todayInZone } from "@/lib/format";
+import type { Candidate } from "@/lib/types";
 import { DutyTimer } from "./DutyTimer";
 import { locate, type Place } from "@/lib/nav";
 import { useClock, useNow } from "@/lib/use-clock";
@@ -142,6 +143,7 @@ function Fig({ label, value }: { label: string; value: string }) {
 function Band({ place, pathname }: { place: Place; pathname: string }) {
   const { center, candidates, rules } = useConsole();
   const clock = useClock(center.timezone);
+  const now = useNow();
 
   const stats: [string, string][] = [];
   if (place.key === "arrivals") {
@@ -153,41 +155,89 @@ function Band({ place, pathname }: { place: Place; pathname: string }) {
   }
   if (place.key === "hall") {
     stats.push(["Waiting", String(candidates.filter((c) => c.status === "waiting" && !c.called_at).length)]);
-    stats.push(["To seat", String(candidates.filter((c) => c.status === "assigned" && !c.workstation_id).length)]);
+    stats.push(["To seat", String(candidates.filter((c) => calledNotSeated(c) || (c.status === "assigned" && !c.workstation_id)).length)]);
   }
   if (place.key === "lab") {
     stats.push(["Testing", String(candidates.filter(isTesting).length)]);
   }
+  const cue = nextCue(place.key, candidates, now, center.timezone);
 
+  // One line: the space, what it should do next, its numbers and the time. The
+  // page itself starts straight under it.
   return (
-    <section className="relative flex shrink-0 flex-wrap items-end gap-x-[28px] gap-y-[14px] overflow-hidden rounded-[24px] border border-edge-soft hero-bg px-[22px] pt-[18px] pb-[16px] md:px-[40px] md:pt-[22px] md:pb-[18px]">
+    <section className="relative flex shrink-0 flex-wrap items-center gap-x-[22px] gap-y-[10px] overflow-hidden rounded-[22px] border border-edge-soft hero-bg px-[18px] py-[12px] md:px-[28px] md:py-[14px]">
       <div className="min-w-0 flex-1">
-        <span className="font-mono text-[10.5px] tracking-[0.22em] text-accent/80 uppercase">{OVERLINE[place.key]}</span>
-        <h1
-          className={`mt-[4px] font-display text-[44px] leading-[0.95] font-light display-ink md:text-[64px] ${
-            place.key === "arrivals" ? "italic" : ""
-          }`}
-        >
-          {place.title}
-        </h1>
+        <span className="font-mono text-[10px] tracking-[0.22em] text-accent/80 uppercase">{OVERLINE[place.key]}</span>
+        <div className="flex flex-wrap items-baseline gap-x-[16px] gap-y-[2px]">
+          <h1
+            className={`font-display text-[32px] leading-[1] font-light display-ink md:text-[40px] ${
+              place.key === "arrivals" ? "italic" : ""
+            }`}
+          >
+            {place.title}
+          </h1>
+          {cue && (
+            <span className="flex min-w-0 items-center gap-[8px] text-[13.5px] text-fg">
+              <span className="h-[7px] w-[7px] shrink-0 rounded-full bg-accent motion-safe:animate-pulse" />
+              <span className="truncate">{cue}</span>
+            </span>
+          )}
+        </div>
       </div>
       {stats.length > 0 && (
-        <div className="flex gap-[10px]">
+        <div className="flex gap-[8px]">
           {stats.map(([label, value]) => (
-            <span key={label} className="min-w-[104px] rounded-[16px] border border-accent/20 bg-ink/50 px-[14px] py-[10px]">
-              <span className="block font-mono text-[9.5px] tracking-[0.12em] text-fg-faint uppercase">{label}</span>
-              <span className="mt-[2px] block font-display text-[32px] leading-none">{value}</span>
+            <span key={label} className="min-w-[84px] rounded-[14px] border border-accent/20 bg-ink/50 px-[12px] py-[6px]">
+              <span className="block font-mono text-[9px] tracking-[0.12em] text-fg-faint uppercase">{label}</span>
+              <span className="block font-display text-[24px] leading-none">{value}</span>
             </span>
           ))}
         </div>
       )}
       {(place.key === "hall" || place.key === "lab") && (
-        <span className="font-mono text-[38px] leading-none font-medium tabular-nums md:text-[48px]">{clock}</span>
+        <span className="font-mono text-[26px] leading-none font-medium tabular-nums md:text-[32px]">{clock}</span>
       )}
       {place.key === "lab" && <DutyTimer />}
       {place.key === "screen" && <ScreenSwitch place={place} pathname={pathname} />}
     </section>
   );
+}
+
+/**
+ * What this space should do next, in one sentence: the cue each page plays
+ * its part on. Null when there is nothing to prompt.
+ */
+function nextCue(key: Place["key"], candidates: Candidate[], now: number, timezone: string): string | null {
+  const at = (iso: string | null) => (iso ? clockAt(iso, timezone) : "");
+  if (key === "arrivals") {
+    const toCome = candidates
+      .filter((c) => c.status === "scheduled" && !c.placeholder)
+      .sort((a, b) => (a.scheduled_at ?? "").localeCompare(b.scheduled_at ?? ""));
+    if (toCome.length === 0) return candidates.length ? "Everyone booked is in" : null;
+    const n = toCome[0];
+    return `Next: ${fullName(n)}${n.scheduled_at ? ` at ${at(n.scheduled_at)}` : ""} · ${toCome.length} still to come`;
+  }
+  if (key === "hall") {
+    const waiting = candidates
+      .filter((c) => c.status === "waiting" && !c.called_at)
+      .sort((a, b) => (a.check_in_at ?? "").localeCompare(b.check_in_at ?? ""));
+    const toSeat = candidates.filter((c) => calledNotSeated(c) || (c.status === "assigned" && !c.workstation_id)).length;
+    if (toSeat > 0) return `${toSeat} called · assign ${toSeat === 1 ? "a seat" : "seats"}${waiting.length ? ` · next to call: ${fullName(waiting[0])}` : ""}`;
+    if (waiting.length) return `Next: call ${fullName(waiting[0])} · ${waiting.length} waiting`;
+    return null;
+  }
+  if (key === "lab") {
+    if (now === 0) return null;
+    const ending = candidates
+      .filter((c) => isTesting(c) && c.exam_expected_end)
+      .map((c) => ({ c, end: new Date(c.exam_expected_end!).getTime() }))
+      .sort((a, b) => a.end - b.end);
+    const soon = ending.filter((x) => x.end - now <= 10 * 60000);
+    if (soon.length) return `${soon.length} finishing in 10 min · first: ${fullName(soon[0].c)} at ${at(soon[0].c.exam_expected_end)}`;
+    if (ending.length) return `Next to finish: ${fullName(ending[0].c)} at ${at(ending[0].c.exam_expected_end)}`;
+    return null;
+  }
+  return null;
 }
 
 /**
