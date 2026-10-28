@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { TwinBadge } from "@/components/console/NameTwin";
 import { Dialog } from "@/components/ui/Dialog";
@@ -182,6 +183,8 @@ export function FloorScreen() {
           )}
         </div>
       </div>
+
+      <IncidentStrip />
 
       {toSignOut.length > 0 && (
         <section className="shrink-0 overflow-hidden rounded-[20px] border border-gold/30 bg-gold/[0.04]">
@@ -1321,5 +1324,56 @@ function LabFloors({
         desk numbers in Settings → Labs and seats.
       </p>
     </div>
+  );
+}
+
+/**
+ * Open incidents, always in sight at the top of the floor: what is wrong, where,
+ * and for how long. Logging and resolving stay on the Incidents page, one tap
+ * away, so the floor plan keeps its room.
+ */
+function IncidentStrip() {
+  const { incidents, workstations } = useConsole();
+  const now = useNow();
+  const open = incidents
+    .filter((i) => !i.resolved_at)
+    .sort((a, b) => a.started_at.localeCompare(b.started_at));
+  const seat = (id: string | null) => {
+    const w = id ? workstations.find((x) => x.id === id) : null;
+    return w ? seatName(w) : null;
+  };
+  const mins = (iso: string) => Math.max(0, Math.round((now - new Date(iso).getTime()) / 60000));
+
+  return (
+    <section
+      className={`flex shrink-0 flex-wrap items-center gap-[8px] rounded-[16px] border px-[12px] py-[8px] ${
+        open.length ? "border-rust/45 bg-rust/[0.07]" : "border-white/[0.07] bg-white/[0.02]"
+      }`}
+    >
+      <span className={`text-[11px] font-bold tracking-[0.12em] uppercase ${open.length ? "text-rust" : "text-fg-faint"}`}>
+        {open.length ? `${open.length} open incident${open.length === 1 ? "" : "s"}` : "No open incidents"}
+      </span>
+      {open.slice(0, 4).map((i) => (
+        <Link
+          key={i.id}
+          href="/incidents"
+          className="flex max-w-[320px] items-center gap-[6px] rounded-full border border-rust/40 bg-ink/50 px-[10px] py-[3px] text-[12px] hover:border-rust"
+        >
+          <span className={`h-[6px] w-[6px] shrink-0 rounded-full ${i.severity === "critical" ? "bg-rust" : i.severity === "major" ? "bg-gold" : "bg-fg-faint"}`} />
+          <span className="truncate">{i.summary}</span>
+          <span className="shrink-0 font-mono text-[10.5px] text-fg-faint">
+            {[seat(i.workstation_id), `${mins(i.started_at)} min`].filter(Boolean).join(" · ")}
+          </span>
+        </Link>
+      ))}
+      {open.length > 4 && <span className="font-mono text-[11px] text-fg-faint">+{open.length - 4} more</span>}
+      <span className="flex-1" />
+      <Link
+        href="/incidents"
+        className="rounded-[11px] border border-edge-warm px-[12px] py-[6px] text-[12px] font-semibold text-fg-muted hover:text-fg"
+      >
+        {open.length ? "Open incidents" : "Report an incident"}
+      </Link>
+    </section>
   );
 }

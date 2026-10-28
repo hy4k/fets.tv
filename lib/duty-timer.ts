@@ -149,3 +149,46 @@ export function dutyLogCsv(input: {
   }
   return [header, ...rows].map((r) => r.map(cell).join(",")).join("\r\n") + "\r\n";
 }
+
+export type MarkState = "done" | "due" | "missed" | "ahead";
+
+export type MarkRow = {
+  kind: DutyKind;
+  n: number;
+  at: number;
+  state: MarkState;
+  /** The check that answered it, nearest to the mark within half an interval. */
+  check: DutyCheck | null;
+};
+
+/**
+ * Every mark of one track up to now, and whether somebody answered it. A check
+ * answers the mark it is nearest to, within half an interval either side, and
+ * answers only one mark. A mark is due from its time until half an interval
+ * later; after that, with no check, it is missed.
+ */
+export function markRows(
+  kind: DutyKind,
+  start: number,
+  end: number,
+  now: number,
+  checks: DutyCheck[],
+): MarkRow[] {
+  const every = kind === "dvr" ? DVR_MINUTES : WALK_MINUTES;
+  const half = (every * 60000) / 2;
+  const mine = checks
+    .filter((c) => c.kind === kind)
+    .map((c) => ({ c, at: new Date(c.walked_at).getTime() }))
+    .sort((a, b) => a.at - b.at);
+  const used = new Set<DutyCheck>();
+  return marks(start, end, every)
+    .filter((at) => at - half <= now)
+    .map((at, i) => {
+      const near = mine
+        .filter((x) => !used.has(x.c) && x.at >= at - half && x.at < at + half)
+        .sort((a, b) => Math.abs(a.at - at) - Math.abs(b.at - at))[0];
+      if (near) used.add(near.c);
+      const state: MarkState = near ? "done" : now < at ? "ahead" : now < at + half ? "due" : "missed";
+      return { kind, n: i + 1, at, state, check: near?.c ?? null };
+    });
+}

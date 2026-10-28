@@ -1,0 +1,38 @@
+// Runs the delete-a-past-candidate migration against a throwaway database.
+// PGLITE_MODULE=/path/to/@electric-sql/pglite/dist/index.js node scripts/verify-delete-past-candidate.mjs
+const {PGlite} = await import(process.env.PGLITE_MODULE || '@electric-sql/pglite');
+import {readFileSync} from 'node:fs'; import assert from 'node:assert/strict';
+const db = new PGlite();
+const A = '11111111-1111-4111-8111-111111111111';
+await db.exec(`create role anon;create role authenticated;
+create schema auth; create table auth.users(id uuid primary key); insert into auth.users values('99999999-9999-4999-8999-999999999999');
+create function auth.uid() returns uuid language sql as $$ select '99999999-9999-4999-8999-999999999999'::uuid $$;
+create type user_role as enum ('admin','tca','front_office','lab_staff','viewer');
+create table centers(id uuid primary key); insert into centers values('${A}');
+create table profiles(id uuid primary key, display_name text); insert into profiles values('99999999-9999-4999-8999-999999999999','Midhun N');
+create function current_center_id() returns uuid language sql as $$ select '${A}'::uuid $$;
+create function fets_guard(p uuid, r user_role[]) returns void language sql as $$ select $$;
+create table exam_sessions(id uuid primary key, status text);
+insert into exam_sessions values('22222222-2222-4222-8222-222222222221','closed'),('22222222-2222-4222-8222-222222222222','live');
+create table candidates(id uuid primary key, center_id uuid, exam_session_id uuid, first_name text);
+create table candidate_events(id serial, candidate_id uuid references candidates(id) on delete cascade);
+create table workstations(id serial, status text, current_candidate_id uuid references candidates(id));
+create table public_display_calls(id serial, active boolean, candidate_id uuid references candidates(id) on delete set null);
+insert into candidates values('aaaaaaaa-0000-4000-8000-000000000001','${A}','22222222-2222-4222-8222-222222222221','Old'),('aaaaaaaa-0000-4000-8000-000000000002','${A}','22222222-2222-4222-8222-222222222222','Today');
+insert into candidate_events(candidate_id) values('aaaaaaaa-0000-4000-8000-000000000001');
+insert into workstations(status,current_candidate_id) values('active','aaaaaaaa-0000-4000-8000-000000000001');`);
+await db.exec(readFileSync(new URL('../supabase/migrations/20261028090000_fets_delete_past_candidate.sql', import.meta.url), 'utf8'));
+const del = (id, reason) => db.query('select fets_delete_past_candidate($1,$2)', [id, reason]);
+await assert.rejects(del('aaaaaaaa-0000-4000-8000-000000000001', '  '), /say why/);
+await assert.rejects(del('aaaaaaaa-0000-4000-8000-000000000002', 'oops'), /still open/);
+await del('aaaaaaaa-0000-4000-8000-000000000001', 'entered twice');
+assert.equal((await db.query("select count(*)::int n from candidates")).rows[0].n, 1);
+assert.equal((await db.query("select count(*)::int n from candidate_events")).rows[0].n, 0);
+assert.deepEqual((await db.query("select status, current_candidate_id from workstations")).rows[0], { status: 'free', current_candidate_id: null });
+const kept = (await db.query("select reason, deleted_by_name, snapshot->>'first_name' name from deleted_candidates")).rows[0];
+assert.deepEqual(kept, { reason: 'entered twice', deleted_by_name: 'Midhun N', name: 'Old' });
+await assert.rejects(del('aaaaaaaa-0000-4000-8000-000000000001', 'again'), /already gone/);
+await db.exec('set role anon');
+await assert.rejects(db.query(`select fets_delete_past_candidate('aaaaaaaa-0000-4000-8000-000000000002','x')`), /permission denied/);
+console.log('PASS: a finished day\'s candidate is deleted with a reason, seat freed, events gone, snapshot kept with who and why; open days and blank reasons refused; anon refused');
+await db.close();

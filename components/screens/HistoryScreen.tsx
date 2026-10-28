@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
+import { CandidateDetailsDialog } from "@/components/screens/CandidateDetailsDialog";
 import { useConsole } from "@/lib/console-data";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { clockAt, fullName, statusChip, refOf } from "@/lib/format";
 import type { Candidate, ExamSession } from "@/lib/types";
 
 /** The report's own columns, the same six the working list shows. */
-const COLUMNS = "104px 1fr 92px 130px 128px 118px";
+const COLUMNS = "104px 1fr 92px 130px 128px 118px 132px";
 
 /**
  * Days that are over. A closed day keeps every candidate, event and break it
@@ -203,10 +204,29 @@ export function HistoryScreen() {
   );
 }
 
-/** One finished day, read only. */
+/**
+ * One finished day. Any member of staff can correct a candidate's details or
+ * take a candidate off it; a deletion asks why, and the database keeps a copy
+ * of what was deleted with that reason and the name of whoever did it.
+ */
 function DayDialog({ day, onClose }: { day: ExamSession; onClose: () => void }) {
-  const { center } = useConsole();
+  const { center, rpc, canFrontOffice } = useConsole();
   const [rows, setRows] = useState<Candidate[] | null>(null);
+  const [editing, setEditing] = useState<Candidate | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(
+    () =>
+      supabaseBrowser()
+        .from("candidates")
+        .select("*")
+        .eq("exam_session_id", day.id)
+        .order("public_token")
+        .then(({ data }) => setRows(data ?? [])),
+    [day.id],
+  );
 
   useEffect(() => {
     let current = true;
@@ -222,6 +242,21 @@ function DayDialog({ day, onClose }: { day: ExamSession; onClose: () => void }) 
       current = false;
     };
   }, [day.id]);
+
+  async function remove(c: Candidate) {
+    setBusy(true);
+    const ok = await rpc(
+      "fets_delete_past_candidate",
+      { p_candidate: c.id, p_reason: reason.trim() },
+      `${fullName(c)} deleted from ${day.exam_date}`,
+    );
+    setBusy(false);
+    if (ok) {
+      setDeletingId(null);
+      setReason("");
+      await load();
+    }
+  }
 
   return (
     <Dialog
@@ -241,6 +276,7 @@ function DayDialog({ day, onClose }: { day: ExamSession; onClose: () => void }) 
         <span>Place</span>
         <span>Contact number</span>
         <span>Status</span>
+        <span />
       </div>
 
       {rows === null && <p className="py-[20px] text-center text-[13px] text-fg-faint">Loading…</p>}
@@ -263,6 +299,55 @@ function DayDialog({ day, onClose }: { day: ExamSession; onClose: () => void }) 
                 {chip.label}
               </span>
             </span>
+            {canFrontOffice && deletingId !== c.id && (
+              <span className="mt-[6px] flex gap-[6px] md:mt-0 md:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setEditing(c)}
+                  className="cursor-pointer rounded-[10px] border border-edge-warm px-[10px] py-[5px] text-[11.5px] font-semibold text-fg-muted hover:text-fg"
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDeletingId(c.id);
+                    setReason("");
+                  }}
+                  className="cursor-pointer rounded-[10px] border border-edge px-[10px] py-[5px] text-[11.5px] text-fg-muted hover:border-rust/50 hover:text-rust"
+                >
+                  Delete
+                </button>
+              </span>
+            )}
+            {deletingId === c.id && (
+              <span className="col-span-full mt-[8px] flex flex-wrap items-center gap-[8px] rounded-[12px] border border-rust/40 bg-rust/8 p-[10px]">
+                <span className="text-[12.5px] font-semibold text-rust">Delete {fullName(c)} from this day?</span>
+                <input
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  maxLength={300}
+                  autoFocus
+                  placeholder="Why? e.g. entered twice, wrong day"
+                  className="min-w-[200px] flex-1 rounded-[10px] border border-edge-strong bg-panel-soft px-[10px] py-[7px] text-[13px] outline-none placeholder:text-fg-faint"
+                />
+                <button
+                  type="button"
+                  disabled={busy || !reason.trim()}
+                  onClick={() => void remove(c)}
+                  className="cursor-pointer rounded-[10px] border border-rust bg-rust/20 px-[12px] py-[7px] text-[12px] font-bold text-rust disabled:opacity-40"
+                >
+                  {busy ? "Deleting…" : "Yes, delete"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeletingId(null)}
+                  className="cursor-pointer rounded-[10px] border border-edge px-[12px] py-[7px] text-[12px] font-semibold text-fg-muted"
+                >
+                  Keep
+                </button>
+              </span>
+            )}
           </div>
         );
       })}
@@ -274,8 +359,19 @@ function DayDialog({ day, onClose }: { day: ExamSession; onClose: () => void }) 
       )}
 
       <p className="pt-[14px] text-[12px] text-fg-faint">
-        Times are shown at {center.timezone}. This day is finished, so nothing here can be changed.
+        Times are shown at {center.timezone}. Every edit and deletion here is recorded with your name.
       </p>
+
+      {editing && (
+        <CandidateDetailsDialog
+          open
+          candidate={editing}
+          onClose={() => {
+            setEditing(null);
+            void load();
+          }}
+        />
+      )}
     </Dialog>
   );
 }
