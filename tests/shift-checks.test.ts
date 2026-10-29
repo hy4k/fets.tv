@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {canRecord,checkStatus,dueAt,sharedLogCsv,type CheckSnapshot,type SharedCheck} from '../lib/shift-checks.ts';
+import {canRecord,checkRail,checkStatus,dueAt,sharedLogCsv,type CheckSnapshot,type SharedCheck} from '../lib/shift-checks.ts';
 import {checkHandlers} from '../lib/shift-check-api.ts';
 const day='2026-10-20';
 const check:SharedCheck={block:0,kind:'walk',due:570,owner_id:'outgoing',owner_name:'Outgoing',event:null};
@@ -29,6 +29,15 @@ test('export uses exact record IDs and actual actors, never nearest-time matchin
  const s={...snapshot,checks:[c,{...check,due:580}]};const csv=sharedLogCsv(s,dueAt(day,600));
  assert.equal(csv.split('event-123').length-1,1);assert.match(csv,/' =formula/);assert.match(csv,/"missed","","","",""/);
  assert.match(csv,/'?Actual actor/);
+});
+test('rail shows the latest due check of each kind and the next one, from the plan only',()=>{
+ const walk2={...check,due:580,owner_id:'cover'},dvr={...check,kind:'dvr' as const,due:576};
+ const s={...snapshot,checks:[walk2,dvr,check]};
+ assert.deepEqual(checkRail(s,'walk',dueAt(day,570)-1),{current:null,next:check});
+ assert.deepEqual(checkRail(s,'walk',dueAt(day,575)),{current:check,next:walk2});
+ assert.deepEqual(checkRail(s,'walk',dueAt(day,900)),{current:walk2,next:null});
+ assert.deepEqual(checkRail(s,'dvr',dueAt(day,576)),{current:dvr,next:null});
+ assert.deepEqual(checkRail({...s,plan:null},'walk',dueAt(day,575)),{current:null,next:null});
 });
 const identity={p_online_user:'trusted-online-id',p_email:'staff@example.test',p_branch:'cochin'};
 const input={planId:snapshot.plan!.id,block:0,kind:'walk',due:570,note:'Completed'};

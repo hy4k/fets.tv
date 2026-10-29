@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 // Isolated component browser checks with explicitly fictional data. No production writes.
 const fs = require("fs");
 const path = require("path");

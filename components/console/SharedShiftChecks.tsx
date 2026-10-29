@@ -2,11 +2,16 @@
 import {useCallback,useEffect,useRef,useState} from "react";
 import {basePath} from "@/lib/base-path";
 import {canRecord,checkStatus,dueAt,sharedLogCsv,type CheckSnapshot,type SharedCheck} from "@/lib/shift-checks";
-const slotKey = (c: SharedCheck) => `${c.block}:${c.kind}:${c.due}`;
+export const slotKey = (c: SharedCheck) => `${c.block}:${c.kind}:${c.due}`;
 const time = (date: string, due: number) => new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',hour:'numeric',minute:'2-digit'}).format(dueAt(date,due));
 
-/** No locally invented checks. The database owns the due time, owner and record. */
-export function SharedChecks({date,centerName,notify,readOnly=false}:{date:string;centerName:string;readOnly?:boolean;notify?:(message:string,tone?:'ok'|'error')=>void}) {
+/**
+ * Today's published checks from The Shift: the snapshot, the server-synced
+ * clock, and recording. Shared by the Lab rail and the report's log, so both
+ * read the same record. A failed or uncertain save pauses recording until a
+ * refresh succeeds.
+ */
+export function useSharedChecks(date:string,notify?:(message:string,tone?:'ok'|'error')=>void,readOnly=false) {
   const [snapshot,setSnapshot] = useState<CheckSnapshot|null>(null);
   const [error,setError] = useState('');
   const [busy,setBusy] = useState('');
@@ -35,11 +40,11 @@ export function SharedChecks({date,centerName,notify,readOnly=false}:{date:strin
     const focus=()=>{if(!saving.current)void load();};window.addEventListener('focus',focus);
     return()=>{mounted.current=false;clearInterval(poll);clearInterval(tick);window.removeEventListener('focus',focus);};
   },[load]);
-  async function record(check:SharedCheck) {
+  async function record(check:SharedCheck,note?:string) {
     if(readOnly || !snapshot?.plan || error || saving.current || !canRecord(snapshot,check,now))return;
     const key=slotKey(check);saving.current=true;setBusy(key);requestId.current++;
     try {
-      const res=await fetch(`${basePath}/api/fets-live/checks`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({planId:snapshot.plan.id,block:check.block,kind:check.kind,due:check.due,note:notes[key]??''}),signal:AbortSignal.timeout(20000)});
+      const res=await fetch(`${basePath}/api/fets-live/checks`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({planId:snapshot.plan.id,block:check.block,kind:check.kind,due:check.due,note:note??notes[key]??''}),signal:AbortSignal.timeout(20000)});
       const data=await res.json();if(!res.ok)throw new Error(data.error || 'Could not save. Refresh to confirm the record.');
       if(!mounted.current)return;
       setNotes(n=>({...n,[key]:''}));notify?.('Check recorded in FETS Online and The Shift.');
@@ -47,6 +52,12 @@ export function SharedChecks({date,centerName,notify,readOnly=false}:{date:strin
     } catch(e) {if(mounted.current)setError(e instanceof Error?e.message:'Could not save. Refresh before trying again.');}
     finally {saving.current=false;if(mounted.current)setBusy('');}
   }
+  return {snapshot,error,busy,notes,setNotes,now,load,record,slotKey};
+}
+
+/** No locally invented checks. The database owns the due time, owner and record. */
+export function SharedChecks({date,centerName,notify,readOnly=false}:{date:string;centerName:string;readOnly?:boolean;notify?:(message:string,tone?:'ok'|'error')=>void}) {
+  const {snapshot,error,busy,notes,setNotes,now,load,record}=useSharedChecks(date,notify,readOnly);
   const checks=snapshot?.checks??[];
   const recorded=checks.filter(c=>!!c.event).length;
   const missed=snapshot?checks.filter(c=>checkStatus(snapshot,c,now)==='missed').length:0;

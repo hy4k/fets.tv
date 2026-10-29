@@ -39,3 +39,13 @@ export function sharedLogCsv(snapshot: CheckSnapshot, now: number) {
   }
   return rows.map(row => row.map(quote).join(',')).join('\r\n')+'\r\n';
 }
+/** For the Lab rail: the latest check of a kind already due, and the next one ahead. */
+export function checkRail(snapshot: CheckSnapshot, kind: SharedCheck['kind'], now: number) {
+  if (!snapshot.plan) return { current: null, next: null };
+  const day = snapshot.plan.day;
+  const mine = (snapshot.checks ?? []).filter(c => c.kind === kind).sort((a, b) => a.due - b.due);
+  return {
+    current: mine.filter(c => dueAt(day, c.due) <= now).pop() ?? null,
+    next: mine.find(c => dueAt(day, c.due) > now) ?? null,
+  };
+}

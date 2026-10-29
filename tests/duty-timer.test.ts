@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { dutyLogCsv, dutySpan, marks, nextMark, rotaOwnerAt, twoDigit, type DutyRota } from "../lib/duty-timer.ts";
+import { dutyLogCsv, dutySpan, markRows, marks, nextMark, rotaOwnerAt, twoDigit, type DutyRota } from "../lib/duty-timer.ts";
 
 const T0 = Date.parse("2026-09-24T03:30:00Z"); // 09:00 in Kolkata
 const min = (m: number) => T0 + m * 60000;
@@ -93,4 +93,26 @@ test("the export fills the on-duty column from the rota", () => {
   const lines = csv.trim().split("\r\n");
   assert.equal(lines[1], '"2026-09-24","DVR check","1","8:06 AM","Bindu","","",""');
   assert.equal(lines[2], '"2026-09-24","Floor walk","1","8:10 AM","Aysha","","",""');
+});
+
+test("each walk mark is done, due, missed or just ahead", () => {
+  const min = 60000;
+  const check = (at: number, who = "Aysha") => ({ kind: "floor" as const, walked_at: new Date(at).toISOString(), walked_by_name: who });
+  // Marks at +10, +20, +30. Checked at +9 (answers +10) and +31 (answers +30).
+  const checks = [check(T0 + 9 * min), check(T0 + 31 * min, "Bindu"), { kind: "dvr" as const, walked_at: new Date(T0 + 20 * min).toISOString(), walked_by_name: "X" }];
+  const rows = markRows("floor", T0, T0 + 60 * min, T0 + 32 * min, checks);
+  assert.deepEqual(rows.map((r) => [r.n, r.state, r.check?.walked_by_name ?? null]), [
+    [1, "done", "Aysha"],
+    [2, "missed", null],
+    [3, "done", "Bindu"],
+  ]);
+  // A mark is due from its time for half an interval, then missed.
+  assert.equal(markRows("floor", T0, T0 + 60 * min, T0 + 22 * min, [])[1].state, "due");
+  assert.equal(markRows("floor", T0, T0 + 60 * min, T0 + 25 * min, [])[1].state, "missed");
+  // Within half an interval before a mark it shows as ahead, and an early check answers it.
+  assert.equal(markRows("floor", T0, T0 + 60 * min, T0 + 6 * min, [])[0].state, "ahead");
+  assert.equal(markRows("floor", T0, T0 + 60 * min, T0 + 7 * min, [check(T0 + 6 * min)])[0].state, "done");
+  // One check answers one mark only.
+  const one = markRows("floor", T0, T0 + 60 * min, T0 + 26 * min, [check(T0 + 12 * min)]);
+  assert.deepEqual(one.map((r) => r.state), ["done", "missed", "ahead"]);
 });
