@@ -38,6 +38,7 @@
   --animate-drift: fetsdrift 14s ease-in-out infinite alternate;
   --animate-sheen: fetssheen 5s ease-in-out infinite;
   --animate-fill: fetsfill 10s linear both;
+  --animate-ticker: fetsticker 30s linear infinite;
 
   /* One TV Channel slide giving way to the next: a slow, calm arrival. */
   @keyframes fetsslidein {
@@ -91,6 +92,16 @@
     }
     to {
       transform: scaleX(1);
+    }
+  }
+
+  /* The ticker: two copies of its lines side by side, moved one copy's width, so the loop never shows a seam. */
+  @keyframes fetsticker {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
     }
   }
 

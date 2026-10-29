@@ -20,3 +20,9 @@ Check it locally with `scripts/verify-tv-channel.mjs` (PGlite).
 - The console shows, per slide and in total: shown and scanned over the last 7 days, and today.
 - SQL: `supabase/migrations/20261020120000_fets_tv_channel_stats.sql`, after the TV Channel SQL. Check it with `scripts/verify-tv-channel-stats.mjs`.
 - The QR code points at whatever address the TV page is opened on, so the TV must use the public address (fets.online), not a local one.
+
+## Video ads and the ticker (part three)
+
+- **Video ad:** a design of its own in *Add a slide*. Upload an MP4 (up to 50 MB, 16:9). It plays from start to finish across the whole TV, however long it runs, then the loop carries on. A call cuts in at once; the ad pauses under it and picks up where it stopped. A QR code in the corner is optional. *Play its sound* plays the ad's audio once the TV has been tapped after opening (the same tap as the call sound); until then it plays silently. A file that will not play, or stops for 30 seconds, is skipped, never left as a black screen. Showings are counted like any slide.
+- **Ticker:** lines that scroll along the bottom of the TV, in the order listed under *Ticker*, whenever nobody is being called (messages and ads included). Each line has the same schedule, on/off switch and "both centres" choice as a slide. Up to 140 characters a line.
+- SQL: `supabase/migrations/20261029090000_fets_tv_ads_ticker.sql`, after the TV Channel SQL. It adds the two kinds and raises the TV file bucket to 50 MB. Until it is run, ads and ticker lines cannot be saved; everything else works as before.

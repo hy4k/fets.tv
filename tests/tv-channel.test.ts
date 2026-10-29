@@ -1,15 +1,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  TICKER_MAX,
   TODAY_SLIDE,
+  adSound,
   cleanLink,
   fieldOf,
+  lengthText,
   localNow,
   nextOn,
   playlist,
   scheduleLine,
   shortLink,
   slideStatus,
+  tickerLines,
+  tickerRun,
   type TvSlide,
 } from "../lib/tv-channel.ts";
 
@@ -126,4 +131,53 @@ test("when a scheduled slide comes on", () => {
   assert.equal(nextOn(slide({ ends_on: "2026-10-19" }), early, IST), null);
   // Past today's hours: tomorrow.
   assert.equal(nextOn(slide({ from_time: "01:00", to_time: "02:00" }), early, IST), "Comes on tomorrow at 1 AM");
+});
+
+test("ticker lines never join the loop, and an ad needs its video", () => {
+  const ticker = slide({ kind: "ticker", fields: { text: "Mock exams on Saturday" } });
+  const ad = slide({ kind: "ad", media_url: "https://x/ad.mp4", media_kind: "video" });
+  const noFile = slide({ kind: "ad" });
+  const picture = slide({ kind: "ad", media_url: "https://x/a.png", media_kind: "image" });
+  assert.deepEqual(playlist([ticker], TUE_1030, IST), []);
+  assert.deepEqual(
+    playlist([ticker, ad, noFile, picture], TUE_1030, IST).map((s) => s.id),
+    [TODAY_SLIDE.id, ad.id],
+  );
+});
+
+test("the ticker runs the lines on now, in the console's order", () => {
+  const a = slide({ kind: "ticker", position: 2, fields: { text: "Second" } });
+  const b = slide({ kind: "ticker", position: 1, fields: { text: "  First \n line  " } });
+  const later = slide({ kind: "ticker", position: 0, fields: { text: "Weekends" }, days: [0, 6] });
+  const off = slide({ kind: "ticker", position: 0, fields: { text: "Off" }, active: false });
+  const blank = slide({ kind: "ticker", position: 3, fields: {} });
+  const long = slide({ kind: "ticker", position: 4, fields: { text: "x".repeat(200) } });
+  const promo = slide({ position: 0 });
+  const lines = tickerLines([a, b, later, off, blank, long, promo], TUE_1030, IST);
+  assert.deepEqual(lines.slice(0, 2), ["First line", "Second"]);
+  assert.equal(lines.length, 3);
+  assert.equal(lines[2].length, TICKER_MAX);
+  assert.deepEqual(tickerLines([a], 0, IST), []);
+  assert.deepEqual(tickerLines(null, TUE_1030, IST), []);
+});
+
+test("a short ticker repeats until it fills the strip, at a readable pace", () => {
+  const short = tickerRun(["Hello"]);
+  assert.ok(short.lines.length > 1 && short.lines.every((l) => l === "Hello"));
+  assert.ok(short.lines.reduce((n, l) => n + l.length + 6, 0) >= 90);
+  assert.ok(short.seconds >= 12);
+  const long = tickerRun(["a".repeat(140), "b".repeat(140)]);
+  assert.equal(long.lines.length, 2);
+  assert.equal(long.seconds, Math.round(292 / 5));
+  assert.deepEqual(tickerRun([]), { lines: [], seconds: 0 });
+});
+
+test("ads: sound is a choice, and they run to the end", () => {
+  assert.equal(adSound({ fields: { sound: "on" } }), true);
+  assert.equal(adSound({ fields: {} }), false);
+  assert.equal(lengthText({ kind: "ad", seconds: 60 }), "plays to the end");
+  assert.equal(lengthText({ kind: "ticker", seconds: 12 }), "scrolls along the bottom");
+  assert.equal(lengthText({ kind: "promo", seconds: 15 }), "15s");
+  // A ticker never shows the sample words in place of a missing line.
+  assert.equal(fieldOf({ kind: "ticker", fields: {} }, "text"), "");
 });
