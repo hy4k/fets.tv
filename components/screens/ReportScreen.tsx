@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import {SharedChecks} from "@/components/console/SharedShiftChecks";
 import { CprComposer } from "@/components/screens/CprComposer";
 import { useConsole } from "@/lib/console-data";
 import { supabaseBrowser } from "@/lib/supabase/client";
@@ -293,6 +294,7 @@ export function ReportBody({
 
             {/* The centre's own wording, filled from the day. Only today's
                 open report takes new entries; any day's can be copied. */}
+            <SharedChecks date={report.session.exam_date} centerName={report.center.name} readOnly />
             <CprComposer canAdd={canAddEntry} />
 
             <section className="rounded-[18px] border border-edge-mid panel-bg p-[14px]">
