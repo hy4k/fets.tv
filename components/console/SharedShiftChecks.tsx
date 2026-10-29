@@ -21,8 +21,10 @@ export function useSharedChecks(date:string,notify?:(message:string,tone?:'ok'|'
   const requestId = useRef(0);
   const mounted = useRef(true);
   const saving = useRef(false);
+  // A slow read is left to finish (or time out) before the next poll; otherwise each poll would discard the last.
+  const reading = useRef(false);
   const load = useCallback(async () => {
-    const id=++requestId.current;
+    const id=++requestId.current;reading.current=true;
     try {
       const res=await fetch(`${basePath}/api/fets-live/checks?date=${encodeURIComponent(date)}`,{cache:'no-store',signal:AbortSignal.timeout(15000)});
       const data=await res.json();
@@ -32,12 +34,13 @@ export function useSharedChecks(date:string,notify?:(message:string,tone?:'ok'|'
       offset.current=Date.parse(data.server_now)-Date.now();
       setNow(Date.now()+offset.current);setSnapshot(data);setError('');
     } catch(e) {if(mounted.current && id===requestId.current)setError(e instanceof Error?e.message:'Could not read shared checks.');}
+    finally {reading.current=false;}
   },[date]);
   useEffect(()=>{
     mounted.current=true;void load();
-    const poll=setInterval(()=>{if(!saving.current)void load();},10000);
+    const poll=setInterval(()=>{if(!saving.current && !reading.current)void load();},10000);
     const tick=setInterval(()=>setNow(Date.now()+offset.current),1000);
-    const focus=()=>{if(!saving.current)void load();};window.addEventListener('focus',focus);
+    const focus=()=>{if(!saving.current && !reading.current)void load();};window.addEventListener('focus',focus);
     return()=>{mounted.current=false;clearInterval(poll);clearInterval(tick);window.removeEventListener('focus',focus);};
   },[load]);
   async function record(check:SharedCheck,note?:string) {
