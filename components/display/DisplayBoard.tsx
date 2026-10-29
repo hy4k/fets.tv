@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useClock, useNow } from "@/lib/use-clock";
-import { ChannelSlide } from "@/components/display/ChannelSlide";
-import { playlist, TODAY_SLIDE, type TvSlide } from "@/lib/tv-channel";
+import { AdBreak, ChannelSlide, TICKER_HEIGHT, TickerStrip } from "@/components/display/ChannelSlide";
+import { playlist, tickerLines, TODAY_SLIDE, type TvSlide } from "@/lib/tv-channel";
 import { LogoMark } from "@/components/brand/Logo";
 import { centreLook, shortName } from "@/lib/centres";
 import type { BoardFloor, BoardHome } from "@/lib/types";
@@ -85,6 +85,7 @@ export function DisplayBoard({
   notice = null,
   slides = null,
   onShown,
+  sound = false,
   nonce = 0,
   siteLabel,
   centre,
@@ -105,6 +106,8 @@ export function DisplayBoard({
   slides?: TvSlide[] | null;
   /** Told each time a slide comes on the screen, for the TV's own counts. */
   onShown?: (slideId: string) => void;
+  /** Whether a video ad may play its sound: the hall TV only, never a preview in the console. */
+  sound?: boolean;
   nonce?: number;
   siteLabel?: string;
   /** Which centre this board is in; sets the mark's metal and the name. */
@@ -119,8 +122,13 @@ export function DisplayBoard({
   const now = useNow();
   // A message put up by hand comes before the loop; a call before everything.
   const loop = notice ? [] : playlist(slides, now, timezone);
-  const { slide, round } = useChannel(loop);
-  const designed = !call && slide && slide.kind !== "today" ? slide : null;
+  const { slide, round, advance } = useChannel(loop);
+  const designed = !call && slide && slide.kind !== "today" && slide.kind !== "ad" ? slide : null;
+  // An ad stays mounted under a call, paused, so it carries on where it stopped.
+  const ad = slide?.kind === "ad" ? slide : null;
+  // The ticker runs under everything but a call, notices included.
+  const lines = tickerLines(slides, now, timezone);
+  const ticker = !call && lines.length > 0;
   const callOn = !!call;
 
   // Counted once per turn on screen; the home screen the loop adds itself is not a slide.
@@ -137,7 +145,7 @@ export function DisplayBoard({
       style={{
         background: `radial-gradient(900px 420px at 50% -8%, color-mix(in oklab, ${look.tone[1]} 30%, transparent), transparent 68%), linear-gradient(170deg, #15151a, #0e0e12)`,
       }}
-      className={`@container flex min-h-0 flex-col gap-[2cqh] overflow-hidden rounded-[24px] border border-edge-mid [container-type:size] p-[clamp(9px,2.2cqw,34px)] ${className}`}
+      className={`@container relative flex min-h-0 flex-col gap-[2cqh] overflow-hidden rounded-[24px] border border-edge-mid [container-type:size] p-[clamp(9px,2.2cqw,34px)] ${className}`}
     >
       <header className="flex shrink-0 flex-wrap items-center gap-[12px]">
         <span className="h-[clamp(18px,3.4cqw,48px)] w-[clamp(18px,3.4cqw,48px)] shrink-0">
@@ -360,6 +368,27 @@ export function DisplayBoard({
           </div>
         </section>
       )}
+
+      {/* Room under everything else for the ticker, which runs edge to edge. */}
+      {ticker && <div aria-hidden className="shrink-0" style={{ height: TICKER_HEIGHT }} />}
+
+      {ad && (
+        <AdBreak
+          key={`ad:${ad.id}#${round}`}
+          slide={ad}
+          paused={callOn}
+          sound={sound}
+          clock={clock}
+          onDone={advance}
+          style={{ bottom: ticker ? TICKER_HEIGHT : 0 }}
+        />
+      )}
+
+      {ticker && (
+        <div className="absolute inset-x-0 bottom-0 z-20">
+          <TickerStrip lines={lines} tone={look.tone} />
+        </div>
+      )}
     </div>
   );
 }
@@ -541,24 +570,24 @@ function IdleFloor({
  * when the loop changes round it — a slide added, another one's hours over —
  * and the loop starts from the top only when the one on screen has gone.
  */
-function useChannel(loop: TvSlide[]): { slide: TvSlide | null; round: number } {
+function useChannel(loop: TvSlide[]): { slide: TvSlide | null; round: number; advance: () => void } {
   const [at, setAt] = useState<{ id: string | null; round: number }>({ id: null, round: 0 });
   const index = Math.max(0, loop.findIndex((s) => s.id === at.id));
   const slide = loop[index] ?? null;
   const ids = loop.map((s) => s.id).join("|");
+  const advance = () =>
+    setAt((a) => ({ id: loop.length ? loop[(index + 1) % loop.length].id : null, round: a.round + 1 }));
 
   useEffect(() => {
-    if (!slide || loop.length < 2) return;
-    const t = setTimeout(
-      () => setAt((a) => ({ id: loop[(index + 1) % loop.length].id, round: a.round + 1 })),
-      slide.seconds * 1000,
-    );
+    // A video ad moves the loop on itself, when it ends.
+    if (!slide || loop.length < 2 || slide.kind === "ad") return;
+    const t = setTimeout(advance, slide.seconds * 1000);
     return () => clearTimeout(t);
     // The loop is rebuilt every second from the clock; its slides are what matter.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ids, slide?.id, slide?.seconds, at.round]);
 
-  return { slide, round: at.round };
+  return { slide, round: at.round, advance };
 }
 
 /** A thin bar per slide; the one on screen fills for as long as it stays. */

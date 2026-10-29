@@ -7,9 +7,13 @@
  * clock, so a slide comes on and goes off at the right minute without anybody
  * touching the console. A call always takes the screen first, and a message put
  * up by hand comes before the loop.
+ *
+ * Two kinds are not slides in the loop's usual sense. A video ad plays start to
+ * finish across the whole screen, however long it runs, and a ticker line
+ * scrolls along the bottom of the TV with the others while nobody is called.
  */
 
-export type SlideKind = "promo" | "batch" | "partners" | "tip" | "poster" | "today";
+export type SlideKind = "promo" | "batch" | "partners" | "tip" | "poster" | "ad" | "ticker" | "today";
 
 export type TvSlide = {
   id: string;
@@ -44,6 +48,15 @@ export type TvSlide = {
 export const BOOKING_LINK = "https://fets.in/testdrive/";
 
 export const PARTNERS = ["Prometric", "Pearson VUE", "ETS", "PSI", "IELTS", "ACCA"];
+
+/** A ticker line, short enough to read while it moves. */
+export const TICKER_MAX = 140;
+
+/**
+ * The longest a video ad may hold the screen. Its own end decides; this only
+ * stops a film uploaded by mistake from taking the TV for the afternoon.
+ */
+export const AD_MAX_SECONDS = 600;
 
 export type FieldSpec = { key: string; label: string; max: number; placeholder: string; multiline?: boolean };
 
@@ -136,6 +149,26 @@ export const DESIGNS: Design[] = [
     seconds: 12,
   },
   {
+    kind: "ad",
+    name: "Video ad",
+    hint: "Plays start to finish, full screen. A call cuts in at once",
+    fields: [],
+    sample: {},
+    qr: "optional",
+    media: true,
+    // Not used: an ad stays for as long as the video runs.
+    seconds: 60,
+  },
+  {
+    kind: "ticker",
+    name: "Ticker line",
+    hint: "A line that scrolls along the bottom of the TV",
+    fields: [{ key: "text", label: "The line", max: TICKER_MAX, placeholder: "Mock exams every Saturday · book at fets.in/testdrive" }],
+    sample: { text: "Mock exams every Saturday · book at fets.in/testdrive" },
+    qr: "none",
+    seconds: 12,
+  },
+  {
     kind: "today",
     name: "Today at FETS",
     hint: "The home screen: welcome, seats and exams running",
@@ -157,8 +190,8 @@ export const MAX_SECONDS = 60;
 export function fieldOf(slide: Pick<TvSlide, "kind" | "fields">, key: string): string {
   const typed = slide.fields?.[key]?.trim();
   if (typed) return typed;
-  // The poster's caption stays empty unless somebody writes one.
-  if (slide.kind === "poster") return "";
+  // The poster's caption and a ticker line stay empty unless somebody writes one.
+  if (slide.kind === "poster" || slide.kind === "ticker") return "";
   return designOf(slide.kind).sample[key] ?? "";
 }
 
@@ -269,13 +302,47 @@ export const TODAY_SLIDE: TvSlide = {
 export function playlist(slides: TvSlide[] | null | undefined, ms: number, timezone: string): TvSlide[] {
   if (!slides?.length || ms === 0) return [];
   const on = slides
-    .filter((s) => slideStatus(s, ms, timezone) === "on")
-    // A poster whose file is missing would be a blank screen.
+    .filter((s) => s.kind !== "ticker" && slideStatus(s, ms, timezone) === "on")
+    // A poster whose file is missing would be a blank screen; an ad without its video, a black one.
     .filter((s) => s.kind !== "poster" || !!s.media_url || !!s.fields?.caption?.trim())
+    .filter((s) => s.kind !== "ad" || (!!s.media_url && s.media_kind === "video"))
     .sort((a, b) => a.position - b.position || a.id.localeCompare(b.id));
   if (on.length === 0) return [];
   if (on.every((s) => s.kind === "today")) return [];
   return on.some((s) => s.kind === "today") ? on : [TODAY_SLIDE, ...on];
+}
+
+/** Whether an ad plays its sound; the TV still needs one tap after opening before it may. */
+export const adSound = (slide: Pick<TvSlide, "fields">) => slide.fields?.sound === "on";
+
+/** The ticker lines on now, in the console's order. Empty when there are none: no strip. */
+export function tickerLines(slides: TvSlide[] | null | undefined, ms: number, timezone: string): string[] {
+  if (!slides?.length || ms === 0) return [];
+  return slides
+    .filter((s) => s.kind === "ticker" && slideStatus(s, ms, timezone) === "on")
+    .sort((a, b) => a.position - b.position || a.id.localeCompare(b.id))
+    .map((s) => fieldOf(s, "text").replace(/\s+/g, " ").slice(0, TICKER_MAX))
+    .filter(Boolean);
+}
+
+/**
+ * The ticker's text for one pass, repeated until it is long enough to fill the
+ * strip, and how long that pass takes: about five characters a second, a pace
+ * that reads from the back of the hall.
+ */
+export function tickerRun(lines: string[]): { lines: string[]; seconds: number } {
+  const chars = lines.reduce((n, l) => n + l.length + 6, 0);
+  if (chars === 0) return { lines: [], seconds: 0 };
+  const repeat = Math.max(1, Math.ceil(90 / chars));
+  const run = Array.from({ length: repeat }, () => lines).flat();
+  return { lines: run, seconds: Math.max(12, Math.round((chars * repeat) / 5)) };
+}
+
+/** How long a slide stays, in a word for the console's list. */
+export function lengthText(slide: Pick<TvSlide, "kind" | "seconds">): string {
+  if (slide.kind === "ad") return "plays to the end";
+  if (slide.kind === "ticker") return "scrolls along the bottom";
+  return `${slide.seconds}s`;
 }
 
 /** "Daily · all day", "Mon–Fri · 9 AM–1 PM · until 31 Oct" — the schedule in a line. */

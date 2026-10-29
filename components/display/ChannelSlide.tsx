@@ -1,8 +1,8 @@
-import { useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import { LogoMark } from "@/components/brand/Logo";
 import { QrCode } from "@/components/display/QrCode";
 import { basePath } from "@/lib/base-path";
-import { fieldOf, qrTarget, shortLink, type TvSlide } from "@/lib/tv-channel";
+import { AD_MAX_SECONDS, adSound, fieldOf, qrTarget, shortLink, tickerRun, type TvSlide } from "@/lib/tv-channel";
 
 const noSubscribe = () => () => {};
 
@@ -35,7 +35,10 @@ export function ChannelSlide({ slide, tone }: { slide: TvSlide; tone: [string, s
       {slide.kind === "partners" && <Partners f={f} tone={tone} />}
       {slide.kind === "tip" && <Tip f={f} tone={tone} />}
       {slide.kind === "poster" && <Poster slide={slide} caption={f("caption")} link={link} qr={qr} />}
-      {slide.kind !== "poster" && <Brand tone={tone} />}
+      {/* On the TV an ad plays full screen (AdBreak); here, in the console, it shows like a poster. */}
+      {slide.kind === "ad" && <Poster slide={slide} caption="" link={link} qr={qr} />}
+      {slide.kind === "ticker" && <TickerPreview text={f("text")} tone={tone} />}
+      {slide.kind !== "poster" && slide.kind !== "ad" && slide.kind !== "ticker" && <Brand tone={tone} />}
     </div>
   );
 }
@@ -286,7 +289,7 @@ function Poster({ slide, caption, link, qr }: { slide: TvSlide; caption: string;
       )}
       {!url && (
         <div className="absolute inset-0 flex items-center justify-center text-[min(2cqw,4cqh)] text-fg-faint">
-          Choose an image or a video
+          {slide.kind === "ad" ? "Choose a video" : "Choose an image or a video"}
         </div>
       )}
       {(caption || link) && (
@@ -303,5 +306,168 @@ function Poster({ slide, caption, link, qr }: { slide: TvSlide; caption: string;
         </div>
       )}
     </div>
+  );
+}
+
+/** How tall the ticker strip stands, for whatever must leave room for it. */
+export const TICKER_HEIGHT = "clamp(20px, 8cqh, 96px)";
+
+/**
+ * The ticker: the centre's lines scrolling along the bottom of the TV, like a
+ * news channel's. Two copies run side by side and move one copy's width, so
+ * the loop never shows a seam.
+ */
+export function TickerStrip({ lines, tone }: { lines: string[]; tone: [string, string] }) {
+  const { lines: run, seconds } = tickerRun(lines);
+  const copy = (hidden: boolean) => (
+    <span aria-hidden={hidden || undefined} className="flex shrink-0 items-center pl-[2.4cqw]">
+      {run.map((line, i) => (
+        <span key={i} className="flex shrink-0 items-center">
+          <span className="whitespace-nowrap">{line}</span>
+          <span aria-hidden className="mx-[2.4cqw] h-[1.1cqh] w-[1.1cqh] shrink-0 rotate-45" style={{ background: tone[0] }} />
+        </span>
+      ))}
+    </span>
+  );
+  return (
+    <div style={{ height: TICKER_HEIGHT }} className="flex w-full items-stretch overflow-hidden border-t border-white/10 bg-[#09090c]">
+      <span
+        className="flex shrink-0 items-center px-[1.8cqw] font-mono text-[clamp(7px,2.2cqh,26px)] font-extrabold tracking-[0.2em] text-[#191309] uppercase"
+        style={{ background: `linear-gradient(135deg, ${tone[0]}, ${tone[1]})` }}
+      >
+        Updates
+      </span>
+      <div className="relative min-w-0 flex-1 overflow-hidden">
+        {/* Keyed on the words, so new lines start a fresh pass rather than jump. */}
+        <div
+          key={run.join("\n")}
+          className="absolute inset-y-0 left-0 flex w-max animate-ticker items-center text-[clamp(9px,4cqh,44px)] font-semibold text-fg motion-reduce:animate-none"
+          style={{ animationDuration: `${seconds}s` }}
+        >
+          {copy(false)}
+          {copy(true)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** A ticker line in the console: the strip as it runs along the bottom of the TV. */
+function TickerPreview({ text, tone }: { text: string; tone: [string, string] }) {
+  return (
+    <>
+      <div className="absolute inset-x-0 top-0 bottom-[8cqh] flex items-center justify-center px-[6cqw] text-center text-[min(2.4cqw,4.4cqh)] text-fg-faint">
+        Scrolls along the bottom of the TV while nobody is being called
+      </div>
+      <div className="absolute inset-x-0 bottom-0">
+        <TickerStrip lines={[text || "Write the line"]} tone={tone} />
+      </div>
+    </>
+  );
+}
+
+/**
+ * A video ad on the hall TV: the whole screen, start to finish, and then the
+ * loop moves on. A call cuts in at once: the ad pauses out of sight and carries
+ * on from the same moment afterwards. A file that will not play, or stops
+ * moving, gives way rather than leave a black screen.
+ */
+export function AdBreak({
+  slide,
+  paused,
+  sound,
+  clock,
+  onDone,
+  style,
+}: {
+  slide: TvSlide;
+  /** A call is on: hold still, out of sight. */
+  paused: boolean;
+  /** Whether this screen may play sound at all; the ad's own setting decides after that. */
+  sound: boolean;
+  clock: string;
+  onDone: () => void;
+  style?: CSSProperties;
+}) {
+  const video = useRef<HTMLVideoElement>(null);
+  const done = useRef(onDone);
+  // Once only: a broken file can fail to load and then refuse to play, and the loop must move on just once.
+  const over = useRef(false);
+  const finish = () => {
+    if (over.current) return;
+    over.current = true;
+    done.current();
+  };
+  // The TV's state re-signs file links whenever it changes; the link this turn
+  // started with keeps the video from starting over halfway through.
+  const [src] = useState(slide.media_url ?? undefined);
+  const qr = qrTarget(slide, useScanBase());
+  const withSound = sound && adSound(slide);
+
+  useEffect(() => {
+    done.current = onDone;
+  });
+
+  // Play, or hold still under a call. With sound only where the browser allows it.
+  useEffect(() => {
+    const v = video.current;
+    if (!v) return;
+    if (paused) {
+      v.pause();
+      return;
+    }
+    v.muted = !withSound;
+    v.play().catch(() => {
+      v.muted = true;
+      v.play().catch(finish);
+    });
+  }, [paused, withSound]);
+
+  // Thirty seconds without moving, or past the limit, and the ad gives way.
+  useEffect(() => {
+    if (paused) return;
+    let last = -1;
+    let still = 0;
+    const watch = window.setInterval(() => {
+      const v = video.current;
+      if (!v) return;
+      if (v.currentTime >= AD_MAX_SECONDS) return finish();
+      still = v.currentTime === last ? still + 1 : 0;
+      last = v.currentTime;
+      if (still >= 6) finish();
+    }, 5000);
+    return () => window.clearInterval(watch);
+  }, [paused]);
+
+  return (
+    <section
+      aria-label="Video ad"
+      style={style}
+      className={`absolute inset-x-0 top-0 z-10 overflow-hidden bg-black [container-type:size] ${paused ? "hidden" : ""}`}
+    >
+      <video
+        ref={video}
+        src={src}
+        playsInline
+        preload="auto"
+        onEnded={finish}
+        onError={finish}
+        className="absolute inset-0 h-full w-full object-contain"
+      />
+      <span className="absolute top-[3cqh] left-[2.5cqw] rounded-full bg-black/60 px-[1.6cqw] py-[0.8cqh] text-[clamp(8px,2.6cqh,28px)] font-semibold text-white/90">
+        Your name comes up here when it is your turn
+      </span>
+      <span className="absolute top-[3cqh] right-[2.5cqw] rounded-full bg-black/60 px-[1.6cqw] py-[0.8cqh] font-mono text-[clamp(8px,2.8cqh,30px)] font-semibold text-white/90 tabular-nums">
+        {clock}
+      </span>
+      {slide.link && qr && (
+        <span className="absolute right-[2.5cqw] bottom-[4cqh] flex flex-col items-center gap-[1cqh] rounded-[1.2cqw] bg-black/60 p-[1cqw]">
+          <span className="w-[min(12cqw,22cqh)] rounded-[8%] bg-white p-[3%]">
+            <QrCode value={qr} className="block h-auto w-full" />
+          </span>
+          <span className="font-mono text-[clamp(7px,2cqh,22px)] text-white/85">{shortLink(slide.link)}</span>
+        </span>
+      )}
+    </section>
   );
 }

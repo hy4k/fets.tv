@@ -19,8 +19,10 @@ import {
   DESIGNS,
   MAX_SECONDS,
   MIN_SECONDS,
+  adSound,
   cleanLink,
   designOf,
+  lengthText,
   localNow,
   nextOn,
   playlist,
@@ -34,6 +36,8 @@ import {
 import { useNow } from "@/lib/use-clock";
 
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
+/** A video ad may be longer: about two minutes of 1080p. */
+const MAX_AD_BYTES = 50 * 1024 * 1024;
 
 type Draft = Omit<TvSlide, "id" | "center_id" | "position"> & { id: string | null };
 
@@ -132,7 +136,8 @@ export function ChannelScreen() {
     (t, n) => ({ shown: t.shown + n.shown, scans: t.scans + n.scans }),
     { shown: 0, scans: 0 },
   );
-  const mine = slides.filter((s) => s.center_id === center.id);
+  const mine = slides.filter((s) => s.center_id === center.id && s.kind !== "ticker");
+  const tickers = slides.filter((s) => s.center_id === center.id && s.kind === "ticker");
   const shared = slides.filter((s) => s.center_id !== center.id);
   const loop = playlist(slides, now, center.timezone);
   const floor = roomFloor(candidates, workstations, programmes);
@@ -157,12 +162,13 @@ export function ChannelScreen() {
 
   function chooseFile(next: File | null) {
     if (filePreview) URL.revokeObjectURL(filePreview);
-    if (next && next.size > MAX_FILE_BYTES) {
-      notify("That file is larger than 25 MB.", "error");
+    const ad = draft?.kind === "ad";
+    if (next && next.size > (ad ? MAX_AD_BYTES : MAX_FILE_BYTES)) {
+      notify(ad ? "That video is larger than 50 MB." : "That file is larger than 25 MB.", "error");
       return;
     }
-    if (next && !/^(image|video)\//.test(next.type)) {
-      notify("A poster is an image or a video.", "error");
+    if (next && !(ad ? /^video\//.test(next.type) : /^(image|video)\//.test(next.type))) {
+      notify(ad ? "A video ad needs an MP4 or WebM video." : "A poster is an image or a video.", "error");
       return;
     }
     setFile(next);
@@ -190,7 +196,17 @@ export function ChannelScreen() {
       if (next.kind === "poster" && !next.media_path && !next.fields.caption?.trim()) {
         throw new Error("Choose an image or a video for the poster.");
       }
-      const ok = await rpc("fets_save_slide", { p_center: center.id, p_slide: payload(next) }, draft.id ? "Slide saved" : "Slide added to the TV Channel");
+      if (next.kind === "ad" && (!next.media_path || next.media_kind !== "video")) {
+        throw new Error("Choose the video for the ad.");
+      }
+      if (next.kind === "ticker" && !next.fields.text?.trim()) {
+        throw new Error("Write the line for the ticker.");
+      }
+      const done =
+        next.kind === "ticker"
+          ? draft.id ? "Ticker line saved" : "Ticker line added"
+          : draft.id ? "Slide saved" : "Slide added to the TV Channel";
+      const ok = await rpc("fets_save_slide", { p_center: center.id, p_slide: payload(next) }, done);
       if (ok) {
         close();
         await reload();
@@ -217,8 +233,8 @@ export function ChannelScreen() {
     if (ok) await reload();
   }
 
-  async function move(i: number, by: -1 | 1) {
-    const order = mine.map((s) => s.id);
+  async function move(list: TvSlide[], i: number, by: -1 | 1) {
+    const order = list.map((s) => s.id);
     const [id] = order.splice(i, 1);
     order.splice(i + by, 0, id);
     if (await rpc("fets_order_slides", { p_center: center.id, p_slides: order })) await reload();
@@ -287,8 +303,8 @@ export function ChannelScreen() {
                 locked={locked}
                 first={i === 0}
                 last={i === mine.length - 1}
-                onUp={() => void move(i, -1)}
-                onDown={() => void move(i, 1)}
+                onUp={() => void move(mine, i, -1)}
+                onDown={() => void move(mine, i, 1)}
                 onEdit={() => open(toDraft(s))}
                 onToggle={() => void toggle(s)}
                 onDelete={() => void remove(s)}
@@ -305,9 +321,47 @@ export function ChannelScreen() {
           </section>
 
           <section className="flex flex-col gap-[10px] rounded-[22px] border border-edge-mid panel-bg p-[16px]">
+            <div className="flex items-baseline gap-[10px]">
+              <span className="text-[14px] font-semibold">Ticker</span>
+              <span className="text-[11.5px] text-fg-faint">Lines that scroll along the bottom of the TV, top to bottom</span>
+              <span className="flex-1" />
+              <button
+                type="button"
+                disabled={locked || !ready}
+                onClick={() => open(newDraft("ticker"))}
+                className="cursor-pointer rounded-[10px] border border-edge-strong px-[10px] py-[6px] text-[12px] font-semibold text-fg-muted hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Add a line
+              </button>
+            </div>
+            {tickers.length === 0 && (
+              <p className="text-[12.5px] text-fg-faint">
+                No lines yet. Add one and it runs along the bottom of the TV whenever nobody is being called.
+              </p>
+            )}
+            {tickers.map((s, i) => (
+              <SlideRow
+                key={s.id}
+                slide={s}
+                tone={tone}
+                status={slideStatus(s, now, center.timezone)}
+                hint={nextOn(s, now, center.timezone)}
+                locked={locked}
+                first={i === 0}
+                last={i === tickers.length - 1}
+                onUp={() => void move(tickers, i, -1)}
+                onDown={() => void move(tickers, i, 1)}
+                onEdit={() => open(toDraft(s))}
+                onToggle={() => void toggle(s)}
+                onDelete={() => void remove(s)}
+              />
+            ))}
+          </section>
+
+          <section className="flex flex-col gap-[10px] rounded-[22px] border border-edge-mid panel-bg p-[16px]">
             <span className="text-[14px] font-semibold">Add a slide</span>
             <div className="grid grid-cols-2 gap-[10px] sm:grid-cols-3">
-              {DESIGNS.map((d) => (
+              {DESIGNS.filter((d) => d.kind !== "ticker").map((d) => (
                 <button
                   key={d.kind}
                   type="button"
@@ -416,7 +470,14 @@ export function ChannelScreen() {
               ))}
 
               {designOf(draft.kind).media && (
-                <Field label="Image or video" note="PNG, JPG or MP4 up to 25 MB · 16:9 fills the screen">
+                <Field
+                  label={draft.kind === "ad" ? "Video" : "Image or video"}
+                  note={
+                    draft.kind === "ad"
+                      ? "MP4 up to 50 MB · 16:9 fills the screen"
+                      : "PNG, JPG or MP4 up to 25 MB · 16:9 fills the screen"
+                  }
+                >
                   <div className="flex flex-wrap items-center gap-[10px]">
                     <button
                       type="button"
@@ -431,7 +492,11 @@ export function ChannelScreen() {
                     <input
                       ref={fileInput}
                       type="file"
-                      accept="image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm"
+                      accept={
+                        draft.kind === "ad"
+                          ? "video/mp4,video/webm"
+                          : "image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm"
+                      }
                       className="hidden"
                       onChange={(e) => chooseFile(e.target.files?.[0] ?? null)}
                     />
@@ -485,20 +550,41 @@ export function ChannelScreen() {
 
               <Schedule draft={draft} onChange={setDraft} />
 
+              {draft.kind === "ad" && (
+                <div className="flex flex-col gap-[6px] rounded-[16px] border border-edge bg-panel-soft p-[12px]">
+                  <label className="flex cursor-pointer items-center gap-[10px] text-[13px] font-semibold">
+                    <input
+                      type="checkbox"
+                      checked={adSound(draft)}
+                      onChange={(e) => setDraft({ ...draft, fields: { ...draft.fields, sound: e.target.checked ? "on" : "" } })}
+                      className="h-[16px] w-[16px] accent-[var(--place-accent)]"
+                    />
+                    Play its sound
+                  </label>
+                  <span className="text-[11px] leading-snug text-fg-faint">
+                    The ad plays from start to finish across the whole screen, then the loop carries on. A call cuts in at
+                    once and the ad picks up where it stopped. Sound plays once the TV has been tapped after opening, the
+                    same as the call sound; until then the ad plays silently.
+                  </span>
+                </div>
+              )}
+
               <div className="flex flex-col gap-[10px] rounded-[16px] border border-edge bg-panel-soft p-[12px]">
-                <label className="flex items-center gap-[10px] text-[13px] font-semibold">
-                  <span className="w-[120px] shrink-0">On screen for</span>
-                  <input
-                    type="range"
-                    min={MIN_SECONDS}
-                    max={MAX_SECONDS}
-                    step={1}
-                    value={draft.seconds}
-                    onChange={(e) => setDraft({ ...draft, seconds: Number(e.target.value) })}
-                    className="min-w-0 flex-1 accent-[var(--place-accent)]"
-                  />
-                  <span className="w-[48px] text-right font-mono text-[12px] text-fg-muted">{draft.seconds}s</span>
-                </label>
+                {draft.kind !== "ad" && draft.kind !== "ticker" && (
+                  <label className="flex items-center gap-[10px] text-[13px] font-semibold">
+                    <span className="w-[120px] shrink-0">On screen for</span>
+                    <input
+                      type="range"
+                      min={MIN_SECONDS}
+                      max={MAX_SECONDS}
+                      step={1}
+                      value={draft.seconds}
+                      onChange={(e) => setDraft({ ...draft, seconds: Number(e.target.value) })}
+                      className="min-w-0 flex-1 accent-[var(--place-accent)]"
+                    />
+                    <span className="w-[48px] text-right font-mono text-[12px] text-fg-muted">{draft.seconds}s</span>
+                  </label>
+                )}
                 <label className="flex cursor-pointer items-center gap-[10px] text-[13px] font-semibold">
                   <input
                     type="checkbox"
@@ -685,7 +771,7 @@ function SlideRow({
           )}
         </span>
         <span className="truncate text-[11.5px] text-fg-faint">
-          {designOf(slide.kind).name} · {slide.seconds}s · {scheduleLine(slide)}
+          {designOf(slide.kind).name} · {lengthText(slide)} · {scheduleLine(slide)}
         </span>
         {hint && <span className="text-[11.5px] font-semibold text-iris">{hint}</span>}
         {numbers && (
