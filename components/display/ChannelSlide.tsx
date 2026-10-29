@@ -391,6 +391,13 @@ export function AdBreak({
 }) {
   const video = useRef<HTMLVideoElement>(null);
   const done = useRef(onDone);
+  // Once only: a broken file can fail to load and then refuse to play, and the loop must move on just once.
+  const over = useRef(false);
+  const finish = () => {
+    if (over.current) return;
+    over.current = true;
+    done.current();
+  };
   // The TV's state re-signs file links whenever it changes; the link this turn
   // started with keeps the video from starting over halfway through.
   const [src] = useState(slide.media_url ?? undefined);
@@ -412,7 +419,7 @@ export function AdBreak({
     v.muted = !withSound;
     v.play().catch(() => {
       v.muted = true;
-      v.play().catch(() => done.current());
+      v.play().catch(finish);
     });
   }, [paused, withSound]);
 
@@ -424,10 +431,10 @@ export function AdBreak({
     const watch = window.setInterval(() => {
       const v = video.current;
       if (!v) return;
-      if (v.currentTime >= AD_MAX_SECONDS) return done.current();
+      if (v.currentTime >= AD_MAX_SECONDS) return finish();
       still = v.currentTime === last ? still + 1 : 0;
       last = v.currentTime;
-      if (still >= 6) done.current();
+      if (still >= 6) finish();
     }, 5000);
     return () => window.clearInterval(watch);
   }, [paused]);
@@ -443,8 +450,8 @@ export function AdBreak({
         src={src}
         playsInline
         preload="auto"
-        onEnded={() => done.current()}
-        onError={() => done.current()}
+        onEnded={finish}
+        onError={finish}
         className="absolute inset-0 h-full w-full object-contain"
       />
       <span className="absolute top-[3cqh] left-[2.5cqw] rounded-full bg-black/60 px-[1.6cqw] py-[0.8cqh] text-[clamp(8px,2.6cqh,28px)] font-semibold text-white/90">
