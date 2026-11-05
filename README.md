@@ -2,7 +2,7 @@
 
 Exam delivery console for Forun Testing & Educational Services, Site 4960 (Calicut).
 Served at `https://fets.online` (host nginx → Docker on Hostinger, `127.0.0.1:3022`), backed by the
-Supabase project `ueufcqmdqtwvhjjyudeu` in `ap-south-1`.
+Supabase project `jnbwgctjrbqbzxuausbe` (fets.online) in `ap-southeast-1`.
 
 The console enforces one flow, in this order:
 
