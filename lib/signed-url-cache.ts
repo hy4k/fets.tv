@@ -15,7 +15,7 @@ type Signer = {
       createSignedUrls(
         paths: string[],
         expiresIn: number,
-      ): PromiseLike<{ data: { path: string | null; signedUrl: string }[] | null; error: unknown }>;
+      ): PromiseLike<{ data: { path: string | null; signedUrl: string | null }[] | null; error: unknown }>;
     };
   };
 };
