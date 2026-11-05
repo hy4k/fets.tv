@@ -35,7 +35,7 @@ e=dict(x.split('=',1) for x in c['Config']['Env'])
 assert c['State']['Running'] and c['Config']['Image']=='fets-tv-fets-tv'
 assert not c['Mounts'],'Unexpected mounts require review'
 assert all(e.get(k)==str(v or '') for k,v in s.get('environment',{}).items()),'Compose environment differs from running app'
-assert e['NEXT_PUBLIC_SUPABASE_URL'].rstrip('/')=='https://ueufcqmdqtwvhjjyudeu.supabase.co'
+assert e['NEXT_PUBLIC_SUPABASE_URL'].rstrip('/')=='https://jnbwgctjrbqbzxuausbe.supabase.co'
 assert e['FETS_LIVE_SUPABASE_URL'].rstrip('/')=='https://qqewusetilxxfvfkmsed.supabase.co'
 assert e.get('SUPABASE_SERVICE_ROLE_KEY') and e.get('FETS_LIVE_SUPABASE_KEY')
 assert all('\n' not in v and '\r' not in v for v in e.values())

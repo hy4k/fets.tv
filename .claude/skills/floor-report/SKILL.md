@@ -15,7 +15,7 @@ printed, so it must be brief, plain and in colour.
 - "Today" means the last day of the range. If that day is still `live`, call it
   out as still open.
 
-## Data (fets.online, project `ueufcqmdqtwvhjjyudeu`)
+## Data (fets.online, project `jnbwgctjrbqbzxuausbe`)
 
 Exclude `no_show` candidates. Count from `candidate_events` (columns on
 `candidates`, such as `called_at`, are cleared when a day closes).
