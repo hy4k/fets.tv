@@ -3,6 +3,8 @@
 # Needs two repository secrets, each a "Session pooler" connection string:
 #   OLD_DB_URL  the old project (ueufcqmdqtwvhjjyudeu)
 #   NEW_DB_URL  the new project (jnbwgctjrbqbzxuausbe)
+# Of storage, only the bucket list moves: the files stay behind, and the
+# other storage tables belong to Supabase.
 # The dump stays on the runner: it holds candidate data, so nothing is uploaded.
 name: Copy database to the new Supabase project
 
@@ -43,7 +45,9 @@ jobs:
         run: |
           supabase db dump --db-url "$OLD_DB_URL" -f roles.sql --role-only
           supabase db dump --db-url "$OLD_DB_URL" -f schema.sql
-          supabase db dump --db-url "$OLD_DB_URL" -f data.sql --use-copy --data-only -x storage.objects
+          supabase db dump --db-url "$OLD_DB_URL" -f data.sql --use-copy --data-only \
+            -x storage.objects -x storage.prefixes -x storage.buckets_vectors -x storage.vector_indexes \
+            -x storage.buckets_analytics -x storage.s3_multipart_uploads -x storage.s3_multipart_uploads_parts
           ls -la *.sql
 
       - name: Restore into the new project, all or nothing
