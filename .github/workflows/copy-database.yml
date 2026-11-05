@@ -48,8 +48,12 @@ jobs:
 
       - name: Restore into the new project, all or nothing
         run: |
+          # The new project manages supabase_admin itself; any setting for it is refused.
+          echo "Role settings carried over (supabase_admin left to the new project):"
+          grep -v '"supabase_admin"' roles.sql > roles.kept.sql
+          cat roles.kept.sql
           psql --single-transaction -v ON_ERROR_STOP=1 \
-            --file roles.sql \
+            --file roles.kept.sql \
             --file schema.sql \
             --command 'SET session_replication_role = replica' \
             --file data.sql \
