@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import type { TvSlide } from "@/lib/tv-channel";
+import { stableSignedUrls } from "@/lib/signed-url-cache";
 
 const COLUMNS =
   "id, center_id, kind, label, fields, link, media_path, media_kind, seconds, starts_on, ends_on, days, from_time, to_time, everywhere, position, active";
@@ -37,11 +38,8 @@ export function useDisplaySlides(centerId: string) {
     }
     const rows = (data ?? []) as TvSlide[];
     const paths = rows.map((s) => s.media_path).filter((p): p is string => !!p);
-    const url = new Map<string, string>();
-    if (paths.length) {
-      const { data: signed } = await db.storage.from("notice-media").createSignedUrls(paths, 60 * 60);
-      for (const s of signed ?? []) if (s.path && s.signedUrl) url.set(s.path, s.signedUrl);
-    }
+    // Reused between the minute's reloads, so the console does not fetch every poster again.
+    const url = paths.length ? await stableSignedUrls(db, "notice-media", paths, 60 * 60) : new Map<string, string>();
     setSlides(rows.map((s) => ({ ...s, media_url: s.media_path ? (url.get(s.media_path) ?? null) : null })));
     setReady(true);
     setLoaded(true);

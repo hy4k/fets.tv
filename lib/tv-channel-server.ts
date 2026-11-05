@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { withSignedMedia } from "@/lib/notice-media";
+import { stableSignedUrls } from "@/lib/signed-url-cache";
 import type { TvSlide } from "@/lib/tv-channel";
 import type { DisplayState } from "@/lib/types";
 
@@ -38,8 +39,8 @@ export async function displaySlides(supabase: SupabaseClient, centerId: string):
   const paths = slides.map((s) => s.media_path).filter((p): p is string => !!p);
   if (paths.length === 0) return slides;
 
-  const { data: signed } = await supabase.storage.from("notice-media").createSignedUrls(paths, SIGNED_URL_SECONDS);
-  const url = new Map((signed ?? []).map((s) => [s.path, s.signedUrl]));
+  // The same link on every push, so the TV downloads each poster once, not every minute.
+  const url = await stableSignedUrls(supabase, "notice-media", paths, SIGNED_URL_SECONDS);
   // The storage key says where things live and is no use to the browser.
   return slides.map((s) => ({ ...s, media_url: s.media_path ? (url.get(s.media_path) ?? null) : null, media_path: null }));
 }
