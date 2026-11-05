@@ -55,11 +55,12 @@ jobs:
             --file data.sql \
             --dbname "$NEW_DB_URL"
 
-      - name: Compare row counts
+      - name: Compare exact row counts
         run: |
-          q="select relname || ' ' || n_live_tup from pg_stat_user_tables where schemaname = 'public' order by relname"
-          psql "$OLD_DB_URL" -c "analyze" >/dev/null 2>&1 || true
-          psql "$NEW_DB_URL" -c "analyze" >/dev/null
-          psql "$OLD_DB_URL" -Atc "$q" > old.txt
-          psql "$NEW_DB_URL" -Atc "$q" > new.txt
-          diff old.txt new.txt && echo "Row counts match."
+          # One "table rows" line per public table, plus the logins.
+          q="select format('select %L || '' '' || count(*) from public.%I;', tablename, tablename) from pg_tables where schemaname = 'public' union all select 'select ''auth.users '' || count(*) from auth.users;' order by 1"
+          psql "$OLD_DB_URL" -v ON_ERROR_STOP=1 -Atc "$q" > count.sql
+          psql "$OLD_DB_URL" -v ON_ERROR_STOP=1 -At -f count.sql > old.txt
+          psql "$NEW_DB_URL" -v ON_ERROR_STOP=1 -At -f count.sql > new.txt
+          cat new.txt
+          diff old.txt new.txt && echo "Every table has the same number of rows in both projects."
