@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import type { TvSlide } from "@/lib/tv-channel";
-import { stableSignedUrls } from "@/lib/signed-url-cache";
+import { mediaUrl } from "@/lib/media-path";
 
 const COLUMNS =
   "id, center_id, kind, label, fields, link, media_path, media_kind, seconds, starts_on, ends_on, days, from_time, to_time, everywhere, position, active";
@@ -12,8 +12,7 @@ const WITH_CODE = `${COLUMNS}, code`;
 
 /**
  * The centre's TV Channel slides, kept fresh when another console changes
- * them. Poster files are signed for this browser, so the console shows the
- * same picture the TV does.
+ * them. Poster files come from the app's own server, the same address the TV uses.
  */
 export function useDisplaySlides(centerId: string) {
   const [slides, setSlides] = useState<TvSlide[]>([]);
@@ -37,10 +36,7 @@ export function useDisplaySlides(centerId: string) {
       return;
     }
     const rows = (data ?? []) as TvSlide[];
-    const paths = rows.map((s) => s.media_path).filter((p): p is string => !!p);
-    // Reused between the minute's reloads, so the console does not fetch every poster again.
-    const url = paths.length ? await stableSignedUrls(db, "notice-media", paths, 60 * 60) : new Map<string, string>();
-    setSlides(rows.map((s) => ({ ...s, media_url: s.media_path ? (url.get(s.media_path) ?? null) : null })));
+    setSlides(rows.map((s) => ({ ...s, media_url: mediaUrl(s.media_path) })));
     setReady(true);
     setLoaded(true);
   }, [centerId]);

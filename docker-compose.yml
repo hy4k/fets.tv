@@ -14,6 +14,10 @@ services:
       FETS_LIVE_SUPABASE_KEY: ${FETS_LIVE_SUPABASE_KEY}
       FETS_ROSTER_CRON_SECRET: ${FETS_ROSTER_CRON_SECRET}
     restart: unless-stopped
+    # Posters, ads and notice files. A named volume outlives every redeploy,
+    # and serving from here costs no Supabase egress (lib/media-path.ts).
+    volumes:
+      - fets-media:/app/media
     # nginx on the host is the front door for fets.online and proxies here,
     # like the other apps on this server (3020, 3021, 3023). Bound to
     # localhost so the app is only reachable through nginx.
@@ -30,6 +34,9 @@ services:
       traefik.http.routers.fets-tv.tls: "true"
       traefik.http.routers.fets-tv.tls.certresolver: "letsencrypt"
       traefik.http.services.fets-tv.loadbalancer.server.port: "3000"
+
+volumes:
+  fets-media:
 
 networks:
   proxy:

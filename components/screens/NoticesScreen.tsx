@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { DisplayBoard } from "@/components/display/DisplayBoard";
 import { useConsole } from "@/lib/console-data";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { uploadMedia } from "@/lib/media-client";
 import { clockAt, fullName, refOf } from "@/lib/format";
 import { useNow } from "@/lib/use-clock";
 import {
@@ -30,7 +31,6 @@ const TONES: { key: NoticeTone; label: string }[] = [
 ];
 
 const MAX_BODY = 280;
-const MAX_FILE_BYTES = 25 * 1024 * 1024;
 
 function kindOf(type: string): NoticeMediaKind {
   if (type.startsWith("image/")) return "image";
@@ -187,14 +187,9 @@ export function NoticesScreen() {
     setFile(next);
     setPreview(next && next.type.startsWith("image/") ? URL.createObjectURL(next) : null);
 
-    // The centre's own folder, which is what both the storage policy and the
-    // posting function insist on. Decided here rather than at send time so a
-    // retry after a failed send reuses the name instead of orphaning a copy.
-    setFilePath(
-      next
-        ? `${center.id}/${crypto.randomUUID()}-${next.name.replace(/[^A-Za-z0-9._-]/g, "-").slice(-80)}`
-        : null,
-    );
+    // The server names the file once it is uploaded; a retry after a failed
+    // send reuses that upload instead of leaving a second copy behind.
+    setFilePath(null);
   }
 
   function reset() {
@@ -233,17 +228,12 @@ export function NoticesScreen() {
       let mediaKind: NoticeMediaKind | null = null;
 
       if (file) {
-        if (file.size > MAX_FILE_BYTES) {
-          // The bucket refuses it anyway; saying so here is kinder than a 400.
-          throw new Error("That file is larger than 25 MB.");
+        // Kept on the app's own server, so the TV showing it costs no Supabase egress.
+        let path = filePath;
+        if (!path) {
+          path = (await uploadMedia(file, "notices")).path;
+          setFilePath(path);
         }
-
-        const path = filePath!;
-
-        const { error } = await supabaseBrowser()
-          .storage.from("notice-media")
-          .upload(path, file, { cacheControl: "3600", upsert: false });
-        if (error) throw new Error(error.message);
 
         mediaPath = path;
         mediaKind = kindOf(file.type);

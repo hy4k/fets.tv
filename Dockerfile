@@ -22,5 +22,7 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/scripts/pull-live-roster.mjs ./scripts/pull-live-roster.mjs
+# Mounted from the fets-media volume; created here so a first start finds it.
+RUN mkdir -p /app/media
 EXPOSE 3000
 CMD ["node", "server.js"]
