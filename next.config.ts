@@ -10,6 +10,9 @@ const nextConfig: NextConfig = {
   output: "standalone",
   basePath,
   env: { NEXT_PUBLIC_BASE_PATH: basePath },
+  // Uploads pass through proxy.ts, which by default cuts a request body at
+  // 10 MB. A video may be 30 MB (lib/media-store.ts); the form adds a little.
+  experimental: { proxyClientMaxBodySize: "32mb" },
   // The console used to live under /tv. Hall TVs and staff bookmarks still
   // point there (fets.online/tv/display/hall1), so send them to the same page
   // at the root. "/tv" on its own is now the staff TV-screen page, so only

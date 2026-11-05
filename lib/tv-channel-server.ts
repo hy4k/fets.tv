@@ -1,12 +1,9 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { withSignedMedia } from "@/lib/notice-media";
-import { stableSignedUrls } from "@/lib/signed-url-cache";
+import { withMediaUrl } from "@/lib/notice-media";
+import { mediaUrl } from "@/lib/media-path";
 import type { TvSlide } from "@/lib/tv-channel";
 import type { DisplayState } from "@/lib/types";
-
-/** As long as a notice's link: a TV is left on all day and re-reads often. */
-const SIGNED_URL_SECONDS = 60 * 60 * 6;
 
 const COLUMNS =
   "id, center_id, kind, label, fields, link, media_path, media_kind, seconds, starts_on, ends_on, days, from_time, to_time, everywhere, position, active";
@@ -36,13 +33,8 @@ export async function displaySlides(supabase: SupabaseClient, centerId: string):
 
   // Over is over; one filter in the query, the date here, keeps the query simple.
   const slides = (data as unknown as TvSlide[]).filter((s) => !s.ends_on || s.ends_on >= yesterday);
-  const paths = slides.map((s) => s.media_path).filter((p): p is string => !!p);
-  if (paths.length === 0) return slides;
-
-  // The same link on every push, so the TV downloads each poster once, not every minute.
-  const url = await stableSignedUrls(supabase, "notice-media", paths, SIGNED_URL_SECONDS);
-  // The storage key says where things live and is no use to the browser.
-  return slides.map((s) => ({ ...s, media_url: s.media_path ? (url.get(s.media_path) ?? null) : null, media_path: null }));
+  // Files are served by this app (see lib/media-path.ts); the path itself goes no further.
+  return slides.map((s) => ({ ...s, media_url: mediaUrl(s.media_path), media_path: null }));
 }
 
 /** Everything one TV shows: the board's state, its notice's file signed, and the slides. */
@@ -52,7 +44,7 @@ export async function loadDisplayState(
   centerId?: string,
 ): Promise<DisplayState | null> {
   const { data } = await supabase.rpc("fets_display_state", { p_display_key: displayKey });
-  const state = await withSignedMedia(supabase, data as DisplayState | null);
+  const state = withMediaUrl(data as DisplayState | null);
   if (!state) return null;
 
   let center = centerId;

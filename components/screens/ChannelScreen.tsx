@@ -11,7 +11,7 @@ import { useConsole } from "@/lib/console-data";
 import { useDisplayHome } from "@/lib/display-home";
 import { useDisplaySlides, useSlideStats, type SlideNumbers } from "@/lib/display-slides";
 import { roomFloor } from "@/lib/room";
-import { supabaseBrowser } from "@/lib/supabase/client";
+import { deleteMedia, tooLarge, uploadMedia } from "@/lib/media-client";
 import {
   ALL_DAYS,
   BOOKING_LINK,
@@ -35,9 +35,6 @@ import {
 } from "@/lib/tv-channel";
 import { useNow } from "@/lib/use-clock";
 
-const MAX_FILE_BYTES = 25 * 1024 * 1024;
-/** A video ad may be longer: about two minutes of 1080p. */
-const MAX_AD_BYTES = 50 * 1024 * 1024;
 
 type Draft = Omit<TvSlide, "id" | "center_id" | "position"> & { id: string | null };
 
@@ -163,8 +160,9 @@ export function ChannelScreen() {
   function chooseFile(next: File | null) {
     if (filePreview) URL.revokeObjectURL(filePreview);
     const ad = draft?.kind === "ad";
-    if (next && next.size > (ad ? MAX_AD_BYTES : MAX_FILE_BYTES)) {
-      notify(ad ? "That video is larger than 50 MB." : "That file is larger than 25 MB.", "error");
+    const big = next ? tooLarge(next) : null;
+    if (big) {
+      notify(big, "error");
       return;
     }
     if (next && !(ad ? /^video\//.test(next.type) : /^(image|video)\//.test(next.type))) {
@@ -186,11 +184,8 @@ export function ChannelScreen() {
     try {
       let next = { ...draft, link };
       if (file) {
-        const path = `${center.id}/slides/${crypto.randomUUID()}-${file.name.replace(/[^A-Za-z0-9._-]/g, "-").slice(-80)}`;
-        const { error } = await supabaseBrowser()
-          .storage.from("notice-media")
-          .upload(path, file, { cacheControl: "3600", upsert: false });
-        if (error) throw new Error(error.message);
+        // Kept on the app's own server, so the TV showing it costs no Supabase egress.
+        const { path } = await uploadMedia(file, "slides");
         next = { ...next, media_path: path, media_kind: file.type.startsWith("video/") ? "video" : "image" };
       }
       if (next.kind === "poster" && !next.media_path && !next.fields.caption?.trim()) {
@@ -229,7 +224,7 @@ export function ChannelScreen() {
 
   async function remove(s: TvSlide) {
     const ok = await rpc("fets_delete_slide", { p_center: center.id, p_slide: s.id }, "Slide deleted");
-    if (ok && s.media_path) void supabaseBrowser().storage.from("notice-media").remove([s.media_path]);
+    if (ok) deleteMedia(s.media_path);
     if (ok) await reload();
   }
 
@@ -474,8 +469,8 @@ export function ChannelScreen() {
                   label={draft.kind === "ad" ? "Video" : "Image or video"}
                   note={
                     draft.kind === "ad"
-                      ? "MP4 up to 50 MB · 16:9 fills the screen"
-                      : "PNG, JPG or MP4 up to 25 MB · 16:9 fills the screen"
+                      ? "MP4 up to 30 MB · 16:9 fills the screen"
+                      : "PNG, JPG or MP4 up to 25 MB (video 30 MB) · 16:9 fills the screen"
                   }
                 >
                   <div className="flex flex-wrap items-center gap-[10px]">

@@ -5,7 +5,8 @@ import { createServerClient } from "@supabase/ssr";
 // session. "/" is the front door and has to be readable by somebody who has
 // not signed in yet — it is matched exactly, so nothing beneath it is opened.
 // /go/<code> is a QR code on the TV, scanned by a phone that never signs in.
-const PUBLIC_PATHS = ["/", "/login", "/display", "/api/display", "/release.json", "/go"];
+// /media/<path> is a poster or video the TV loads; its random name is its key.
+const PUBLIC_PATHS = ["/", "/login", "/display", "/api/display", "/release.json", "/go", "/media"];
 
 export async function proxy(request: NextRequest) {
   // The cron route validates its own constant-time server secret; it has no browser session.
